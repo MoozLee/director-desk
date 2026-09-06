@@ -1,0 +1,114 @@
+import { assertProject, clone, type Project, type Vec3 } from '../model.ts';
+import { entityPosition, entityYaw } from '../timeline.ts';
+import { emptyEditorView } from '../building/floors.ts';
+import { portableRoom } from './portable-room.ts';
+
+export interface MergeSceneOptions {
+    offset: Vec3;
+    timeOffset: number;
+    scheduling: 'keep' | 'reset';
+    cuts: 'keep' | 'insert';
+}
+export interface MergeSceneResult {
+    project: Project;
+    entityIds: Record<string, string>;
+    addedIds: string[];
+    addedResources: number;
+    reusedResources: number;
+    warnings: string[];
+}
+
+/** Pure, atomic merge used by UI and offline/agent workflows. Loading GPU resources belongs to the caller. */
+export function mergeScene(destination: Project, source: Project, options: MergeSceneOptions): MergeSceneResult {
+    assertProject(destination); assertProject(source);
+    if (!options || !Array.isArray(options.offset) || options.offset.length !== 3 || !options.offset.every(Number.isFinite)
+        || !Number.isFinite(options.timeOffset) || options.timeOffset < 0 || !['keep', 'reset'].includes(options.scheduling)
+        || !['keep', 'insert'].includes(options.cuts) || options.scheduling === 'reset' && options.cuts === 'insert')
+        throw Error('场景插入参数无效；清空调度时不能插入原切镜');
+    const p = clone(destination), incoming = portableRoom(source), { offset, timeOffset, scheduling } = options;
+    const initial = scheduling === 'reset' ? new Map(incoming.entities.map(e => [e.id, { position: entityPosition(e, 0).toArray(), yaw: entityYaw(e, 0, incoming) }])) : null;
+    const warnings: string[] = [];
+    const reserved = new Set<string>();
+    for (const data of [destination, incoming]) {
+        data.entities.forEach(e => { reserved.add(e.id); e.clips.forEach(c => reserved.add(c.id)); });
+        data.floors?.forEach(f => reserved.add(f.id)); data.references.forEach(r => reserved.add(r.id));
+        data.production?.notes.forEach(n => reserved.add(n.id));
+    }
+    const fresh = () => { let id: string; do { id = crypto.randomUUID(); } while (reserved.has(id)); reserved.add(id); return id; };
+    const entityMap = new Map(incoming.entities.map(e => [e.id, fresh()])), floorMap = new Map((incoming.floors ?? []).map(f => [f.id, fresh()]));
+    const referenceMap = new Map<string, string>();
+    for (const r of incoming.references) {
+        const existing = p.references.find(other => other.data === r.data);
+        const id = existing?.id ?? fresh(); referenceMap.set(r.id, id);
+        if (!existing) p.references.push({ ...r, id });
+    }
+    let addedResources = 0, reusedResources = 0;
+    for (const r of incoming.resources ?? []) {
+        p.resources ??= []; const existing = p.resources.find(other => other.id === r.id);
+        if (existing) {
+            if (JSON.stringify(existing.package) !== JSON.stringify(r.package)) throw Error(`模型资源标识冲突：${r.name}`);
+            for (const key of ['copyright', 'license', 'source'] as const)
+                if (r[key] && existing[key] !== r[key] && !existing[key].split('\n').includes(r[key])) existing[key] = [existing[key], r[key]].filter(Boolean).join('\n');
+            reusedResources++;
+        } else { p.resources.push(r); addedResources++; }
+    }
+    if (p.resources !== undefined) p.version = 2;
+    const move = (position: Vec3): Vec3 => position.map((v, i) => v + offset[i]) as Vec3;
+    for (const e of incoming.entities) {
+        const originalId = e.id;
+        if (scheduling === 'reset') {
+            e.position = initial!.get(e.id)!.position;
+            if ((e.kind === 'actor' || e.kind === 'crowd') && !e.faceTarget) { e.rotation[1] = initial!.get(e.id)!.yaw; e.face = 'fixed'; }
+            e.path = null; e.clips = []; e.poseKeys = [];
+        } else {
+            e.clips.forEach(c => { c.id = fresh(); c.start += timeOffset; c.end += timeOffset; });
+            e.poseKeys.forEach(k => k.time += timeOffset);
+            if (e.path) {
+                e.path.points.forEach(pt => { pt.position = move(pt.position); pt.time += timeOffset; });
+                e.path.sections?.forEach(s => { s.start += timeOffset; s.end += timeOffset; s.from += timeOffset; s.to += timeOffset; });
+            }
+        }
+        e.position = move(e.position); e.id = entityMap.get(originalId)!;
+        if (e.floorId) e.floorId = floorMap.get(e.floorId)!;
+        if (e.faceTarget) e.faceTarget = entityMap.get(e.faceTarget)!;
+        if (e.reference) e.reference = referenceMap.get(e.reference)!;
+        if (e.handBinding) e.handBinding.actorId = entityMap.get(e.handBinding.actorId)!;
+        if (e.structureLink) e.structureLink.parentId = entityMap.get(e.structureLink.parentId)!;
+        if (e.camera) {
+            if (e.camera.targetId) e.camera.targetId = entityMap.get(e.camera.targetId)!;
+            e.camera.target = move(e.camera.target);
+            if (e.camera.hiddenEntityIds) e.camera.hiddenEntityIds = e.camera.hiddenEntityIds.map(id => entityMap.get(id)!);
+        }
+        p.entities.push(e);
+    }
+    if (incoming.floors?.length) p.floors = [...(p.floors ?? []), ...incoming.floors.map(f => ({ ...f, id: floorMap.get(f.id)!, elevation: f.elevation + offset[1] }))];
+    if (incoming.editorView) {
+        p.editorView ??= emptyEditorView();
+        p.editorView.hiddenEntityIds.push(...incoming.editorView.hiddenEntityIds.map(id => entityMap.get(id)!));
+        p.editorView.hiddenFloorIds.push(...incoming.editorView.hiddenFloorIds.map(id => floorMap.get(id)!));
+    }
+    if (incoming.production) {
+        p.production ??= { fixedPrompt: '', sceneReferenceIds: [], notes: [] };
+        if (incoming.production.fixedPrompt && incoming.production.fixedPrompt !== p.production.fixedPrompt)
+            p.production.fixedPrompt = [p.production.fixedPrompt, incoming.production.fixedPrompt].filter(Boolean).join('\n\n');
+        p.production.sceneReferenceIds = [...new Set([...p.production.sceneReferenceIds, ...incoming.production.sceneReferenceIds.map(id => referenceMap.get(id)!)])];
+        if (scheduling === 'keep') p.production.notes.push(...incoming.production.notes.map(n => ({ ...n, id: fresh(), start: n.start + timeOffset, end: n.end + timeOffset, actorId: n.actorId ? entityMap.get(n.actorId)! : '' })));
+    }
+    if (scheduling === 'keep') p.duration = Math.max(p.duration, timeOffset + source.duration);
+    if (options.cuts === 'insert') {
+        const end = timeOffset + source.duration;
+        const resume = [...destination.cuts].reverse().find(c => c.time <= end)!;
+        p.cuts = [
+            ...p.cuts.filter(c => c.time < timeOffset || c.time >= end),
+            ...incoming.cuts.map(c => ({ time: c.time + timeOffset, cameraId: entityMap.get(c.cameraId)! })),
+        ];
+        if (end < p.duration && !p.cuts.some(c => c.time === end)) p.cuts.push({ time: end, cameraId: resume.cameraId });
+        p.cuts.sort((a, b) => a.time - b.time);
+        warnings.push('插入区间内的原切镜已替换，区间结束后恢复原工程机位。');
+    }
+    if (source.aspect !== destination.aspect || source.fps !== destination.fps) warnings.push('沿用当前工程画幅和帧率；站位与秒数不变，构图边缘可能变化。');
+    if (scheduling === 'reset') warnings.push('已清空插入对象的路径、动作、姿态关键帧与剧情时间备注；保留初始站位、默认姿态及人物／机位绑定。');
+    if (timeOffset > 0 && scheduling === 'keep') warnings.push('开始时间平移调度，不控制对象出现时间；开始前对象仍在场。');
+    assertProject(p);
+    return { project: p, entityIds: Object.fromEntries([...entityMap].filter(([id]) => source.entities.some(e => e.id === id))), addedIds: incoming.entities.map(e => e.id), addedResources, reusedResources, warnings };
+}
