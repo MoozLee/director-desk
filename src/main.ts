@@ -5,6 +5,7 @@ import { editBoundTransform } from './animation/hand-binding.ts';
 import { isAnimalAsset } from './asset-catalog.ts';
 import { createToolService } from './automation/service.ts';
 import { mountAI } from './ui/ai-panel.ts';
+import { mountUpdates } from './ui/update-panel.ts';
 import { recordPositionKey } from './editor/position-keys.ts';
 import * as T from 'three';
 import { extendTimelineView } from './ui/timeline-zoom.ts';
@@ -127,7 +128,7 @@ catch (error) {
     return false;
 } }
 function extendDuration() { for (const e of project.entities) {
-    project.duration = Math.max(project.duration, ...e.clips.map(c => c.end), ...(e.path?.sections?.map(s => s.end) ?? e.path?.points.map(p => p.time) ?? []), ...e.poseKeys.map(k => k.time));
+    project.duration = Math.max(project.duration, ...e.clips.map(c => c.end), ...(e.path?.sections?.map(s => s.end) ?? e.path?.points.map(p => p.time) ?? []), ...e.poseKeys.map(k => k.time), ...(e.camera?.targetPath?.points.map(p => p.time) ?? []));
 } }
 function selectEntity(id: string) { if (draft)
     finishPath(); selected = id; const e = current(); if (!e)
@@ -293,6 +294,11 @@ const commandsUI = createCommands(uiContext);
 const toolService = createToolService(uiContext);
 window.directorDesktop?.onTool((name, args) => toolService.call(name, args));
 mountAI(uiContext);
+mountUpdates(async run => {
+    if (busy || history.pending || draft || document.querySelector('#ai-panel')?.getAttribute('data-running') === 'true') throw Error('请先完成当前编辑、导出或 AI 任务');
+    busy = true; playing = false; clearTimeout(saveTimer);
+    try { await autosave(history.document()); await run(); } finally { busy = false; }
+});
 renderPanels();
 engine.select(selected);
 requestAnimationFrame(frame);

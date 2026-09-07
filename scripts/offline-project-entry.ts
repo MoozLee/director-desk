@@ -63,7 +63,7 @@ async function main(args: string[]) {
         if (options.duration !== undefined) {
             const duration = Number(options.duration), factor = duration / project.duration;
             // Keep a timed template usable when its overall duration is requested to change.
-            for (const e of project.entities) { e.path?.points.forEach(p => { p.time *= factor; }); e.poseKeys.forEach(k => { k.time *= factor; }); e.clips.forEach(c => { c.start *= factor; c.end *= factor; }); }
+            for (const e of project.entities) { e.path?.points.forEach(p => { p.time *= factor; }); e.poseKeys.forEach(k => { k.time *= factor; }); e.camera?.targetPath?.points.forEach(p => { p.time *= factor; }); e.clips.forEach(c => { c.start *= factor; c.end *= factor; }); }
             project.cuts.forEach(c => { c.time *= factor; }); project.duration = duration;
         }
         if (options.fps) project.fps = Number(options.fps); if (options.aspect) project.aspect = options.aspect; if (options.name) project.name = options.name;

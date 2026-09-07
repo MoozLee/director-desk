@@ -8,6 +8,8 @@ import { createReplacePropPanel } from './replace-prop-panel.ts';
 import { createSceneReusePanel } from './scene-reuse-panel.ts';
 import { createCameraVisibilityPanel } from './camera-visibility-panel.ts';
 import { createStructureLinkPanel } from './structure-link-panel.ts';
+import { createCameraLookPanel } from './camera-look-panel.ts';
+import { createZonePanel } from './zone-panel.ts';
 import { createFloorPanel } from './floor-panel.ts';
 import { createPathSurfacePanel } from './path-surface-panel.ts';
 import { createModelImport } from './model-import.ts';
@@ -33,7 +35,7 @@ export function createCommands(ctx: AppContext) {
     const resources = createResourcePanel(ctx), replacements = createReplacePropPanel(ctx);
     const resourceStatistics = createResourceStatisticsPanel(ctx);
     const sceneReuse = createSceneReusePanel(ctx), cameraVisibility = createCameraVisibilityPanel(ctx);
-    const floorPanel = createFloorPanel(ctx);
+    const floorPanel = createFloorPanel(ctx), zonePanel = createZonePanel(ctx), lookPanel = createCameraLookPanel(ctx);
     const structurePanel = createStructureLinkPanel(ctx);
     const surfacePanel = createPathSurfacePanel(ctx);
     const modelImport = createModelImport(ctx);
@@ -55,7 +57,7 @@ export function createCommands(ctx: AppContext) {
         if (sceneReuse.handle(action) || cameraVisibility.handle(action)) return;
         if (surfacePanel.handle(action)) return;
         if (structurePanel.handle(action)) return;
-        if (floorPanel.handle(action)) return;
+        if (floorPanel.handle(action) || zonePanel.handle(action) || lookPanel.handle(action)) return;
         if (spatialPanel.handle(action)) return;
         if (rangePanel.handle(action)) return;
         if (productionPanel.handle(action, el)) return;

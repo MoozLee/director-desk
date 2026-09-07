@@ -12,6 +12,9 @@ Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::Open($tempPath, [System.IO.Compression.ZipArchiveMode]::Create)
 try {
+    $marker = $archive.CreateEntry("DirectorDesk-$version/portable.json")
+    $writer = [IO.StreamWriter]::new($marker.Open())
+    try { $writer.Write('{"portable":true}') } finally { $writer.Dispose() }
     foreach ($file in Get-ChildItem -LiteralPath $payloadRoot -File -Recurse) {
         if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Reparse point in payload' }
         $relative = $file.FullName.Substring($payloadRoot.Length + 1).Replace('\', '/')

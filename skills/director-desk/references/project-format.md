@@ -34,6 +34,8 @@ create/apply/scene 写文件均不覆盖已有输出文件；修改现有工程�
 
 ## v3 多戏段工程与离线编辑
 
+同一戏段的命名区域 `zones` 和摄影机视线关键帧 `camera.targetPath` 也可通过离线 apply 写入，沿用[在线说明](online-workflow.md#多戏段检查与交付)的同一格式。zones 属于当前戏段状态，标记不进入视频；targetPath 使用独立的世界注视点时间表，不能当作摄影机位置路径或人物绑定。
+
 所有模型沿用实体 `color:"#RRGGBB"`，不需要调色板专属数据。导入模型显色还需 `external.appearance:"color"`；设为 `original` 恢复原材质，`white` 为白模。更新 external 时先读现值并保留 resourceId、比例、骨架及其他设置，不能只用 appearance 覆盖整个 external。
 
 ```sh

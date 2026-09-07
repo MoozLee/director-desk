@@ -31,6 +31,7 @@ export function syncFloorElevations(project: Project, before: Project) {
         if (!delta) continue;
         e.position[1] += delta; e.path?.points.forEach(point => { point.position[1] += delta; });
         if (e.camera && !e.camera.targetId && e.camera.aim === 'target') e.camera.target[1] += delta;
+        e.camera?.targetPath?.points.forEach(p => { p.position[1] += delta; });
     }
 }
 /** Explicit organization only; does not teleport objects. Locked or already assigned objects are skipped. */

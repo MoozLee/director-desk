@@ -4,6 +4,8 @@ export interface ConversationSnapshot { sessionId: string; profileId: string; tr
 export interface AgentEvent { type: string; text?: string; name?: string; status?: string; model?: string; channel?: string; sessionId: string; summary?: unknown; usage?: unknown; timing?: { rounds: number; modelMs: number; toolMs: number; toolCalls: number; totalMs: number; firstTextMs?: number } }
 declare global {
     interface Window { directorDesktop?: {
+        update(action: 'state' | 'save' | 'check' | 'download' | 'install' | 'page', data?: unknown): Promise<DesktopResult<import('../updates/types.ts').UpdateState>>;
+        onUpdate(callback: (state: import('../updates/types.ts').UpdateState) => void): () => void;
         profiles(): Promise<DesktopResult<Channel[]>>;
         conversation(): Promise<DesktopResult<ConversationSnapshot>>;
         newConversation(): Promise<DesktopResult<ConversationSnapshot>>;

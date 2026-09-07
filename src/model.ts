@@ -12,6 +12,8 @@ import { assertStructureLinks, type StructureLink } from './building/structure-l
 import { assertFloors, type Floor, type EditorView } from './building/floors.ts';
 import { assertInitialPose, type InitialPose } from './scenes/initial-pose.ts';
 import { assertProductionShape } from './production/validation.ts';
+import { assertCameraLookPath, type CameraLookPath } from './animation/camera-look.ts';
+import { assertZones, type SceneZone } from './building/zones.ts';
 export type Vec3 = [
     number,
     number,
@@ -48,6 +50,7 @@ export interface PoseKey {
     pose: Pose;
 }
 export interface CameraConfig {
+    targetPath?: CameraLookPath | null;
     aim: 'target' | 'manual';
     focal: number;
     target: Vec3;
@@ -107,6 +110,7 @@ export interface ReferenceImage {
 export interface ProductionNote { id: string; start: number; end: number; actorId: string; story: string; emotion: string; dialogue: string; action: string }
 export interface ProductionData { fixedPrompt: string; sceneReferenceIds: string[]; notes: ProductionNote[] }
 export interface Project {
+    zones?: SceneZone[];
     floors?: Floor[];
     editorView?: EditorView;
     format: 'director-desk';
@@ -274,9 +278,11 @@ export function assertProject(input: unknown): asserts input is Project {
             const c = e.camera;
             if (!c || !['target', 'manual'].includes(c.aim) || !n(c.focal) || c.focal < 8 || c.focal > 300 || !v3(c.target) || !v3(c.offset) || !n(c.targetHeight) || typeof c.targetId !== 'string' || !['free', 'follow', 'pov'].includes(c.mode) || typeof c.inheritRotation !== 'boolean' || !Array.isArray(c.hideWalls) || c.hideWalls.some(w => !['north', 'south', 'east', 'west', 'ceiling'].includes(w)))
                 fail('摄影机参数错误');
+            assertCameraLookPath(c!.targetPath);
         }
     }
     assertFloors(p);
+    assertZones(p);
     assertStructureLinks(p);
     const cameras = p.entities.filter(e => e.kind === 'camera');
     for (const e of p.entities) assertExternalModel(e, p);

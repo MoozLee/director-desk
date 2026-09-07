@@ -21,6 +21,10 @@
 
 ## 多戏段、检查与交付
 
+同一戏段可用 project 补丁的 `zones` 整体数组标记空间：`{id,name,color,min:[x,y,z],max:[x,y,z],connectsTo:[区域ID]}`，min/max 是世界坐标范围，每轴 min < max。连接按双向人工说明理解，不表示墙已打通。director_read 返回区域；director_spatial 的对象 zoneIds 按当前原点判断，重叠区域可能同时命中，不表示全身都在区域内。区域只在布景显示，不进入参考视频，也不分割独立戏段。
+
+摄影机可写 `patch.camera.targetPath:{smooth:true,points:[{time:0,position:[0,1,0]},{time:5,position:[3,1,-2]}]}`，时间严格递增；该字段独立于摄影机位置 path。smooth 为注视点的平滑起止，首帧前与末帧后保持端点。独立机位 aim:"target" 和 follow 优先使用该视线，follow 的 targetId 仍用于位置跟随；手动旋转和 POV 不使用它。坐标是静态世界注视点，不是持续绑定人物；设 targetPath:null 恢复普通目标规则。按需使用，不要求每台摄影机配置。
+
 独立戏段与时间轴 cuts 不同。director_scene 的 continue 从当前段最后实际输出帧接拍，源段保持独立；director_continuity 查询保存的前情与末帧站位，director_spatial 查询当前实时状态。历史前情有分页，完整读取时跟随 nextOffset。高级接拍/资源规则按需查询帮助。
 
 director_spatial 的 cameraId:"program" 使用真实节目切镜；入画包围盒与有限射线不是全程无遮挡保证。director_scan 可选区间检查，jobId 通过 director_job 查询；不要密集轮询。末帧根据 fps 计算，例如 10 秒 24fps 为 239/24 秒。

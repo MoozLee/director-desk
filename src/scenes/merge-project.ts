@@ -2,6 +2,7 @@ import { assertProject, clone, type Project, type Vec3 } from '../model.ts';
 import { entityPosition, entityYaw } from '../timeline.ts';
 import { emptyEditorView } from '../building/floors.ts';
 import { portableRoom } from './portable-room.ts';
+import { cameraLookAt } from '../animation/camera-look.ts';
 
 export interface MergeSceneOptions {
     offset: Vec3;
@@ -31,7 +32,7 @@ export function mergeScene(destination: Project, source: Project, options: Merge
     const reserved = new Set<string>();
     for (const data of [destination, incoming]) {
         data.entities.forEach(e => { reserved.add(e.id); e.clips.forEach(c => reserved.add(c.id)); });
-        data.floors?.forEach(f => reserved.add(f.id)); data.references.forEach(r => reserved.add(r.id));
+        data.floors?.forEach(f => reserved.add(f.id)); data.zones?.forEach(z => reserved.add(z.id)); data.references.forEach(r => reserved.add(r.id));
         data.production?.notes.forEach(n => reserved.add(n.id));
     }
     const fresh = () => { let id: string; do { id = crypto.randomUUID(); } while (reserved.has(id)); reserved.add(id); return id; };
@@ -54,6 +55,9 @@ export function mergeScene(destination: Project, source: Project, options: Merge
     }
     if (p.resources !== undefined) p.version = 2;
     const move = (position: Vec3): Vec3 => position.map((v, i) => v + offset[i]) as Vec3;
+    const zoneMap = new Map((incoming.zones ?? []).map(z => [z.id, fresh()]));
+    if (incoming.zones?.length) p.zones = [...(p.zones ?? []), ...incoming.zones.map(z => ({ ...z, id: zoneMap.get(z.id)!, min: move(z.min), max: move(z.max),
+        ...(z.connectsTo ? { connectsTo: z.connectsTo.map(id => zoneMap.get(id)!) } : {}) }))];
     for (const e of incoming.entities) {
         const originalId = e.id;
         if (scheduling === 'reset') {
@@ -75,6 +79,11 @@ export function mergeScene(destination: Project, source: Project, options: Merge
         if (e.handBinding) e.handBinding.actorId = entityMap.get(e.handBinding.actorId)!;
         if (e.structureLink) e.structureLink.parentId = entityMap.get(e.structureLink.parentId)!;
         if (e.camera) {
+            if (e.camera.targetPath) {
+                const route = e.camera.targetPath;
+                if (scheduling === 'reset') route.points = [{ time: 0, position: move(cameraLookAt(route, 0).toArray()) }];
+                else route.points.forEach(point => { point.time += timeOffset; point.position = move(point.position); });
+            }
             if (e.camera.targetId) e.camera.targetId = entityMap.get(e.camera.targetId)!;
             e.camera.target = move(e.camera.target);
             if (e.camera.hiddenEntityIds) e.camera.hiddenEntityIds = e.camera.hiddenEntityIds.map(id => entityMap.get(id)!);

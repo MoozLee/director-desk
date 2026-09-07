@@ -32,6 +32,12 @@ export async function continueScene(engine: Engine, document: SceneDocument, nam
             if (entity.camera) {
                 const camera = engine.cameras.get(entity.id)!;
                 entity.position = camera.position.toArray(); entity.rotation = [camera.rotation.x, camera.rotation.y, camera.rotation.z];
+                if (entity.camera.targetPath) {
+                    if (entity.camera.mode !== 'pov' && (entity.camera.mode === 'follow' || entity.camera.aim === 'target')) {
+                        entity.camera.mode = 'free'; entity.camera.aim = 'manual'; entity.camera.targetId = '';
+                    }
+                    entity.camera.targetPath = null;
+                }
             }
         }
         project.cuts = [{ time: 0, cameraId }];

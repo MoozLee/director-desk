@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, protocol, dialog } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { attachIntegration } = require('./integration.cjs');
+const { attachUpdates } = require('./updates.cjs');
 
 const origin = 'director://app';
 protocol.registerSchemesAsPrivileged([{ scheme: 'director', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
@@ -16,7 +17,7 @@ function createWindow() {
     window = new BrowserWindow({ width: 1600, height: 1000, minWidth: 1000, minHeight: 720, show: false,
         title: '导演台', backgroundColor: '#101214', icon: path.join(__dirname, 'icon.ico'),
         webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, spellcheck: false } });
-    attachIntegration(window);
+    const integration = attachIntegration(window), updates = attachUpdates(window, integration);
     Menu.setApplicationMenu(null);
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event, url) => { if (url !== origin + '/') event.preventDefault(); });
@@ -24,6 +25,7 @@ function createWindow() {
     window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     window.webContents.session.setPermissionCheckHandler(() => false);
     window.webContents.on('will-prevent-unload', event => {
+        if (updates.isQuitting()) { event.preventDefault(); return; }
         const choice = dialog.showMessageBoxSync(window, { type: 'question', title: '关闭导演台',
             message: '当前工程尚未导出为项目文件，仍要关闭吗？', detail: '自动恢复副本保存在本机。需要独立备份时，请返回并保存项目。',
             buttons: ['返回编辑', '关闭'], defaultId: 0, cancelId: 0, noLink: true });

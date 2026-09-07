@@ -1,4 +1,5 @@
 import { Object3D, Quaternion, Vector3 } from 'three';
+import { zonesAt } from '../building/zones.ts';
 import { inheritedPoseAt } from '../scenes/initial-pose.ts';
 import { isAnimalAsset } from '../asset-catalog.ts';
 import { worldContactAnchors } from '../assets/contact-anchors.ts';
@@ -19,6 +20,7 @@ import { boundsData, boxRelationship, frameBounds, geometryBounds, type BoundsDa
 
 export interface SpatialOptions { time?: number; cameraId?: string; includeCrowdMembers?: boolean; occlusionKeys?: string[] }
 export interface SpatialObject {
+    zoneIds?: string[];
     key: string;
     entityId: string | null;
     floorId?: string;
@@ -54,6 +56,7 @@ export interface SpatialReport {
     counts: { entities: number; people: number; enabledPeople: number; animals?: number; enabledAnimals?: number; crowdMembersIncluded: boolean };
     objects: SpatialObject[];
     floors?: Engine['project']['floors'];
+    zones?: Engine['project']['zones'];
     limitations: string[];
 }
 
@@ -76,6 +79,7 @@ export function collectSpatialReport(engine: Engine, cameraId: string, includeCr
             headingDegrees: Math.hypot(forward.x, forward.z) < 1e-7 ? null : Math.atan2(forward.x, forward.z) * 180 / Math.PI,
             bounds: box ? boundsData(box) : null, framing });
         if (entity?.floorId) objects.at(-1)!.floorId = entity.floorId;
+        if (p.zones?.length) objects.at(-1)!.zoneIds = zonesAt(p, objects.at(-1)!.origin);
         if (entity?.initialPose) {
             const active = inheritedPoseAt(entity, engine.time);
             objects.at(-1)!.inheritedPose = { active, nodeCount: entity.initialPose.nodes.length };
@@ -139,7 +143,7 @@ export function collectSpatialReport(engine: Engine, cameraId: string, includeCr
             focal: config.focal, hiddenWalls: [...config.hideWalls], hiddenEntityIds: [...(config.hiddenEntityIds ?? [])], hiddenHeadEntityId: hiddenHeadId },
         counts: { entities: p.entities.length, people: people.reduce((sum, e) => sum + (e.kind === 'crowd' ? e.count : 1), 0),
             enabledPeople: people.filter(e => shotEntityVisible(p, e, config)).reduce((sum, e) => sum + (e.kind === 'crowd' ? e.count : 1), 0), animals: animals.length, enabledAnimals: animals.filter(e => shotEntityVisible(p, e, config)).length, crowdMembersIncluded: includeCrowdMembers },
-        objects, floors: p.floors ? structuredClone(p.floors) : undefined,
+        objects, floors: p.floors ? structuredClone(p.floors) : undefined, zones: p.zones ? structuredClone(p.zones) : undefined,
         limitations: ['边界为当前几何顶点的世界轴对齐包围盒，包含姿态、旋转和缩放；群演组边界包含成员之间的空隙。',
             '包围盒重叠仅表示可能接近或相交，不是身体或道具碰撞结论。',
             '入画检查包围盒与摄影机视锥；仅 visibility 字段存在的对象进行了身体和脸部朝向／射线采样检查，其他对象遮挡未检查。采样结果不代表像素面积或画面美感。',

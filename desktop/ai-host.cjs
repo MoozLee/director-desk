@@ -110,6 +110,7 @@ function createAIHost({ directory, safeStorage, definitions, discussionTools, is
             const next = conversationChanges.then(() => { if (running) throw Error('请先停止当前 AI 任务'); return conversation.reset(); });
             conversationChanges = next.catch(() => {}); return next;
         },
+        isRunning: () => Boolean(running),
         stop: () => { running?.controller.abort(); },
         test: async id => { await ready; await configuring; if (running) throw new Error('已有请求正在执行'); const p = profiles.find(p => p.id === id); if (!p) throw new Error('请先保存渠道');
             const controller = new AbortController(); running = { controller };

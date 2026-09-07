@@ -35,7 +35,7 @@ export function mountAI(ctx: AppContext) {
     }); };
     find('ai-remove').onclick = () => { if (bridge && find('ai-edit-channel').value) safe(async () => { profiles = check(await bridge.configure({ removeId: find('ai-edit-channel').value })); refresh(); editing(); }); };
     find('ai-test').onclick = () => { if (bridge && !active) safe(async () => { busy(true); try { status('正在进行小规模连通测试…'); check(await bridge.test(find('ai-edit-channel').value || find('ai-channel').value)); status('连通测试通过；工具能力仍需任务验证。'); } finally { busy(false); } }); };
-    function busy(value: boolean) { active = value; find('ai-background-stop').hidden = !value; find('ai-send').disabled = value; find('ai-test').disabled = value; find('ai-stop').disabled = !value; find('ai-channel').disabled = value; find('ai-mode').disabled = value; find('ai-new').disabled = value; }
+    function busy(value: boolean) { active = value; panel.dataset.running = String(value); find('ai-background-stop').hidden = !value; find('ai-send').disabled = value; find('ai-test').disabled = value; find('ai-stop').disabled = !value; find('ai-channel').disabled = value; find('ai-mode').disabled = value; find('ai-new').disabled = value; }
     find('ai-send').onclick = () => { if (!bridge || active) return; const prompt = find('ai-prompt').value.trim(); if (!prompt) return;
         const profile = profiles.find(p => p.id === find('ai-channel').value); if (!profile) { status('请先保存渠道'); return; }
         busy(true); log('\n你：' + prompt + '\nAI：'); find('ai-prompt').value = '';
@@ -65,5 +65,5 @@ export function mountAI(ctx: AppContext) {
         if (profiles.some(p => p.id === conversation.profileId)) find('ai-channel').value = conversation.profileId;
         if (conversation.transcript) status('已恢复本机对话，可继续；点击新对话才清空。');
     });
-    else panel.querySelectorAll<HTMLButtonElement | HTMLInputElement>('input,select,textarea,button').forEach(e => { if (e.id !== 'ai-close' && !e.dataset.aiView) e.disabled = true; });
+    else panel.querySelectorAll<HTMLButtonElement | HTMLInputElement>('input,select,textarea,button').forEach(e => { if (!['ai-close', 'ai-collapse'].includes(e.id) && !e.dataset.aiView) e.disabled = true; });
 }

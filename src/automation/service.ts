@@ -73,7 +73,7 @@ export function createToolService(ctx: AppContext) {
             if (args.resourceId !== undefined && !resource) throw Error('模型资源不存在');
             return { revision: currentRevision(), sceneContext: ctx.scenes?.context, scenes: ctx.scenes?.list(), name: ctx.project.name, duration: ctx.project.duration, fps: ctx.project.fps, aspect: ctx.project.aspect,
                 ...(resource ? { model: ctx.engine.externalModels.inspection(resource) } : {}),
-                time: ctx.time, cameraId: ctx.preview, selectedId: ctx.selected, room: ctx.project.room, floors: ctx.project.floors ?? [], editorView: ctx.project.editorView, cuts: ctx.project.cuts,
+                time: ctx.time, cameraId: ctx.preview, selectedId: ctx.selected, room: ctx.project.room, floors: ctx.project.floors ?? [], zones: ctx.project.zones ?? [], editorView: ctx.project.editorView, cuts: ctx.project.cuts,
                 references: ctx.project.references.map(({ id, name }) => ({ id, name })), production: productionData(ctx.project),
                 resources: (ctx.project.resources ?? []).map(({ package: _package, ...metadata }) => metadata),
                 ...(args.details || resource ? { resourceUsage: resourceUsage(ctx.project).filter(r => !resource || r.id === resource.id).map(r => ({ ...r, sceneReferences: ctx.scenes?.resourceScenes(r.id) ?? [], used: ctx.scenes ? ctx.scenes.resourceScenes(r.id).length > 0 : r.used })) } : {}),

@@ -1,4 +1,6 @@
 import { fitFeetToSurface } from './editor/foot-contact.ts';
+import { cameraLookAt } from './animation/camera-look.ts';
+import { addZoneHelpers } from './editor/zone-helpers.ts';
 import { InitialPoseRuntime } from './scenes/initial-pose-runtime.ts';
 import { inheritedPoseAt } from './scenes/initial-pose.ts';
 import { shotEntityVisible } from './scenes/camera-visibility.ts';
@@ -331,7 +333,7 @@ export class Engine {
             this.syncProxy();
         this.selectionBox?.update();
     }
-    targetPosition(e: Entity) { const c = e.camera!; const target = this.project.entities.find(x => x.id === c.targetId); return target ? (target.handBinding ? this.models.get(target.id)!.position.clone() : entityPosition(target, this.time)).add(new T.Vector3(0, c.targetHeight, 0)) : new T.Vector3(...c.target); }
+    targetPosition(e: Entity) { const c = e.camera!; if (c.targetPath) return cameraLookAt(c.targetPath, this.time); const target = this.project.entities.find(x => x.id === c.targetId); return target ? (target.handBinding ? this.models.get(target.id)!.position.clone() : entityPosition(target, this.time)).add(new T.Vector3(0, c.targetHeight, 0)) : new T.Vector3(...c.target); }
     cameraEntity(id = this.previewId) { const realId = id === 'program' ? activeCameraId(this.project, this.time) : id; return this.project.entities.find(e => e.id === realId && e.kind === 'camera') ?? this.project.entities.find(e => e.kind === 'camera')!; }
     getShotCamera(id = this.previewId) { return this.cameras.get(this.cameraEntity(id).id)!; }
     spatialReport(options: SpatialOptions = {}) {
@@ -420,6 +422,7 @@ export class Engine {
         grid.material.transparent = true;
         grid.material.opacity = .24;
         this.helpers.add(grid);
+        addZoneHelpers(this.helpers, this.project.zones ?? []);
         const e = this.project.entities.find(x => x.id === this.selected);
         if (e && editorEntityVisible(this.project, e)) {
             const root = this.models.get(e.id);

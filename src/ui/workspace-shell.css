@@ -41,7 +41,7 @@
 .scene-object-browser{display:flex;flex-direction:column;min-width:0;min-height:0;width:100%;gap:8px;padding:0 0 8px}
 .object-filters{display:grid;gap:6px;padding:0 12px}
 .object-filters select,.object-filters button{height:30px;min-height:30px;width:100%;font-size:11px;padding:4px 7px}
-.object-floor-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.object-floor-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px}
 .object-list{flex:1;min-height:0}
 .object-list .object-row{height:34px;padding:5px 8px 5px 12px;gap:6px;font-size:11px}
 .object-list .object-row small{font-size:9px;color:#888;flex-shrink:0}
