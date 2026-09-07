@@ -41,6 +41,59 @@ async function cleanup(directory) {
     assert.match(path.basename(resolved), /^director-(?:config|rounds)-/);
     await fs.rm(resolved, { recursive: true, force: true });
 }
+test('embedded skill is inserted once per retained version, survives restart, and refreshes after changes or new chat', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'director-rounds-')), bodies = [];
+    const server = http.createServer(async (req, res) => {
+        let raw = ''; for await (const part of req) raw += part; bodies.push(JSON.parse(raw));
+        res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '完成' } }] }));
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const deps = { directory, safeStorage: { isEncryptionAvailable: () => false }, ...toolPolicy, send() {}, callTool: async () => ({ ok: true, data: { revision: 1 } }) };
+    const skill = version => ({ name: 'director-desk', version, instructions: 'SKILL_BODY_' + version });
+    try {
+        let host = createAIHost({ ...deps, skill: skill('v1') });
+        const [p] = await host.configure({ baseUrl: `http://127.0.0.1:${server.address().port}/v1`, protocol: 'chat', model: 'mock', stream: false, maxTokens: 1000 });
+        const run = () => host.run({ profileId: p.id, prompt: '修改当前工程' });
+        await run(); await run();
+        host = createAIHost({ ...deps, skill: skill('v1') }); await run();
+        host = createAIHost({ ...deps, skill: skill('v2') }); await run();
+        host = createAIHost({ ...deps, skill: skill('v1') }); await run();
+        await host.newConversation(); await run();
+        assert.deepEqual(bodies.map(b => (JSON.stringify(b.messages).match(/SKILL_BODY_/g) || []).length), [1, 1, 1, 2, 3, 1]);
+        assert.ok(bodies.every(b => !b.messages[0].content.includes('SKILL_BODY_')), 'instructions stay in retained history, not repeated system text');
+        assert.ok(!(await host.conversation()).transcript.includes('SKILL_BODY_'), 'internal instructions do not clutter the chat UI');
+    } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); await cleanup(directory); }
+});
+test('revision conflict reaches the model for correction without replaying a successful edit or creating a scene', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'director-rounds-'));
+    const calls = []; let requests = 0;
+    const server = http.createServer(async (req, res) => {
+        let raw = ''; for await (const chunk of req) raw += chunk;
+        const body = JSON.parse(raw); requests++;
+        const call = (id, name, args) => ({ id, type: 'function', function: { name, arguments: JSON.stringify(args) } });
+        let tools = [];
+        if (requests === 1) tools = [call('first', 'director_apply', { requestId: 'first', revision: 1 }), call('stale', 'director_apply', { requestId: 'stale', revision: 1 })];
+        if (requests === 2) {
+            assert.match(body.messages.at(-1).content, /REVISION_CONFLICT/);
+            tools = [call('read-fresh', 'director_read', {})];
+        }
+        if (requests === 3) tools = [call('corrected', 'director_apply', { requestId: 'corrected', revision: 2 })];
+        res.end(JSON.stringify({ choices: [{ finish_reason: tools.length ? 'tool_calls' : 'stop', message: { role: 'assistant', content: tools.length ? '' : '已在当前场修改', ...(tools.length ? { tool_calls: tools } : {}) } }] }));
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    try {
+        const host = createAIHost({ directory, safeStorage: { isEncryptionAvailable: () => false }, ...toolPolicy, send() {},
+            callTool: async (name, args) => {
+                calls.push({ name, ...args });
+                return args.requestId === 'stale' ? { ok: false, error: 'REVISION_CONFLICT', revision: 2 } : { ok: true, data: { revision: 2 } };
+            } });
+        const [p] = await host.configure({ baseUrl: `http://127.0.0.1:${server.address().port}/v1`, protocol: 'chat', model: 'mock', stream: false, maxTokens: 1000 });
+        const result = await host.run({ profileId: p.id, prompt: '修改当前人物走位' });
+        assert.equal(result.stopped, undefined); assert.equal(requests, 4);
+        assert.deepEqual(calls.map(c => c.requestId || c.name), ['director_read', 'first', 'stale', 'director_read', 'corrected']);
+        assert.match((await host.conversation()).transcript, /REVISION_CONFLICT/);
+    } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); await cleanup(directory); }
+});
 test('task snapshot stays before tool turns, survives restart, and is not reinserted after newer tool results', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'director-rounds-'));
     const bodies = []; let revision = 1;

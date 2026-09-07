@@ -1,9 +1,11 @@
 {
   "name": "director-desk",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/build-builtin-skill.mjs",
+    "prebuild": "node scripts/build-builtin-skill.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "postbuild": "node scripts/build-offline-skill.mjs && node scripts/check-release-privacy.mjs",

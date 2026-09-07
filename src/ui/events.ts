@@ -43,7 +43,7 @@ export function bindEvents(ctx: AppContext) {
             ctx.renderInspector();
             return;
         }
-        const view = target.closest<HTMLElement>('[data-view]');
+        const view = target.closest<HTMLElement>('.view-modes button[data-view]');
         if (view) {
             ctx.setView(view.dataset.view!);
             return;

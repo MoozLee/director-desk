@@ -15,6 +15,7 @@ declare global {
         stop(): Promise<DesktopResult>;
         mcp(enabled?: boolean): Promise<DesktopResult<{ enabled: boolean; url?: string }>>;
         copyMcp(): Promise<DesktopResult>;
+        copyText?(text: string): Promise<DesktopResult>;
         resetMcp(): Promise<DesktopResult<{ enabled: boolean; url?: string }>>;
         onEvent(callback: (event: AgentEvent) => void): () => void;
         onTool(callback: (name: string, args: Record<string, unknown>) => Promise<unknown>): () => void;

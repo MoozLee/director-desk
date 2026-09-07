@@ -2,13 +2,16 @@ import type { AppContext } from '../app-context.ts';
 import { clone, outputSize, uid, type ProductionNote } from '../model.ts';
 import { productionData, putNote, safeFilename } from '../production/notes.ts';
 import { productionEntries } from '../production/bundle.ts';
+import { scenePromptFile } from '../production/prompts.ts';
 import { createZip } from '../production/zip.ts';
 import { download } from '../storage.ts';
 import { $, button, escape, options } from './common.ts';
+import { copyText } from './clipboard.ts';
 import './production-panel.css';
 
 export function createProductionPanel(ctx: AppContext) {
     let noteId = '', aborter: AbortController | null = null;
+    let promptSceneId = '', promptSessionId = '', promptSceneName = '', promptOriginal = '';
     function noteFromForm(): ProductionNote {
         if (!$('#note-start').value.trim() || !$('#note-end').value.trim()) throw new Error('请输入备注开始和结束时间');
         return { id: noteId || uid(), start: Number($('#note-start').value), end: Number($('#note-end').value), actorId: $('#note-actor').value,
@@ -38,7 +41,7 @@ export function createProductionPanel(ctx: AppContext) {
     function openNotes() {
         ctx.playing = false; ctx.updateTimeUI();
         ctx.showModal('制作备注', `<div class="production-note-nav"><label>时间备注<select id="note-select"></select></label>${button('production-new-note', '新建', 'plus', 'subtle')}${button('production-delete-note', '删除本条', 'trash', 'subtle')}</div><div class="production-times"><label>开始 / 秒<input id="note-start" type="number" min="0" step=".1"/></label><label>结束 / 秒<input id="note-end" type="number" min="0" step=".1"/></label><label>关联角色<select id="note-actor">${options([['', '未指定'], ...ctx.project.entities.filter(e => e.kind === 'actor').map(e => [e.id, e.name] as [string, string])], '')}</select></label></div><div class="production-note-fields">${(['story', 'emotion', 'dialogue', 'action'] as const).map(key => `<label>${({ story: '剧情', emotion: '情绪', dialogue: '台词原文', action: '动作意图' })[key]}<textarea id="note-${key}" maxlength="20000"></textarea></label>`).join('')}</div><p id="note-status" role="status"></p>`,
-            button('production-save-note', '保存备注', '', 'primary') + button('production-note-seek', '跳到开始时间', '', 'subtle') + button('production-references', '角色与参考图', '', 'subtle') + button('production-delivery', '素材包导出', 'download', 'subtle'));
+            button('production-save-note', '保存备注', '', 'primary') + button('production-note-seek', '跳到开始时间', '', 'subtle') + button('production-references', '角色与参考图', '', 'subtle') + button('production-prompt', '视频提示词', '', 'subtle') + button('production-delivery', '素材包导出', 'download', 'subtle'));
         $('.modal').classList.add('production-modal');
         fillNote(productionData(ctx.project).notes.some(n => n.id === noteId) ? noteId : '');
         $('.modal').addEventListener('director-before-close', event => { if (!saveNote()) event.preventDefault(); });
@@ -60,10 +63,31 @@ export function createProductionPanel(ctx: AppContext) {
         update();
     }
     function openDelivery() {
-        ctx.showModal('导出制作素材包', `<label>固定提示词头<textarea id="production-fixed-prompt" maxlength="50000" placeholder="粘贴项目已确认的风格、声音与表演要求"></textarea></label><label class="range-occlusion"><input id="production-with-video" type="checkbox" checked/>包含按切镜输出的整场 MP4（无声参考）</label><label>视频分辨率<select id="production-video-size">${options([['1920', '1080p 级'], ['1280', '720p 级'], ['640', '360p 级']], '1920')}</select></label><p>ZIP 内的工程包含全部独立戏段；视频、参考图、角色对应关系、切镜及剧情提示词素材只导出当前戏段。备注不自动烧录为字幕或配音。</p><p id="production-progress" role="status">固定头编辑后离开输入框会保存到工程。导出过程中可以取消。</p>`,
-            button('production-export-bundle', '导出 ZIP', 'download', 'primary') + button('production-cancel', '取消导出', '', 'subtle', 'disabled') + button('production-notes', '返回备注', '', 'subtle'));
+        ctx.showModal('导出制作素材包', `<label>固定提示词头<textarea id="production-fixed-prompt" maxlength="50000" placeholder="粘贴项目已确认的风格、声音与表演要求"></textarea></label><label class="range-occlusion"><input id="production-with-video" type="checkbox" checked/>包含按切镜输出的整场 MP4（无声参考）</label><label>视频分辨率<select id="production-video-size">${options([['1920', '1080p 级'], ['1280', '720p 级'], ['640', '360p 级']], '1920')}</select></label><p>ZIP 内的工程包含全部独立戏段；逐场提示词包含各戏段已保存的文稿；视频、参考图、角色对应关系、切镜及剧情备注只导出当前戏段。备注不自动烧录为字幕或配音。</p><p id="production-progress" role="status">固定头编辑后离开输入框会保存到工程。导出过程中可以取消。</p>`,
+            button('production-export-bundle', '导出 ZIP', 'download', 'primary') + button('production-cancel', '取消导出', '', 'subtle', 'disabled') + button('production-prompt', '视频提示词', '', 'subtle') + button('production-notes', '返回备注', '', 'subtle'));
         $('.modal').classList.add('production-modal'); $('#production-fixed-prompt').value = productionData(ctx.project).fixedPrompt;
         $('#production-fixed-prompt').addEventListener('change', () => ctx.change(() => { ctx.project.production ??= productionData(ctx.project); ctx.project.production.fixedPrompt = $('#production-fixed-prompt').value; }, false));
+    }
+    function savePrompt(): boolean {
+        const input = document.querySelector<HTMLTextAreaElement>('#production-prompt-text');
+        if (!input || input.value === promptOriginal) return true;
+        if (promptSceneId !== ctx.scenes.context.sceneId || promptSessionId !== ctx.scenes.context.sessionId) {
+            ctx.toast('戏段已切换，这份文稿未写入其他戏段；仍可复制或导出 TXT。', true); return true;
+        }
+        const saved = ctx.change(() => { ctx.project.production ??= productionData(ctx.project); ctx.project.production.promptText = input.value; }, false);
+        if (saved) promptOriginal = input.value;
+        return saved;
+    }
+    function openPrompt() {
+        promptSceneId = ctx.scenes.context.sceneId; promptSessionId = ctx.scenes.context.sessionId;
+        promptSceneName = ctx.scenes.list().find(scene => scene.id === promptSceneId)!.name;
+        promptOriginal = productionData(ctx.project).promptText ?? '';
+        ctx.showModal(`${escape(promptSceneName)} · 视频提示词`, `<label class="production-prompt-field">完整提示词<textarea id="production-prompt-text" maxlength="100000" placeholder="本场还没有保存提示词。可让 AI 为本场生成，也可手动粘贴。"></textarea></label><p>各戏段分别保存，可撤销。修改剧情、画幅或切镜后，请同步更新这份文稿；导出素材包会附带各戏段已保存的提示词。</p>`,
+            button('production-download-prompt', '导出 TXT', 'download', 'primary') + button('production-copy-prompt', '复制全文', '', 'subtle') + button('production-delivery', '素材包导出', '', 'subtle') + button('production-notes', '返回备注', '', 'subtle'));
+        $('.modal').classList.add('production-modal'); $('#production-prompt-text').value = productionData(ctx.project).promptText ?? '';
+        $('#production-prompt-text').focus();
+        $('#production-prompt-text').addEventListener('change', savePrompt);
+        $('.modal').addEventListener('director-before-close', event => { if (!savePrompt()) event.preventDefault(); });
     }
     async function exportBundle() {
         const project = clone(ctx.project), includeVideo = $('#production-with-video').checked, [width, height] = outputSize(project.aspect, Number($('#production-video-size').value));
@@ -95,7 +119,7 @@ export function createProductionPanel(ctx: AppContext) {
         if (action === 'production-delete-note') {
             if (noteId && ctx.change(() => { ctx.project.production!.notes = ctx.project.production!.notes.filter(n => n.id !== noteId); }, false)) fillNote(''); return true;
         }
-        if (!saveNote()) return true;
+        if (!saveNote() || !savePrompt()) return true;
         if (action === 'production-open-note') {
             const note = productionData(ctx.project).notes.find(n => n.id === el?.dataset.noteId);
             if (note) { noteId = note.id; ctx.seek(note.start); openNotes(); } return true;
@@ -105,6 +129,14 @@ export function createProductionPanel(ctx: AppContext) {
         if (action === 'production-note-seek') { const at = Number($('#note-start').value); ctx.closeModal(); ctx.seek(at); }
         if (action === 'production-references') openReferences();
         if (action === 'production-delivery') openDelivery();
+        if (action === 'production-prompt') openPrompt();
+        if (action === 'production-download-prompt' || action === 'production-copy-prompt') {
+            const text = $('#production-prompt-text').value;
+            const file = scenePromptFile({ name: promptSceneName, production: { ...productionData(ctx.project), promptText: text } });
+            if (!file) ctx.toast('当前戏段尚未填写完整提示词。');
+            else if (action === 'production-download-prompt') download(file.data, file.name);
+            else void copyText(text).then(() => ctx.toast('已复制提示词。'), () => ctx.toast('复制失败，可选中文字复制或导出 TXT。', true));
+        }
         if (action === 'production-export-bundle') void exportBundle();
         if (action === 'production-add-scene-reference' || action === 'production-remove-scene-reference') {
             const id = $('#production-scene-reference').value;

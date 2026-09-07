@@ -48,7 +48,8 @@ export function bindResizableLayout() {
             const step = key === 'split' ? 2 : 10;
             if (['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp', 'Home'].includes(event.key)) {
                 event.preventDefault(); event.stopPropagation();
-                layout[key] = event.key === 'Home' ? defaults[key] : layout[key] + (['ArrowRight', 'ArrowUp'].includes(event.key) ? step : -step);
+                const grow = key === 'inspector' ? ['ArrowLeft', 'ArrowUp'] : ['ArrowRight', 'ArrowUp'];
+                layout[key] = event.key === 'Home' ? defaults[key] : layout[key] + (grow.includes(event.key) ? step : -step);
                 apply(); save();
             }
         });

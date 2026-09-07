@@ -1,10 +1,8 @@
 const { ipcMain, app, safeStorage, clipboard } = require('electron');
 const { randomUUID } = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
 const { createAIHost } = require('./ai-host.cjs');
 const { createMcpHost } = require('./mcp-host.cjs');
-const { TOOL_DEFINITIONS, MCP_TOOL_DEFINITIONS, DISCUSSION_TOOLS, isDiscussionToolCall } = require('./tools-contract.cjs');
+const { TOOL_DEFINITIONS, MCP_TOOL_DEFINITIONS, DISCUSSION_TOOLS, isDiscussionToolCall, BUILTIN_SKILL } = require('./tools-contract.cjs');
 function attachIntegration(window) {
     const pending = new Map(); let ready = false;
     const trusted = event => event.sender === window.webContents && event.senderFrame?.url === 'director://app/';
@@ -15,7 +13,7 @@ function attachIntegration(window) {
     });
     const mcp = createMcpHost({ directory: app.getPath('userData'), safeStorage, definitions: MCP_TOOL_DEFINITIONS, call: callTool, version: app.getVersion() });
     const host = createAIHost({ directory: app.getPath('userData'), safeStorage, definitions: TOOL_DEFINITIONS, discussionTools: DISCUSSION_TOOLS, isDiscussionToolCall, callTool,
-        workflow: fs.readFileSync(path.join(app.getAppPath(), 'skills/director-desk/references/online-workflow.md'), 'utf8'),
+        skill: BUILTIN_SKILL,
         send: data => { if (!window.isDestroyed()) window.webContents.send('director-ai-event', data); } });
     const resultHandler = (event, data) => { if (!trusted(event) || !data || !pending.has(data.id)) return; const item = pending.get(data.id); clearTimeout(item.timer); pending.delete(data.id); item.resolve(data.result); };
     const readyHandler = event => { if (trusted(event)) ready = true; };
@@ -37,6 +35,9 @@ function attachIntegration(window) {
                 result = await mcp.reset();
             } else if (action === 'copy-mcp') {
                 clipboard.writeText(JSON.stringify(await mcp.connection(), null, 2)); result = true;
+            } else if (action === 'copy-text') {
+                if (typeof data !== 'string' || data.length > 100000) throw new Error('复制内容无效或超过 100000 字');
+                clipboard.writeText(data); result = true;
             } else throw new Error('未知桌面操作');
             return { ok: true, data: result };
         } catch (e) { return { ok: false, error: e.message }; }

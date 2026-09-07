@@ -108,7 +108,7 @@ export interface ReferenceImage {
     data: string;
 }
 export interface ProductionNote { id: string; start: number; end: number; actorId: string; story: string; emotion: string; dialogue: string; action: string }
-export interface ProductionData { fixedPrompt: string; sceneReferenceIds: string[]; notes: ProductionNote[] }
+export interface ProductionData { fixedPrompt: string; sceneReferenceIds: string[]; notes: ProductionNote[]; promptText?: string }
 export interface Project {
     zones?: SceneZone[];
     floors?: Floor[];

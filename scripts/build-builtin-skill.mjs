@@ -1,0 +1,12 @@
+import fs from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+
+// The skill changes with its instructions/contracts, not with the application version.
+const sources = ['skills/director-desk/SKILL.md', 'skills/director-desk/references/online-workflow.md',
+    'skills/director-desk/references/project-format.md', 'src/automation/contract.ts', 'src/automation/tool-summaries.ts'];
+const contents = await Promise.all(sources.map(file => fs.readFile(file, 'utf8').then(text => text.replace(/\r\n/g, '\n'))));
+const version = 'sha256:' + createHash('sha256').update(JSON.stringify(contents)).digest('hex');
+const payload = { name: 'director-desk', version, instructions: contents[1] };
+const destination = 'src/automation/builtin-skill.json', text = JSON.stringify(payload, null, 2) + '\n';
+if (await fs.readFile(destination, 'utf8').catch(() => '') !== text) await fs.writeFile(destination, text);
+console.log('Built versioned embedded director skill.');

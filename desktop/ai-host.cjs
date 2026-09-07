@@ -4,7 +4,7 @@ const { randomUUID } = require('node:crypto');
 const { validateProfile, complete } = require('./providers.cjs');
 const { createConversation } = require('./ai-conversation.cjs');
 const { DIRECTOR_SYSTEM_PROMPT } = require('./director-prompt.cjs');
-function createAIHost({ directory, safeStorage, definitions, discussionTools, isDiscussionToolCall, callTool, send, workflow = '' }) {
+function createAIHost({ directory, safeStorage, definitions, discussionTools, isDiscussionToolCall, callTool, send, workflow = '', skill }) {
     let profiles = [], running = null; const keys = new Map();
     const conversation = createConversation({ directory, safeStorage });
     const file = path.join(directory, 'ai-channels.json');
@@ -53,8 +53,12 @@ function createAIHost({ directory, safeStorage, definitions, discussionTools, is
             const userEntry = await conversation.start(profile, input.prompt);
             const context = await invokeTool('director_read', {});
             userEntry.context = '任务开始时自动读取的工程快照（后续以工具返回的最新 revision 和数据为准，不必重复读取同一摘要）：' + JSON.stringify(context);
+            if (skill && !conversation.hasSkill(skill.version)) {
+                userEntry.context += '\n\n软件内置技能 ' + skill.name + ' · ' + skill.version + '（本版本操作说明；后续相同版本无需重读或安装）：\n' + skill.instructions;
+                userEntry.skillVersion = skill.version;
+            }
             await conversation.save();
-            const instructions = system + '\n' + workflow + (mode === 'discuss' ? '\n本轮仅讨论，不修改工程。' : '');
+            const instructions = system + (skill ? '' : '\n' + workflow) + (mode === 'discuss' ? '\n本轮仅讨论，不修改工程。' : '');
             let invalidArguments = 0;
             for (let step = 0; profile.maxRounds === 0 || step < profile.maxRounds; step++) {
                 controller.signal.throwIfAborted(); emit({ type: 'status', text: `正在请求模型 · 第 ${step + 1} 轮` });
@@ -91,7 +95,9 @@ function createAIHost({ directory, safeStorage, definitions, discussionTools, is
                     emit({ type: 'tool', name: tool.name, status: output.ok ? 'completed' : 'failed', summary: output.ok && tool.name === 'director_apply'
                         ? { ...output.data?.summary, preview: output.data?.preview, committed: output.data?.committed, message: output.data?.message }
                         : output.data?.summary || output.error });
-                    if (String(output.error || '').includes('REVISION_CONFLICT')) throw new Error('工程已被修改，任务已暂停。请继续时重新读取场景。');
+                    // The remaining calls may depend on this stale scene. Leave them not-started,
+                    // then let the next model turn read and repair instead of ending the task.
+                    if (String(output.error || '').includes('REVISION_CONFLICT')) break;
                 }
                 if (!result.calls.length) { emit({ type: 'done', timing: timings() }); return { sessionId, timing: timings() }; }
             }

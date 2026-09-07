@@ -15,5 +15,6 @@
 #production-reference-preview img{width:100%;height:100%;object-fit:contain;min-height:0}
 #production-scene-list{flex:none;height:65px}
 #production-fixed-prompt{height:220px}
+.production-prompt-field{flex:1;min-height:0}
 .production-modal .range-occlusion{flex-direction:row;align-items:center}.production-modal .range-occlusion input{width:auto;height:auto}
 .production-note-marker{position:absolute;top:6px;height:26px;border:1px solid #888;background:#434343;color:#eee;text-align:left;padding:0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

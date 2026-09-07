@@ -17,6 +17,7 @@ import { toolHelp } from './contract.ts';
 import { continueScene, continuitySummary } from '../scenes/continue-scene.ts';
 import { editIndependentScene, readIndependentScene } from './scene-tools.ts';
 import { inheritedPoseAt } from '../scenes/initial-pose.ts';
+import { BUILTIN_SKILL, readBuiltinSkill } from './skill.ts';
 export function createToolService(ctx: AppContext) {
     // A new renderer must not accept a revision captured before a reload/reconnect.
     let revision = Date.now() * 1000 + Math.floor(Math.random() * 1000), fingerprint = '', sequence = Promise.resolve<unknown>(null);
@@ -37,6 +38,7 @@ export function createToolService(ctx: AppContext) {
     }
     async function execute(name: string, args: Record<string, unknown>) {
         validateToolInput(name, args);
+        if (name === 'director_skill') return readBuiltinSkill(args.knownVersion as string | undefined);
         if (name === 'director_help') return toolHelp(args.names as string[]);
         if (name === 'director_scene') {
             if (args.action === 'list') return { revision: currentRevision(), sceneContext: ctx.scenes.context, scenes: ctx.scenes.list() };
@@ -73,12 +75,13 @@ export function createToolService(ctx: AppContext) {
             if (args.resourceId !== undefined && !resource) throw Error('模型资源不存在');
             return { revision: currentRevision(), sceneContext: ctx.scenes?.context, scenes: ctx.scenes?.list(), name: ctx.project.name, duration: ctx.project.duration, fps: ctx.project.fps, aspect: ctx.project.aspect,
                 ...(resource ? { model: ctx.engine.externalModels.inspection(resource) } : {}),
+                skill: { name: BUILTIN_SKILL.name, version: BUILTIN_SKILL.version },
                 time: ctx.time, cameraId: ctx.preview, selectedId: ctx.selected, room: ctx.project.room, floors: ctx.project.floors ?? [], zones: ctx.project.zones ?? [], editorView: ctx.project.editorView, cuts: ctx.project.cuts,
                 references: ctx.project.references.map(({ id, name }) => ({ id, name })), production: productionData(ctx.project),
                 resources: (ctx.project.resources ?? []).map(({ package: _package, ...metadata }) => metadata),
                 ...(args.details || resource ? { resourceUsage: resourceUsage(ctx.project).filter(r => !resource || r.id === resource.id).map(r => ({ ...r, sceneReferences: ctx.scenes?.resourceScenes(r.id) ?? [], used: ctx.scenes ? ctx.scenes.resourceScenes(r.id).length > 0 : r.used })) } : {}),
                 ...(args.details ? { resourceStatistics: sceneResourceReport(ctx.engine) } : {}),
-                entities: ctx.project.entities.filter(e => !ids || ids.includes(e.id)).map(e => args.details ? { ...clone(e), ...(e.initialPose ? { initialPose: { active: inheritedPoseAt(e, ctx.time), nodeCount: e.initialPose.nodes.length, description: '接拍姿态；原始节点数组保存在工程文件中，新动作开始后不再保持' } } : {}) } : { id: e.id, name: e.name, asset: e.asset, kind: e.kind, locked: e.locked, visible: e.visible, position: e.position }),
+                entities: ctx.project.entities.filter(e => !ids || ids.includes(e.id)).map(e => args.details ? { ...clone(e), ...(e.initialPose ? { initialPose: { active: inheritedPoseAt(e, ctx.time), nodeCount: e.initialPose.nodes.length, description: '接拍姿态；原始节点数组保存在工程文件中，新动作开始后不再保持' } } : {}) } : { id: e.id, name: e.name, asset: e.asset, kind: e.kind, color: e.color, reference: e.reference, locked: e.locked, visible: e.visible, position: e.position }),
                 ...(args.details ? { structureModules: ctx.project.entities.filter(e => (!ids || ids.includes(e.id)) && structurePorts(e).length).map(e => ({ id: e.id, localPorts: structurePorts(e), worldPorts: !e.path && !e.handBinding && !e.clips.length ? worldStructurePorts(e) : [], link: e.structureLink ?? null })) } : {}),
                 coordinates: '米／秒；工程 rotation 为弧度，世界 +Y 向上，人物 +Z 为前；当前动画位置应查询 spatial。图片字节未发送。' };
         }
@@ -126,7 +129,13 @@ export function createToolService(ctx: AppContext) {
                 return result;
             } finally { ctx.busy = false; ctx.engine.externalModels.retain([ctx.project, ...ctx.history.undoStack, ...ctx.history.redoStack]); ctx.updateTimeUI(); }
         }
-        if (name === 'director_spatial') return ctx.engine.spatialReport({ time: args.time as number | undefined, cameraId: args.cameraId as string | undefined, occlusionKeys: args.occlusionKeys as string[] | undefined });
+        if (name === 'director_spatial') {
+            const report = ctx.engine.spatialReport({ time: args.time as number | undefined, cameraId: args.cameraId as string | undefined, occlusionKeys: args.occlusionKeys as string[] | undefined });
+            // Filter only the response: walls and other unrequested objects must still occlude.
+            if (!Array.isArray(args.ids)) return report;
+            const ids = new Set(args.ids);
+            return { ...report, objects: report.objects.filter(o => ids.has(o.entityId)), filter: { ids: args.ids, countsScope: 'entire-scene' } };
+        }
         if (name === 'director_scan') return job((signal, progress) => scanSpatialRange(ctx.engine, args as unknown as SpatialRangeOptions, signal, (done, total) => progress(done / total)));
         if (name === 'director_view') {
             if (typeof args.time !== 'number' || !Number.isFinite(args.time) || args.time < 0) throw new Error('无效时间');

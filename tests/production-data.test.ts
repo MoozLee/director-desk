@@ -5,6 +5,9 @@ import { notesText, productionData, putNote, safeFilename } from '../src/product
 import { blobCrc32, createZip } from '../src/production/zip.ts';
 import { productionEntries } from '../src/production/bundle.ts';
 import { duplicateDocumentScene, projectForScene, readSceneDocument } from '../src/scenes/sequence-project.ts';
+import { scenePromptFile } from '../src/production/prompts.ts';
+import { applyOperations } from '../src/automation/edits.ts';
+import { SceneSession } from '../src/scenes/sequence-session.ts';
 test('production metadata roundtrips without changing legacy projects; bad links and note times rejected', () => {
     const legacy = demoProject(); assert.equal(validateProject(legacy).production, undefined);
     const p = structuredClone(legacy); putNote(p, { id: 'note-1', start: 1, end: 3, actorId: p.entities[0].id, story: '接头', emotion: '警惕', dialogue: '不是说好，一个人来？', action: '抬手' });
@@ -47,4 +50,46 @@ test('multi-scene delivery retains the whole editable document and identifies th
     const manifest = JSON.parse(await entries.find(e => e.name === '素材对应关系.json')!.data.text());
     assert.equal(manifest.sceneId, 'b'); assert.equal(manifest.sceneName, '第二段'); assert.match(manifest.scope, /全部戏段/);
     assert.match(await entries.find(e => e.name === '使用说明.txt')!.data.text(), /当前戏段/);
+});
+
+test('complete scene prompt uses shared notes edits, roundtrips and undo without altering other scenes', () => {
+    const first = demoProject();
+    first.production = { fixedPrompt: '项目风格', sceneReferenceIds: [], notes: [], promptText: '前段成稿' };
+    const session = new SceneSession(duplicateDocumentScene(readSceneDocument(first), 'scene-main', '下一场', 'b'));
+    const transaction = session.begin(), original = structuredClone(transaction.project.production!);
+    const promptText = '视频参考固定头：参考本场视频\n视频固定头：9:16 短剧\ncut1:\n[0—24.5 秒]\n人物甲：“原文台词。”';
+    const edited = applyOperations(transaction.project, [{ operation: 'notes', value: { ...original, promptText } }]);
+    session.commit(transaction, edited);
+    assert.equal(session.project().production?.promptText, promptText);
+    assert.equal(session.project('scene-main').production?.promptText, '前段成稿');
+    assert.deepEqual(new SceneSession(JSON.parse(JSON.stringify(session.exportDocument()))).exportDocument(), session.exportDocument());
+    session.undo(); assert.deepEqual(session.project().production, original);
+    session.redo(); assert.equal(session.project().production?.promptText, promptText);
+    for (const promptText of [null, {}, 1, 'x'.repeat(100001)]) {
+        assert.throws(() => applyOperations(edited, [{ operation: 'notes', value: { ...original, promptText } }]), /promptText/);
+    }
+    assert.equal(edited.production?.promptText, promptText, 'failed updates leave the original document intact');
+});
+
+test('prompt TXT preserves authored contents; bundle exports separate scenes with safe unique names and honest missing entries', async () => {
+    const project = demoProject();
+    assert.equal(scenePromptFile(project), undefined);
+    const content = '视频参考固定头：参考本场视频（待上传）\n视频固定头：21:9 电影，24.5 秒\ncut1:\n[0—24.5 秒]\n人物甲：“只说一次。”\n';
+    project.production = { fixedPrompt: '', sceneReferenceIds: [], notes: [], promptText: content };
+    const standalone = scenePromptFile(project, 'CON')!;
+    assert.equal(standalone.name, '_CON-视频提示词.txt');
+    assert.equal(await standalone.data.text(), content);
+    assert.deepEqual([...new Uint8Array(await standalone.data.arrayBuffer()).slice(0, 3)], [0xef, 0xbb, 0xbf]);
+    let doc = duplicateDocumentScene(readSceneDocument(project), 'scene-main', '同名', 'b');
+    doc.scenes[0].name = '同名'; doc.scenes[1].state.production!.promptText = '下一场\ncut1:\n[0—10 秒]';
+    doc = duplicateDocumentScene(doc, 'b', '未完成', 'c'); doc.scenes[2].state.production!.promptText = '  ';
+    const entries = await productionEntries(projectForScene(doc), undefined, doc);
+    const prompts = entries.filter(e => e.name.startsWith('逐场提示词/'));
+    assert.deepEqual(prompts.map(e => e.name), ['逐场提示词/0001-同名-视频提示词.txt', '逐场提示词/0002-同名-视频提示词.txt']);
+    assert.equal(await prompts[0].data.text(), content);
+    assert.equal((await prompts[0].data.text()).match(/只说一次/g)?.length, 1);
+    assert.equal(await prompts[1].data.text(), doc.scenes[1].state.production!.promptText);
+    const manifest = JSON.parse(await entries.find(e => e.name === '素材对应关系.json')!.data.text());
+    assert.equal(manifest.promptFiles[2].file, null); assert.equal(manifest.video, null);
+    await createZip(entries);
 });

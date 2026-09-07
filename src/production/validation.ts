@@ -1,6 +1,6 @@
 import type { ProductionData } from '../model.ts';
 
-export const productionValueGuide = 'notes replaces the complete production object: {fixedPrompt:"",sceneReferenceIds:[],notes:[{id:"note-1",start:0,end:3,actorId:"existing-actor-id",story:"Plot",emotion:"Emotion",dialogue:"Speech",action:"Behavior"}]}. All fields are required; unused text is "". actorId is an existing actor ID or "" for an unassigned note. Times are scene seconds, 0 <= start < end. sceneReferenceIds contains existing image IDs only. Keep existing fixedPrompt, references and notes when not changing them; the arrays are replaced, not appended. Entity reference is an image ID, never story text. ';
+export const productionValueGuide = 'notes replaces the complete production object: {fixedPrompt:"",sceneReferenceIds:[],notes:[{id:"note-1",start:0,end:3,actorId:"existing-actor-id",story:"Plot",emotion:"Emotion",dialogue:"Speech",action:"Behavior"}]}. Optional promptText is the complete scene video-generation prompt (string, max 100000 characters); preserve it unless updating it. The example fields are required; unused text is "". actorId is an existing actor ID or "" for an unassigned note. Times are scene seconds, 0 <= start < end. sceneReferenceIds contains existing image IDs only. Keep existing fixedPrompt, promptText, references and notes when not changing them; the arrays are replaced, not appended. Entity reference is an image ID, never story text. ';
 
 /** Shared structural validation for tools and project files; references are checked after the entire edit batch. */
 export function assertProductionShape(value: unknown): asserts value is ProductionData {
@@ -8,6 +8,7 @@ export function assertProductionShape(value: unknown): asserts value is Producti
     if (!value || typeof value !== 'object' || Array.isArray(value)) fail('production', productionValueGuide);
     const data = value as Record<string, unknown>;
     if (typeof data.fixedPrompt !== 'string' || data.fixedPrompt.length > 50000) fail('production.fixedPrompt', '需要字符串（可为 ""），最长 50000 字；' + productionValueGuide);
+    if (data.promptText !== undefined && (typeof data.promptText !== 'string' || data.promptText.length > 100000)) fail('production.promptText', '需要完整提示词字符串（可为 ""），最长 100000 字');
     if (!Array.isArray(data.sceneReferenceIds) || data.sceneReferenceIds.some(id => typeof id !== 'string')) fail('production.sceneReferenceIds', '需要已导入图片 ID 的数组；没有图片时为 []');
     if (!Array.isArray(data.notes)) fail('production.notes', '需要备注数组；' + productionValueGuide);
     const ids = new Set<string>();

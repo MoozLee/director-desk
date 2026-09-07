@@ -217,7 +217,7 @@ function seek(t: number) { if (busy)
     clearTimeout(inspectorSeekTimer);
     inspectorSeekTimer = setTimeout(() => { if (!draft && !busy && !engine.dragging && !document.activeElement?.closest('#inspector-content input,#inspector-content select')) renderInspector(); }, 80);
 }
-function setView(value: string) { mode = value; $('#viewports').className = 'viewports ' + value; document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', (el as HTMLElement).dataset.view === value)); engine.requestResize(); }
+function setView(value: string) { if (!['stage', 'split', 'shot'].includes(value)) return; mode = value; $('#viewports').className = 'viewports ' + value; document.querySelectorAll('.view-modes button[data-view]').forEach(el => el.classList.toggle('active', (el as HTMLElement).dataset.view === value)); engine.requestResize(); }
 function saveProject() {
     if (draft) finishPath();
     if (history.pending) { toast('请先结束拖动，再保存项目'); return; }

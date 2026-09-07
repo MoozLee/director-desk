@@ -74,6 +74,7 @@ function createConversation({ directory, safeStorage }) {
     return {
         ready, save, messages, snapshot, assertLoaded,
         get id() { return state.sessionId; },
+        hasSkill(version) { return state.entries.findLast(entry => entry.type === 'user' && typeof entry.skillVersion === 'string' && typeof entry.context === 'string')?.skillVersion === version; },
         async start(profile, text) { state.profileId = profile.id; const entry = { type: 'user', text }; state.entries.push(entry); await save(); return entry; },
         async turn(profile, completion) {
             const entry = { type: 'turn', protocol: profile.protocol, profileId: profile.id, model: profile.model, baseUrl: profile.baseUrl,

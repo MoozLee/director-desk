@@ -27,6 +27,7 @@ release/
 # The generated offline helper is a required, directly usable skill runtime.
 /scripts/*
 !/scripts/build-offline-skill.mjs
+!/scripts/build-builtin-skill.mjs
 !/scripts/offline-project-entry.ts
 !/scripts/prepare-desktop.mjs
 !/scripts/check-release-privacy.mjs

@@ -41,7 +41,7 @@ export async function continueScene(engine: Engine, document: SceneDocument, nam
             }
         }
         project.cuts = [{ time: 0, cameraId }];
-        if (project.production) project.production.notes = [];
+        if (project.production) { project.production.notes = []; delete project.production.promptText; }
         assertProject(project);
     } finally { engine.sample(previous); }
     const next = addDocumentScene(document, project, name, id), scene = next.scenes.find(s => s.id === id)!;

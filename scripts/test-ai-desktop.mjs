@@ -11,6 +11,7 @@ import { Input, BufferSource, ALL_FORMATS, EncodedPacketSink } from 'mediabunny'
 await fs.mkdir('tmp', { recursive: true });
 const directory = await fs.mkdtemp(path.resolve('tmp/ai-desktop-test-'));
 const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
+const promptFixture = '视频参考固定头：参考本场视频（待上传）\n视频固定头：16:9 电影\ncut1:\n[0—3 秒]\n人物坐下。';
 let modelRequests = 0, slow = false, forgeSceneWrite = false, malformedReturned = false;
 const server = http.createServer(async (req, res) => {
     if (req.method === 'GET') { res.end(JSON.stringify({ id: 'mock-flash', max_input_tokens: 1000000, max_tokens: 131072 })); return; }
@@ -21,6 +22,7 @@ const server = http.createServer(async (req, res) => {
     const replies = body.messages.filter(m => m.role === 'tool');
     const mutate = body.tools?.some(t => t.function.name === 'director_apply');
     assert.ok(!body.messages[0].content.includes('node scripts/project-tool.mjs'), 'internal AI receives the online workflow, not offline CLI steps');
+    assert.ok(body.messages.some(m => typeof m.content === 'string' && m.content.includes('视频参考固定头')), 'internal AI receives the shared scene prompt format');
     if (mutate && replies.length === 1 && !malformedReturned) {
         malformedReturned = true;
         res.end(JSON.stringify({ choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: '', tool_calls: [
@@ -35,7 +37,8 @@ const server = http.createServer(async (req, res) => {
     if (forgeSceneWrite) tool = { name: 'director_scene', arguments: JSON.stringify({ action: 'remove', sceneId: 'scene-main', revision: 1, requestId: 'forged-discuss-write' }) };
     else if (!replies.length) tool = { name: mutate ? 'director_read' : 'director_scene', arguments: mutate ? '{}' : '{"action":"list"}' };
     else if (replies.length === 1 && mutate) tool = { name: 'director_apply', arguments: JSON.stringify({
-        revision: JSON.parse(replies[0].content).data.revision, requestId: 'mock-ai-add', operations: [{ operation: 'add', asset: 'woman', id: 'ai-added', name: 'AI 演员', position: [1, 0, 2] }] }) };
+        revision: JSON.parse(replies[0].content).data.revision, requestId: 'mock-ai-add', operations: [{ operation: 'add', asset: 'woman', id: 'ai-added', name: 'AI 演员', position: [1, 0, 2] },
+            { operation: 'notes', value: { ...JSON.parse(replies[0].content).data.production, promptText: promptFixture + '\n新增人物进入。' } }] }) };
     const message = { role: 'assistant', content: tool ? null : '完成了场景检查。', ...(tool ? { tool_calls: [{ id: 'mock-call-' + replies.length, type: 'function', function: tool }] } : {}) };
     res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ choices: [{ message, finish_reason: tool ? 'tool_calls' : 'stop' }], usage: { total_tokens: 10 } }));
 });
@@ -79,6 +82,19 @@ try {
         assert.equal(result.ok, expected, JSON.stringify(result)); return result;
     }
     let scene = (await tool('director_read', { details: true })).data;
+    const embeddedSkill = (await tool('director_skill')).data;
+    assert.ok(embeddedSkill.instructions); assert.equal(embeddedSkill.unchanged, false);
+    assert.equal(scene.skill.version, embeddedSkill.version);
+    assert.deepEqual((await tool('director_skill', { knownVersion: embeddedSkill.version })).data, { name: embeddedSkill.name, version: embeddedSkill.version, unchanged: true });
+    assert.equal((await tool('director_skill', { knownVersion: 'previous-version' })).data.instructions, embeddedSkill.instructions);
+    const target = scene.entities.find(e => e.kind === 'actor').id;
+    const spatialArgs = { time: 2, cameraId: 'program', occlusionKeys: ['entity:' + target] };
+    const allSpatial = (await tool('director_spatial', spatialArgs)).data;
+    const selectedSpatial = (await tool('director_spatial', { ...spatialArgs, ids: [target] })).data;
+    assert.deepEqual(selectedSpatial.objects, allSpatial.objects.filter(o => o.entityId === target), 'response filtering preserves full-scene occlusion results');
+    assert.deepEqual(selectedSpatial.counts, allSpatial.counts);
+    assert.equal((await tool('director_spatial', { ...spatialArgs, ids: [] })).data.objects.length, 0);
+    console.log('Spatial response bytes:', Buffer.byteLength(JSON.stringify(allSpatial)), '->', Buffer.byteLength(JSON.stringify(selectedSpatial)));
     const catalog = (await tool('director_assets', { ids: ['person', 'furniture-desk', 'furniture-lectern', 'furniture-blackboard'], details: true })).data;
     for (const asset of catalog.assets.filter(a => a.id.startsWith('furniture-'))) assert.equal(asset.parameterPatchField, 'assetParameters');
     assert.ok((await tool('director_motions', { query: 'basic-sit' })).data.presets.some(p => p.id === 'basic-sit'));
@@ -89,7 +105,7 @@ try {
         { operation: 'add', asset: 'furniture-blackboard', id: 'review-board', patch: { assetParameters: { width: 2.2 } } },
         { operation: 'add', asset: 'camera', id: 'review-camera' },
         { operation: 'motion', id: 'review-person', asset: 'basic-sit', time: 0 },
-        { operation: 'notes', value: { fixedPrompt: '', sceneReferenceIds: [], notes: [{ id: 'review-note', actorId: 'review-person', start: 0, end: 3, story: 'A character sits', emotion: '', dialogue: '', action: 'Sit' }] } },
+        { operation: 'notes', value: { fixedPrompt: '', sceneReferenceIds: [], promptText: promptFixture, notes: [{ id: 'review-note', actorId: 'review-person', start: 0, end: 3, story: 'A character sits', emotion: '', dialogue: '', action: 'Sit' }] } },
     ];
     const wrongField = await tool('director_apply', { revision: scene.revision, requestId: 'review-wrong-field', preview: true, operations: [{ operation: 'add', asset: 'furniture-desk', patch: { parameters: { width: 1.4 } } }] }, false);
     assert.match(wrongField.error, /operations\[0\].*patch.assetParameters/);
@@ -109,6 +125,25 @@ try {
     assert.equal(classroom.entities.find(e => e.id === 'review-desk').assetParameters.width, 1.4);
     assert.ok(classroom.entities.find(e => e.id === 'review-person').clips.some(c => c.action === 'sit'));
     assert.equal(classroom.production.notes[0].id, 'review-note');
+    assert.equal(classroom.production.promptText, promptFixture);
+    const identity = (await tool('director_read', { ids: ['review-person'] })).data.entities[0];
+    assert.equal(identity.color, classroom.entities.find(e => e.id === identity.id).color);
+    assert.equal(identity.reference, classroom.entities.find(e => e.id === identity.id).reference);
+    await page.locator('#ai-close').click();
+    await page.locator('#scene-prompt-toggle').click();
+    assert.equal(await page.locator('#production-prompt-text').inputValue(), promptFixture);
+    await page.locator('[data-act="production-copy-prompt"]').click();
+    await page.waitForFunction(() => document.querySelector('#toasts').textContent.includes('已复制提示词。'));
+    assert.ok((await application.evaluate(({ clipboard }) => clipboard.readText())) === promptFixture, 'native clipboard receives the complete prompt');
+    const promptLayout = await page.locator('.production-modal').evaluate(modal => {
+        const box = modal.getBoundingClientRect();
+        return [...modal.querySelectorAll('button,textarea')].every(e => {
+            const rect = e.getBoundingClientRect();
+            return rect.left >= box.left && rect.right <= box.right && rect.top >= box.top && rect.bottom <= box.bottom;
+        });
+    });
+    assert.equal(promptLayout, true, 'prompt controls stay inside the dialog');
+    await page.keyboard.press('Escape'); await page.locator('#ai-toggle').click();
     const wrongNotes = await tool('director_apply', { revision: classroom.revision, requestId: 'review-notes-patch', preview: true, operations: [{ operation: 'notes', patch: { story: 'wrong field' } }] }, false);
     assert.match(wrongNotes.error, /operations\[0\].*fixedPrompt/);
     assert.deepEqual((await tool('director_read')).data.production, classroom.production);
@@ -143,14 +178,31 @@ try {
     let frames = 0; for await (const _packet of new EncodedPacketSink(track).packets()) frames++; assert.equal(frames, 12); video.dispose();
     await tool('director_history', { revision: scene.revision, action: 'undo' }); assert.equal((await tool('director_read')).data.entities.length, initial);
     // Real MCP transport must preserve independent scene history and inherited state.
+    const beforeContinuation = (await tool('director_read')).data;
+    await tool('director_apply', { revision: beforeContinuation.revision, requestId: 'source-prompt', operations: [
+        { operation: 'notes', value: { ...beforeContinuation.production, fixedPrompt: '电影风格', promptText: promptFixture } },
+    ] });
     const originalScene = (await tool('director_scene', { action: 'read' })).data;
+    await page.locator('#ai-chat-toggle').click();
+    await page.locator('#ai-scene-prompt').click();
+    assert.equal(await page.locator('#production-prompt-text').inputValue(), promptFixture);
     const continueArgs = { action: 'continue', name: '接拍验证', newSceneId: 'mcp-scene-b', revision: originalScene.revision, requestId: 'mcp-continue' };
     const continued = await tool('director_scene', continueArgs); assert.deepEqual(await tool('director_scene', continueArgs), continued);
     const ending = (await tool('director_continuity', { limit: 1 })).data;
     assert.equal(ending.origin.sourceStatus, 'unchanged'); assert.equal(ending.origin.objects.length, 1);
     assert.equal(ending.origin.nextOffset, 1);
     const second = (await tool('director_read')).data;
+    assert.equal(second.production.promptText, undefined, 'a continuation does not replay the preceding scene prompt');
+    assert.equal(second.production.fixedPrompt, '电影风格');
     assert.equal(second.sceneContext.sceneId, 'mcp-scene-b');
+    await page.locator('#production-prompt-text').fill('旧窗口编辑不应写到新段');
+    await page.locator('#production-prompt-text').blur();
+    assert.equal((await tool('director_read')).data.production.promptText, undefined);
+    await page.keyboard.press('Escape');
+    await page.locator('#ai-scene-prompt').click();
+    assert.equal(await page.locator('#production-prompt-text').inputValue(), '');
+    assert.equal(await page.locator('.modal-header h2').textContent(), '接拍验证 · 视频提示词');
+    await page.keyboard.press('Escape');
     await tool('director_apply', { revision: originalScene.revision, requestId: 'mcp-before-switch', operations: [{ operation: 'add', asset: 'woman' }] }, false);
     await tool('director_apply', { revision: second.revision, requestId: 'mcp-edit-b', operations: [{ operation: 'add', asset: 'woman', id: 'b-only' }] });
     const rereadOriginal = (await tool('director_scene', { action: 'read', sceneId: originalScene.sceneId })).data;
@@ -161,6 +213,20 @@ try {
     await tool('director_history', { revision: (await tool('director_read')).data.revision, action: 'undo' });
     assert.equal((await tool('director_scene', { action: 'list' })).data.scenes.length, 1);
     // Configure through the real UI, without any paid external request.
+    await page.locator('#ai-close').click();
+    const rightBoundary = page.locator('[data-boundary="inspector"]');
+    const rightWidth = Number(await rightBoundary.getAttribute('aria-valuenow'));
+    await rightBoundary.focus(); await rightBoundary.press('ArrowLeft');
+    assert.equal(Number(await rightBoundary.getAttribute('aria-valuenow')), rightWidth + 10, 'left arrow moves the right divider left');
+    await rightBoundary.press('ArrowRight');
+    assert.equal(Number(await rightBoundary.getAttribute('aria-valuenow')), rightWidth);
+    await tool('director_view', { time: 0, cameraId: 'program' });
+    await page.locator('.playback-buttons [data-act="play"]').click();
+    await new Promise(resolve => setTimeout(resolve, 350));
+    assert.ok((await tool('director_read', { ids: [] })).data.time > 0, 'playback advances time');
+    await page.locator('.playback-buttons [data-act="play"]').click();
+    await tool('director_view', { time: 0, cameraId: 'program' });
+    await page.locator('#ai-toggle').click();
     await page.locator('#ai-settings-toggle').click(); await page.locator('#ai-name').fill('本地验证');
     assert.equal(await page.locator('#ai-flash').count(), 0);
     assert.equal(await page.locator('#ai-max-tokens').inputValue(), '0');
@@ -179,7 +245,10 @@ try {
     await page.waitForTimeout(150);
     const layoutChecks = [];
     async function checkPanel(view) {
+        const viewportClass = await page.locator('#viewports').getAttribute('class');
         await page.locator(`#ai-${view === 'settings' ? 'settings' : view}-toggle`).click();
+        await page.locator('.ai-header strong').click();
+        assert.equal(await page.locator('#viewports').getAttribute('class'), viewportClass, 'assistant controls must not switch the staging viewport');
         const issues = await page.evaluate(() => {
             const panel = document.querySelector('#ai-panel'), b = panel.getBoundingClientRect();
             const issues = [];
@@ -228,8 +297,13 @@ try {
     await page.locator('#ai-prompt').fill('添加一个演员'); await page.locator('#ai-send').click();
     await page.waitForFunction(() => document.querySelector('#ai-status').textContent.includes('任务完成'));
     assert.ok((await tool('director_read')).data.entities.some(e => e.id === 'ai-added'));
+    assert.equal((await tool('director_read')).data.production.promptText, promptFixture + '\n新增人物进入。');
+    assert.equal((await tool('director_scene', { action: 'list' })).data.scenes.length, 1, 'ordinary AI edit stays in the current scene');
     await page.locator('#ai-undo').click(); assert.equal((await tool('director_read')).data.entities.length, initial);
-    await page.locator('#ai-new').click(); await page.locator('#ai-mode').selectOption('discuss'); await page.locator('#ai-prompt').fill('讨论'); await page.locator('#ai-send').click();
+    const beforeNewChat = (await tool('director_scene', { action: 'read' })).data;
+    await page.locator('#ai-new').click();
+    assert.deepEqual((await tool('director_scene', { action: 'read' })).data, beforeNewChat, 'new conversation does not create or clear the project');
+    await page.locator('#ai-mode').selectOption('discuss'); await page.locator('#ai-prompt').fill('讨论'); await page.locator('#ai-prompt').press('Control+Enter');
     await page.waitForFunction(() => document.querySelector('#ai-status').textContent.includes('任务完成'));
     assert.equal((await tool('director_read')).data.entities.length, initial);
     forgeSceneWrite = true;

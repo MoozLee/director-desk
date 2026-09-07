@@ -6,10 +6,15 @@ import { createAIPanel } from './ai-panel-view.ts';
 export function mountAI(ctx: AppContext) {
     const bridge = window.directorDesktop;
     const { panel, find } = createAIPanel(Boolean(bridge));
+    find('ai-context').textContent = '默认编辑当前戏段；图片不自动上传。';
+    find('ai-new').title = '仅重置 AI 对话，不新建或清空工程';
+    find('ai-send').title = '发送任务 · Ctrl / Cmd + Enter';
+    find('ai-scene-prompt').onclick = () => { void ctx.act('production-prompt', find('ai-scene-prompt')); };
+    panel.querySelector('#ai-mcp > p')!.textContent = '让外部 Agent 操作当前工程。技能随软件内置，按版本读取，无需另装。';
     let profiles: Channel[] = [], sessionId = '', active = false;
     const status = (text: string) => { find('ai-status').textContent = text; };
     const check = <T>(result: DesktopResult<T>) => { if (!result.ok) throw new Error(result.error || '操作失败'); return result.data!; };
-    const log = (text: string) => { const box = find<HTMLTextAreaElement>('ai-transcript'); box.value += text; box.scrollTop = box.scrollHeight; };
+    const log = (text: string) => { const box = find<HTMLTextAreaElement>('ai-transcript'); const follow = box.scrollHeight - box.scrollTop - box.clientHeight < 32; box.value += text; if (follow) box.scrollTop = box.scrollHeight; };
     const restoreConversation = (data: ConversationSnapshot) => { sessionId = data.sessionId; find('ai-transcript').value = data.transcript; };
     function refresh() {
         const selected = find('ai-channel').value;
@@ -39,8 +44,13 @@ export function mountAI(ctx: AppContext) {
     find('ai-send').onclick = () => { if (!bridge || active) return; const prompt = find('ai-prompt').value.trim(); if (!prompt) return;
         const profile = profiles.find(p => p.id === find('ai-channel').value); if (!profile) { status('请先保存渠道'); return; }
         busy(true); log('\n你：' + prompt + '\nAI：'); find('ai-prompt').value = '';
-        safe(async () => { try { check(await bridge.run({ profileId: profile.id, sessionId, prompt, mode: find('ai-mode').value })); } finally { busy(false); } });
+        safe(async () => { try { check(await bridge.run({ profileId: profile.id, sessionId, prompt, mode: find('ai-mode').value })); }
+            catch (error) { if (!find('ai-prompt').value) find('ai-prompt').value = prompt; throw error; }
+            finally { busy(false); } });
     };
+    find('ai-prompt').addEventListener('keydown', event => {
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); find<HTMLButtonElement>('ai-send').click(); }
+    });
     find('ai-stop').onclick = () => { if (bridge) safe(() => bridge.stop()); };
     find('ai-background-stop').onclick = () => { if (bridge) safe(() => bridge.stop()); };
     find('ai-new').onclick = () => { if (bridge && !active) safe(async () => { busy(true); try { restoreConversation(check(await bridge.newConversation())); status('已手动开始新对话'); } finally { busy(false); } }); };
@@ -79,5 +89,5 @@ export function mountAI(ctx: AppContext) {
         if (profiles.some(p => p.id === conversation.profileId)) find('ai-channel').value = conversation.profileId;
         if (conversation.transcript) status('已恢复本机对话，可继续；点击新对话才清空。');
     });
-    else panel.querySelectorAll<HTMLButtonElement | HTMLInputElement>('input,select,textarea,button').forEach(e => { if (!['ai-close', 'ai-collapse'].includes(e.id) && !e.dataset.aiView) e.disabled = true; });
+    else panel.querySelectorAll<HTMLButtonElement | HTMLInputElement>('input,select,textarea,button').forEach(e => { if (!['ai-close', 'ai-collapse', 'ai-scene-prompt'].includes(e.id) && !e.dataset.aiView) e.disabled = true; });
 }
