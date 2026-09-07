@@ -23,7 +23,7 @@ release/
 !/skills/
 !/scripts/
 /desktop/icon.ico
-/skills/director-desk/scripts/project-tool.mjs
+# The generated offline helper is a required, directly usable skill runtime.
 /scripts/*
 !/scripts/build-offline-skill.mjs
 !/scripts/offline-project-entry.ts
