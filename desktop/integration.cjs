@@ -3,16 +3,17 @@ const { randomUUID } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createAIHost } = require('./ai-host.cjs');
-const { startMcp } = require('./mcp-server.cjs');
+const { createMcpHost } = require('./mcp-host.cjs');
 const { TOOL_DEFINITIONS, MCP_TOOL_DEFINITIONS, DISCUSSION_TOOLS, isDiscussionToolCall } = require('./tools-contract.cjs');
 function attachIntegration(window) {
-    const pending = new Map(); let ready = false, mcp = null, mcpQueue = Promise.resolve();
+    const pending = new Map(); let ready = false;
     const trusted = event => event.sender === window.webContents && event.senderFrame?.url === 'director://app/';
     const callTool = (name, args) => new Promise(resolve => {
         if (!ready || window.isDestroyed()) return resolve({ ok: false, error: '导演台尚未连接或正在重新载入' });
         const id = randomUUID(), timer = setTimeout(() => { pending.delete(id); resolve({ ok: false, execution: 'unknown', error: '工具响应超时，请先查询状态，不要直接重复写入' }); }, 60000);
         pending.set(id, { resolve, timer }); window.webContents.send('director-tool-call', { id, name, args });
     });
+    const mcp = createMcpHost({ directory: app.getPath('userData'), safeStorage, definitions: MCP_TOOL_DEFINITIONS, call: callTool, version: app.getVersion() });
     const host = createAIHost({ directory: app.getPath('userData'), safeStorage, definitions: TOOL_DEFINITIONS, discussionTools: DISCUSSION_TOOLS, isDiscussionToolCall, callTool,
         workflow: fs.readFileSync(path.join(app.getAppPath(), 'skills/director-desk/references/online-workflow.md'), 'utf8'),
         send: data => { if (!window.isDestroyed()) window.webContents.send('director-ai-event', data); } });
@@ -31,20 +32,17 @@ function attachIntegration(window) {
             else if (action === 'stop') { host.stop(); result = true; }
             else if (action === 'test') result = await host.test(data);
             else if (action === 'mcp') {
-                const change = mcpQueue.then(async () => {
-                    if (data === true && !mcp && !window.isDestroyed()) mcp = await startMcp(MCP_TOOL_DEFINITIONS, callTool, app.getVersion());
-                    if ((data === false || window.isDestroyed()) && mcp) { await mcp.close(); mcp = null; }
-                }); mcpQueue = change.catch(() => {}); await change;
-                result = { enabled: Boolean(mcp), url: mcp?.url };
+                result = await mcp.change(data);
+            } else if (action === 'reset-mcp') {
+                result = await mcp.reset();
             } else if (action === 'copy-mcp') {
-                if (!mcp) throw new Error('请先开启 MCP');
-                clipboard.writeText(JSON.stringify({ mcpServers: { 'director-desk': { url: mcp.url, headers: { Authorization: 'Bearer ' + mcp.token } } } }, null, 2)); result = true;
+                clipboard.writeText(JSON.stringify(await mcp.connection(), null, 2)); result = true;
             } else throw new Error('未知桌面操作');
             return { ok: true, data: result };
         } catch (e) { return { ok: false, error: e.message }; }
     });
     window.webContents.on('did-start-loading', () => { ready = false; host.stop(); for (const task of pending.values()) { clearTimeout(task.timer); task.resolve({ ok: false, execution: 'unknown', error: '页面重新载入，调用结果未确认；请重新读取工程，不要直接重复写入' }); } pending.clear(); });
-    window.on('closed', () => { host.stop(); void mcp?.close(); for (const task of pending.values()) { clearTimeout(task.timer); task.resolve({ ok: false, execution: 'unknown', error: '软件已关闭，调用结果未确认；请重新读取工程，不要直接重复写入' }); }
+    window.on('closed', () => { host.stop(); void mcp.close(); for (const task of pending.values()) { clearTimeout(task.timer); task.resolve({ ok: false, execution: 'unknown', error: '软件已关闭，调用结果未确认；请重新读取工程，不要直接重复写入' }); }
         ipcMain.removeHandler('director-host'); ipcMain.removeListener('director-tool-result', resultHandler); ipcMain.removeListener('director-tools-ready', readyHandler); });
     return { isBusy: () => host.isRunning() || pending.size > 0 };
 }

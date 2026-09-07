@@ -24,6 +24,11 @@ async function close() {
 }
 try {
     let page = await launch();
+    assert.equal((await page.evaluate(() => window.directorDesktop.mcp(true))).ok, true);
+    await page.evaluate(() => window.directorDesktop.copyMcp());
+    const originalMcp = await application.evaluate(({ clipboard }) => clipboard.readText());
+    const storedMcp = await fs.readFile(path.join(directory, 'mcp-connection.json'), 'utf8');
+    assert.ok(!storedMcp.includes(JSON.parse(originalMcp).mcpServers['director-desk'].headers.Authorization.slice(7)), 'MCP token is encrypted on disk');
     const configured = await page.evaluate(baseUrl => window.directorDesktop.configure({ name: '重启检查', protocol: 'chat', baseUrl, model: 'mock', maxTokens: 1000, maxRounds: 1, stream: false }), `http://127.0.0.1:${server.address().port}/v1`);
     assert.equal(configured.ok, true);
     const task = await page.evaluate(profileId => window.directorDesktop.run({ profileId, prompt: '重启以后继续保持蓝衣主角', mode: 'execute' }), configured.data[0].id);
@@ -35,11 +40,27 @@ try {
     assert.ok(!disk.includes('蓝衣主角'));
     await close();
     page = await launch();
+    await page.locator('#ai-toggle').click(); await page.locator('#ai-mcp-toggle').click();
+    await page.locator('#ai-mcp-enabled').check();
+    await page.waitForFunction(() => document.querySelector('#ai-mcp-status').textContent.includes('/mcp'));
+    await page.evaluate(() => window.directorDesktop.copyMcp());
+    assert.equal(await application.evaluate(({ clipboard }) => clipboard.readText()), originalMcp, 'MCP configuration survives an actual Electron restart');
+    page.once('dialog', d => void d.dismiss()); await page.locator('#ai-mcp-reset').click();
+    await page.evaluate(() => window.directorDesktop.copyMcp());
+    assert.equal(await application.evaluate(({ clipboard }) => clipboard.readText()), originalMcp, 'Cancel preserves credentials');
+    page.once('dialog', d => void d.accept()); await page.locator('#ai-mcp-reset').click();
+    await page.waitForFunction(() => document.querySelector('#ai-status').textContent.includes('访问令牌已重置'));
+    await page.evaluate(() => window.directorDesktop.copyMcp());
+    const newMcp = JSON.parse(await application.evaluate(({ clipboard }) => clipboard.readText())).mcpServers['director-desk'];
+    const oldMcp = JSON.parse(originalMcp).mcpServers['director-desk'];
+    assert.equal(newMcp.url, oldMcp.url); assert.notDeepEqual(newMcp.headers, oldMcp.headers);
+    assert.equal((await fetch(oldMcp.url, { method: 'POST', headers: oldMcp.headers, body: '{}' })).status, 403);
+    await page.locator('#ai-chat-toggle').click(); await page.locator('#ai-toggle').click();
     await page.waitForFunction(() => document.querySelector('#ai-transcript').value.includes('蓝衣主角'));
     assert.deepEqual((await page.evaluate(() => window.directorDesktop.conversation())).data, previous);
     await page.locator('#ai-toggle').click(); await page.locator('#ai-new').click();
     await page.waitForFunction(() => document.querySelector('#ai-status').textContent.includes('手动开始新对话'));
     const cleared = (await page.evaluate(() => window.directorDesktop.conversation())).data;
     assert.notEqual(cleared.sessionId, previous.sessionId); assert.equal(cleared.transcript, '');
-    console.log('Conversation survives actual Electron process restart with Windows encryption; only manual New Conversation resets it. External requests: 0.');
+    console.log('Conversation and encrypted MCP credentials survive actual Electron restart; explicit credential reset revokes old access. External requests: 0.');
 } finally { await close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

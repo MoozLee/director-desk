@@ -57,6 +57,8 @@ release/
 *.pfx
 ai-channels.json
 ai-conversation.json
+mcp-connection.json
+mcp-connection.json.tmp
 *.log
 *.zip
 *.exe
