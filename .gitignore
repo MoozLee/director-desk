@@ -23,7 +23,10 @@ release/
 !/tests/
 !/skills/
 !/scripts/
-!/website/
+/website/
+!/docs/
+/docs/*
+!/docs/images/
 /desktop/icon.ico
 # The generated offline helper is a required, directly usable skill runtime.
 /scripts/*
@@ -41,8 +44,6 @@ release/
 !/scripts/verify-building.mjs
 !/scripts/test-ai-desktop.mjs
 !/scripts/test-updates-desktop.mjs
-!/scripts/publish-update.mjs
-!/scripts/start-update-server.ps1
 !/scripts/test-continuous-shot.mjs
 !/scripts/verify-video-frames.mjs
 !/scripts/test-ai-conversation-restart.mjs

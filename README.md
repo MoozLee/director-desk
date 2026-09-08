@@ -1,81 +1,76 @@
-# 导演台
+# 导演台 · DirectorDesk
 
-用于 AI 短剧站位、走位、动作和运镜参考的三维预演工具。版本 0.3.9，支持浏览器和 Windows 桌面版。
+面向 AI 短剧和视频创作的三维预演工具。先搭场景、排人物走位和运镜，再导出参考视频。支持手动制作，也支持 AI 助手和 MCP Agent 直接操作工程。
 
-采用 [MIT 许可证](LICENSE) 开源。可使用、修改和分发，包括商用，需保留版权及许可声明。第三方依赖与内置动作素材遵循各自许可证；动作来源见 [NOTICE](src/animation/library/NOTICE.txt)，桌面发行版附带第三方许可清单。
+[下载 Windows 版](https://github.com/mangfufu/director-desk/releases/latest) · [获取配套 skill](https://github.com/mangfufu/director-desk/releases/latest) · [MIT License](LICENSE)
 
-[下载软件与配套 skill](https://github.com/mangfufu/director-desk/releases/latest) · [官网](https://bigthat.me)
+![布景与摄影机画面并排预览，下方编排动作和切镜](docs/images/workspace.jpg)
 
-## 开发
+## 能做什么
 
-需要 Node.js 24+、npm；桌面构建在 Windows x64 验证，构建图标及浏览器检查需要本机 Chrome，可通过 CHROME_PATH 指定路径。
+| 功能 | 用法 |
+| --- | --- |
+| 白模搭景 | 使用人物、动物、家具、建筑、道路和道具，调整尺寸、颜色与摆放位置 |
+| 导入模型 | 导入 GLB/glTF、FBX 和 OBJ 资源，随工程保存 |
+| 人物调度 | 编排站位、走位路径、基础动作和群演，支持手持道具绑定 |
+| 摄影机与运镜 | 从三维场景真实取景，编排多机位路径、视线、跟随、POV 和切镜 |
+| 时间轴编辑 | 缩放、拖动、分割片段、调整时长，手动记录位置关键帧 |
+| 多场戏接拍 | 同工程切换独立戏段，从上一段末帧继承场景和人物状态 |
+| 视频与提示词 | 导出参考视频、工程和素材包；各戏段独立保存配套视频提示词 |
+| AI 协作 | 内置助手与外部 MCP Agent 查询空间、编辑当前工程、检查和修正调度 |
 
-```powershell
+### 资产与摄影机
+
+选择白模搭建场景，调整人物和道具，再设置摄影机的景别、目标与运动路径。
+
+![内置资产库与摄影机参数](docs/images/camera-path.jpg)
+
+### 让 AI 直接操作
+
+**内置导演助手**：配置模型渠道后，用自然语言提出搭景、走位或镜头调整要求。助手窗口支持拖动、缩放和收起。
+
+**MCP Agent**：在软件的 **AI → MCP 连接** 中复制连接配置，让 Agent 读取内置 `director_skill`，即可操作当前工程。它能查询指定时刻的位置与空间关系，再继续修改场景、机位和分镜。
+
+配套 skill 随软件提供，也支持生成可导入网页版本的 `.director` 工程文件。
+
+![导演助手窗口与任务输入](docs/images/ai-assistant.jpg)
+
+## 开始使用
+
+1. 从 [Releases](https://github.com/mangfufu/director-desk/releases/latest) 下载 Windows 安装包或免安装 ZIP。
+2. 安装后启动，或完整解压 ZIP 后运行 `DirectorDesk.exe`。
+3. 选择场景模板，加入人物与道具，在时间轴上安排动作和镜头。
+4. 播放预览，导出参考视频；点击戏段旁的“提示词”查看、编辑或导出配套文案。
+
+支持常见横竖画幅与帧率。工程可保存为文件，之后继续编辑或交给 Agent 调整。
+
+## 本地开发
+
+准备 Node.js 24+ 和 npm：
+
+```bash
+git clone https://github.com/mangfufu/director-desk.git
+cd director-desk
 npm ci
 npm run dev
 ```
 
-按终端显示的本地地址打开网页。
+按终端显示的地址打开网页。构建网页和 Windows 桌面版：
 
-```powershell
+```bash
 npm run build
 npm run desktop:pack
 ```
 
-网页产物生成到 dist，桌面安装包生成到 release。构建会从共用源码生成 skill 离线工具，并执行发布隐私白名单检查。
+网页产物位于 `dist/`，桌面交付文件位于 `release/`。桌面构建使用 Windows x64 和本机 Chrome，可通过 `CHROME_PATH` 指定浏览器。
 
-完整测试包含 17 项使用公开第三方模型的导入检查。这些模型不进入源码仓库；首次测试先按以下命令下载并解压，保留下载目录内的来源与许可记录：
-
-```powershell
-node scripts/download-test-models.mjs
-Expand-Archive -LiteralPath test-assets/external/kenney_furniture-kit.zip -DestinationPath test-assets/external/kenney-furniture -Force
-node scripts/download-fbx-fixtures.mjs
-npm test
-```
-
-未准备这些模型时，相关测试会报告缺少 test-assets 文件；应用运行与构建不依赖这些测试素材。
-
-`node scripts/test-continuous-shot.mjs` 使用本机 Chrome 检查区域编辑、视线关键帧、接拍、悬浮助手和导出画面抽样。`npm run desktop:prepare` 后运行 `node scripts/test-ai-desktop.mjs` 检查桌面助手与 MCP，使用隔离配置及本机模拟接口，不消耗模型额度。
-
-## 功能
-
-- 参数化人物、道具、家具、建筑和场景白模，颜色与模型资源管理。
-- 真实场景取景，多摄影机路径、跟随和 POV，时间轴切镜与视频导出。
-- 同一戏段的命名空间区域，以及独立于机位路径的视线关键帧。
-- 人物动作预设、位置路径、群演、独立戏段和末帧接拍。
-- 内置 AI 助手、MCP 查询与编辑，离线 skill 生成可导入网页版的 .director 文件。
-- 完整本机会话保留；只有用户手动点击“新对话”才重置。
-- 助手窗口可拖动、缩放和收起；收起不停止任务，并记住窗口布局。
-- 桌面软件更新检查；安装版下载校验后由用户确认重启安装，免安装版引导下载新版压缩包。
-
-桌面版在 AI 面板配置渠道；MCP 配置从“本机 MCP”复制，端口和加密令牌保存在本机，重启后开启 MCP 可复用原配置；“重置连接凭据”只更换令牌。端口被占用时提示冲突，不自动换址。首次升级到持久连接版本需重新复制一次配置。密钥使用系统加密保存在本机，不写入源码或工程。
-
-## 源码结构
-
-| 目录 | 用途 |
+| 目录 | 内容 |
 | --- | --- |
-| src | 场景、模型、编辑器、渲染、动画及共用自动化工具 |
-| desktop | Electron 主进程、协议适配、会话和 MCP 服务 |
-| skills/director-desk | 在线操作说明、离线格式与公开模板 |
-| scripts | 构建、隐私检查和可复现检查工具 |
-| tests | 自动测试与合成几何基准 |
-| website | 官网、本机只读下载服务及公开发布说明 |
-| public | 公开应用图标 |
+| `src/` | 场景、编辑器、动画、渲染和共用自动化工具 |
+| `desktop/` | 桌面入口、AI 协议、MCP 服务和更新客户端 |
+| `skills/director-desk/` | 技能说明与离线工程工具 |
+| `scripts/`、`tests/` | 构建与验证工具 |
 
-内置动作资源的来源和许可见 src/animation/library/NOTICE.txt。
+## 许可证
 
-仓库只保存源码、构建配置、公开运行资源及测试代码；不收录本机配置、私人素材、测试剧本、聊天历史、依赖目录或打包产物。Windows 安装包和免安装版单独放在 GitHub Releases。
-
-免安装压缩包需完整解压，再运行 DirectorDesk.exe；本机设置仍使用系统用户配置目录，不随软件压缩包分发。
-
-安装版与免安装版均在软件目录提供 `skills/director-desk/`。将整个目录交给 Agent 或复制到其技能目录即可使用，入口为 `SKILL.md`；需要一并保留 references、scripts 和 assets。它支持 MCP 在线操作，也支持离线生成可导入网页版的工程；离线脚本需要 Node.js 22+，运行软件本身不需要安装 Node.js。
-
-## 官网与远程更新
-
-官网为 https://bigthat.me 。网页与发布包由本机服务提供，通过独立 Cloudflare Tunnel 接入域名；不依赖 R2 或云主机，服务器关机时无法检查或下载更新。0.3.6 及更早版本需要先手动安装新版；0.3.7 起可使用软件内更新入口。免安装版不自动替换正在使用的目录。
-
-发布顺序：修改版本及 `website/release-notes.json`，运行 `npm run desktop:pack`，用 `scripts/package-portable.ps1` 生成免安装包，并生成包含完整目录的 skill ZIP。准备对应版本的三个文件后运行 `node scripts/publish-update.mjs`。它核验安装包 SHA512、生成 SHA256 清单，只复制白名单发布文件；相同版本禁止替换内容，最后更新 latest.yml。
-
-本机发布目录为 `.local/update-server/public/win-x64`，不进入源码或安装包。用 `node website/server.mjs` 运行网站，默认只监听 127.0.0.1:8788。Cloudflare Tunnel 配置保存在 `.local/update-server/tunnel.yml`，将自己的子域名指向该端口；凭据文件保留在本机 cloudflared 配置目录，不复制到发布目录。`scripts/start-update-server.ps1` 隐藏启动网站和独立隧道，日志及进程编号也仅保存在 `.local`。
-
-`node scripts/test-updates-desktop.mjs` 验证更新窗口、本机设置以及真实 Electron 下载和损坏包拒绝；使用隔离目录，不执行安装程序。Windows 安装签名仍取决于发布者的代码签名配置；当前发行包未签名，下载完整性通过 SHA512 校验。
+项目自有代码采用 [MIT](LICENSE) 许可证。第三方依赖和动作素材保留各自许可，内置动作来源见 [NOTICE](src/animation/library/NOTICE.txt)。
