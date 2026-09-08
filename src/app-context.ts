@@ -48,7 +48,7 @@ export interface AppContext {
     renderCameras(): void;
     updateTimeUI(): void;
     seek(t: number): void;
-    saveProject(): void;
+    saveProject(): Promise<boolean>;
     showModal(title: string, body: string, footer?: string): void;
     closeModal(): void;
     projectDialog(): void;

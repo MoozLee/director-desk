@@ -42,8 +42,11 @@ release/
 !/scripts/verify-editing.mjs
 !/scripts/verify-timeline.mjs
 !/scripts/verify-building.mjs
+!/scripts/verify-model-control.mjs
+!/scripts/verify-creation-mode.mjs
 !/scripts/test-ai-desktop.mjs
 !/scripts/test-updates-desktop.mjs
+!/scripts/test-files-desktop.mjs
 !/scripts/test-continuous-shot.mjs
 !/scripts/verify-video-frames.mjs
 !/scripts/test-ai-conversation-restart.mjs
@@ -62,6 +65,7 @@ ai-channels.json
 ai-conversation.json
 mcp-connection.json
 mcp-connection.json.tmp
+file-locations.json
 *.log
 *.zip
 *.exe

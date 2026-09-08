@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { attachIntegration } = require('./integration.cjs');
 const { attachUpdates } = require('./updates.cjs');
+const { attachFiles } = require('./files.cjs');
 
 const origin = 'director://app';
 protocol.registerSchemesAsPrivileged([{ scheme: 'director', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
@@ -13,11 +14,12 @@ app.setName('DirectorDesk');
 let window;
 const csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:; media-src 'self' data: blob:; worker-src 'self' blob:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
-function createWindow() {
+async function createWindow() {
     window = new BrowserWindow({ width: 1600, height: 1000, minWidth: 1000, minHeight: 720, show: false,
         title: '导演台', backgroundColor: '#101214', icon: path.join(__dirname, 'icon.ico'),
         webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, spellcheck: false } });
     const integration = attachIntegration(window), updates = attachUpdates(window, integration);
+    const files = attachFiles(window);
     Menu.setApplicationMenu(null);
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event, url) => { if (url !== origin + '/') event.preventDefault(); });
@@ -26,16 +28,11 @@ function createWindow() {
     window.webContents.session.setPermissionCheckHandler(() => false);
     window.webContents.on('will-prevent-unload', event => {
         if (updates.isQuitting()) { event.preventDefault(); return; }
-        const choice = dialog.showMessageBoxSync(window, { type: 'question', title: '关闭导演台',
-            message: '当前工程尚未导出为项目文件，仍要关闭吗？', detail: '自动恢复副本保存在本机。需要独立备份时，请返回并保存项目。',
-            buttons: ['返回编辑', '关闭'], defaultId: 0, cancelId: 0, noLink: true });
-        if (choice === 1) event.preventDefault();
-    });
-    window.webContents.session.on('will-download', (_event, item) => {
-        item.setSaveDialogOptions({ title: '保存导演台文件', defaultPath: path.join(app.getPath('downloads'), path.basename(item.getFilename())) });
+        files.preventUnload(event);
     });
     window.once('ready-to-show', () => window.show());
     window.on('closed', () => { window = null; });
+    try { await files.ready; } catch { dialog.showErrorBox('文件位置不可用', '请检查默认目录或本机文件位置配置。'); }
     void window.loadURL(origin + '/');
 }
 

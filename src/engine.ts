@@ -1,4 +1,5 @@
 import { fitFeetToSurface } from './editor/foot-contact.ts';
+import { ReferenceLabels } from './production/reference-labels.ts';
 import { cameraLookAt } from './animation/camera-look.ts';
 import { addZoneHelpers } from './editor/zone-helpers.ts';
 import { InitialPoseRuntime } from './scenes/initial-pose-runtime.ts';
@@ -44,6 +45,7 @@ interface Callbacks {
     transformEnd: (cancel?:boolean) => void;
 }
 export class Engine {
+    private referenceLabels = new ReferenceLabels();
     private initialPoses = new InitialPoseRuntime();
     externalModels = new SceneModels();
     scene = new T.Scene();
@@ -67,6 +69,7 @@ export class Engine {
     drawingPath = false;
     positionKeying = false;
     dragging = false;
+    pickingEnabled = true;
     gridVisible = true;
     placementSnap = 0;
     objectSnapEnabled = false;
@@ -149,7 +152,7 @@ export class Engine {
         document.addEventListener('keydown',event=>{if(event.key==='Escape' && this.dragging){event.preventDefault();this.finishTransform(true);}},true);
         canvas.addEventListener('pointerdown', e => this.pointerDown = [e.clientX, e.clientY]);
         canvas.addEventListener('pointerup', e => this.pick(e));
-        canvas.addEventListener('dblclick', () => this.focus(this.selected));
+        canvas.addEventListener('dblclick', () => { if (this.pickingEnabled) this.focus(this.selected); });
         this.resizeObserver = new ResizeObserver(() => this.resizeNeeded = true);
         this.resizeObserver.observe(stage);
         this.resizeObserver.observe(shot);
@@ -158,6 +161,7 @@ export class Engine {
     private renderer() { const r = new T.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true }); r.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap; r.outputColorSpace = T.SRGBColorSpace; r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; return r; }
     rebuild(project: Project) {
         this.externalModels.assertReady(project);
+        this.referenceLabels.clear();
         this.gizmo.detach();
         this.externalModels.clearInstances();
         this.initialPoses.clear();
@@ -495,8 +499,10 @@ export class Engine {
         if (this.stage.clientWidth)
             this.editorRenderer.render(this.scene, this.editorCamera);
         this.prepareView(false);
-        if (this.shot.clientWidth)
+        if (this.shot.clientWidth) {
             this.shotRenderer.render(this.scene, this.getShotCamera());
+            this.renderReferenceLabels(this.getShotCamera(), this.previewId);
+        }
         this.onFrame();
     }
     renderOutput(time: number, width: number, height: number, cameraId = 'program') {
@@ -507,7 +513,13 @@ export class Engine {
         // Same physical gate as preview. Integer output pixels only affect resolution, never camera framing.
         this.prepareView(false, cameraId);
         this.shotRenderer.render(this.scene, cam);
+        this.renderReferenceLabels(cam, cameraId);
         return this.shotRenderer.domElement;
+    }
+    private renderReferenceLabels(camera: T.PerspectiveCamera, id: string) {
+        const settings = this.cameraEntity(id).camera!;
+        this.referenceLabels.render(this.shotRenderer, camera, this.project, this.models, key => this.rigs.get(key)?.head,
+            settings.mode === 'pov' ? settings.targetId : '');
     }
     restorePreview(time: number) { this.exporting = false; this.sample(time); this.shotRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); this.resizeNeeded = true; this.render(); }
     requestResize() { this.resizeNeeded = true; }
@@ -527,7 +539,7 @@ export class Engine {
         this.editorCamera.position.copy(this.orbit.target).addScaledVector(direction, distance * 1.2); this.orbit.update();
     }
     pick(e: PointerEvent) {
-        if (e.button !== 0 || this.dragging || this.gizmo.axis || Math.hypot(e.clientX - this.pointerDown[0], e.clientY - this.pointerDown[1]) > 5)
+        if (!this.pickingEnabled || e.button !== 0 || this.dragging || this.gizmo.axis || Math.hypot(e.clientX - this.pointerDown[0], e.clientY - this.pointerDown[1]) > 5)
             return;
         const rect = this.editorRenderer.domElement.getBoundingClientRect();
         const mouse = new T.Vector2((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1);

@@ -110,6 +110,8 @@ export interface ReferenceImage {
 export interface ProductionNote { id: string; start: number; end: number; actorId: string; story: string; emotion: string; dialogue: string; action: string }
 export interface ProductionData { fixedPrompt: string; sceneReferenceIds: string[]; notes: ProductionNote[]; promptText?: string }
 export interface Project {
+    creationMode?: 'full' | 'geometry';
+    referenceLabels?: boolean;
     zones?: SceneZone[];
     floors?: Floor[];
     editorView?: EditorView;
@@ -203,6 +205,8 @@ export function getFrameCount(start: number, end: number, fps: number) { return 
 export function assertProject(input: unknown): asserts input is Project {
     const p = input as Project;
     const fail = (message: string): never => { throw new Error(`项目文件无效：${message}`); };
+    if (p?.creationMode !== undefined && !['full', 'geometry'].includes(p.creationMode)) fail('创作模式无效');
+    if (p?.referenceLabels !== undefined && typeof p.referenceLabels !== 'boolean') fail('参考视频标签开关无效');
     const n = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
     const v3 = (v: unknown) => Array.isArray(v) && v.length === 3 && v.every(n);
     if (!p || p.format !== 'director-desk' || ![1, 2].includes(p.version))

@@ -4,6 +4,8 @@ export interface ConversationSnapshot { sessionId: string; profileId: string; tr
 export interface AgentEvent { type: string; text?: string; name?: string; status?: string; model?: string; channel?: string; sessionId: string; summary?: unknown; usage?: unknown; timing?: { rounds: number; modelMs: number; toolMs: number; toolCalls: number; totalMs: number; firstTextMs?: number } }
 declare global {
     interface Window { directorDesktop?: {
+        files?(action: 'locations' | 'choose' | 'save-project', data?: unknown): Promise<DesktopResult<{ projects?: string; exports?: string; saved?: boolean }>>;
+        onSaveBeforeClose?(callback: () => Promise<boolean>): () => void;
         update(action: 'state' | 'save' | 'check' | 'download' | 'install' | 'page', data?: unknown): Promise<DesktopResult<import('../updates/types.ts').UpdateState>>;
         onUpdate(callback: (state: import('../updates/types.ts').UpdateState) => void): () => void;
         profiles(): Promise<DesktopResult<Channel[]>>;

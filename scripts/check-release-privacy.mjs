@@ -82,8 +82,8 @@ await inspect(root);
 if (!embeddedMotion) failures.push({ file: 'dist', rule: 'missing-builtin-motion-payload' });
 // Desktop entry code is copied separately; apply the same content checks before staging it.
 const extraFiles = ['desktop/main.cjs', 'desktop/preload.cjs', 'desktop/integration.cjs', 'desktop/ai-host.cjs', 'desktop/ai-conversation.cjs', 'desktop/providers.cjs', 'desktop/model-limits.cjs', 'desktop/director-prompt.cjs', 'desktop/mcp-server.cjs', 'desktop/mcp-config.cjs', 'desktop/mcp-host.cjs', 'skills/director-desk/SKILL.md', 'skills/director-desk/references/project-format.md', 'skills/director-desk/references/online-workflow.md', 'skills/director-desk/scripts/project-tool.mjs', 'skills/director-desk/assets/minimal.director'];
-extraFiles.push('desktop/update-config.cjs', 'desktop/update-host.cjs', 'desktop/updates.cjs');
-if (process.argv.includes('--desktop')) extraFiles.push('.audit/desktop-app/desktop/integration.cjs', '.audit/desktop-app/desktop/tools-contract.cjs', '.audit/desktop-app/desktop/updates.cjs');
+extraFiles.push('desktop/file-host.cjs', 'desktop/files.cjs', 'desktop/update-config.cjs', 'desktop/update-host.cjs', 'desktop/updates.cjs');
+if (process.argv.includes('--desktop')) extraFiles.push('.audit/desktop-app/desktop/files.cjs', '.audit/desktop-app/desktop/integration.cjs', '.audit/desktop-app/desktop/tools-contract.cjs', '.audit/desktop-app/desktop/updates.cjs');
 for (const file of extraFiles) {
     const content = await fs.readFile(file, 'utf8');
     for (const [name, regex] of rules) if (regex.test(content)) failures.push({ file, rule: name });

@@ -67,7 +67,7 @@ export function applyOperations(original: Project, operations: EditOperation[]):
         else if (op.operation === 'resource') editResourceMetadata(project, op.id ?? '', op.patch);
         else if (op.operation === 'resource-remove') removeUnusedResource(project, op.id ?? '');
         else if (op.operation === 'motion') insertBuiltinMotion(project, op.id ?? '', op.asset ?? '', op.time ?? 0, op.duration);
-        else if (op.operation === 'project') patch(project, op.patch, new Set(['name', 'duration', 'fps', 'aspect', 'room', 'floors', 'zones', 'editorView']));
+        else if (op.operation === 'project') patch(project, op.patch, new Set(['name', 'duration', 'fps', 'aspect', 'room', 'floors', 'zones', 'editorView', 'creationMode', 'referenceLabels']));
         else if (op.operation === 'cuts') project.cuts = clone(op.value) as Project['cuts'];
         else if (op.operation === 'notes') { assertProductionShape(op.value); project.production = clone(op.value); }
         else throw new Error('未知操作');
@@ -86,5 +86,5 @@ export function changeSummary(before: Project, after: Project) {
     return { hasChanges: JSON.stringify(before) !== JSON.stringify(after), added: after.entities.filter(e => !old.has(e.id)).map(e => ({ id: e.id, name: e.name })),
         updated: after.entities.filter(e => old.has(e.id) && JSON.stringify(old.get(e.id)) !== JSON.stringify(e)).map(e => ({ id: e.id, name: e.name })),
         removed: before.entities.filter(e => !fresh.has(e.id)).map((e: Entity) => ({ id: e.id, name: e.name })),
-        projectChanged: ['name', 'duration', 'fps', 'aspect', 'room', 'cuts', 'production', 'floors', 'zones', 'editorView', 'resources'].some(k => JSON.stringify(before[k as keyof Project]) !== JSON.stringify(after[k as keyof Project])) };
+        projectChanged: ['name', 'duration', 'fps', 'aspect', 'room', 'cuts', 'production', 'floors', 'zones', 'editorView', 'resources', 'creationMode', 'referenceLabels'].some(k => JSON.stringify(before[k as keyof Project]) !== JSON.stringify(after[k as keyof Project])) };
 }

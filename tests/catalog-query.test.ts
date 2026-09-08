@@ -6,12 +6,30 @@ import { createToolService } from '../src/automation/service.ts';
 import { demoProject } from '../src/model.ts';
 import type { AppContext } from '../src/app-context.ts';
 
+test('empty searches and genuine misses return no fallback catalog or unrelated actions', () => {
+    for (const query of [{}, { details: true }, { query: '   ' }, { ids: [] }, { offset: 8 }]) {
+        const result = queryAssetCatalog(query);
+        assert.equal(result.found, false); assert.equal(result.total, 0);
+        assert.deepEqual(result.assets, []); assert.deepEqual(result.groups, []);
+        assert.deepEqual(result.actions, {}); assert.equal(result.nextOffset, null);
+        assert.match(result.message, /指定/);
+    }
+    const miss = queryAssetCatalog({ query: '不存在的量子传送门白模' });
+    assert.equal(miss.found, false); assert.deepEqual(miss.missingQueries, ['不存在的量子传送门白模']);
+    assert.match(miss.message, /没有找到/);
+    const partial = queryAssetCatalog({ queries: ['blackboard', '不存在的量子传送门白模'], limit: 1 });
+    assert.equal(partial.found, true); assert.equal(partial.assets[0].id, 'furniture-blackboard');
+    assert.deepEqual(partial.missingQueries, ['不存在的量子传送门白模']);
+    assert.deepEqual(partial.actions, {});
+    assert.equal(queryAssetCatalog({ kind: 'prop' }).assets.length, 8);
+});
+
 test('bounded catalog pages cover every asset exactly once, with explicit end and missing IDs', () => {
-    const first = queryAssetCatalog(); assert.equal(first.assets.length, 20); assert.equal(first.total, ASSETS.length);
+    const first = queryAssetCatalog({ group: '全部', limit: 20 }); assert.equal(first.assets.length, 20); assert.equal(first.total, ASSETS.length);
     const ids: string[] = []; let offset: number | null = 0;
-    while (offset !== null) { const page = queryAssetCatalog({ offset, limit: 17 }); ids.push(...page.assets.map(a => a.id)); offset = page.nextOffset; }
+    while (offset !== null) { const page = queryAssetCatalog({ group: '全部', offset, limit: 17 }); ids.push(...page.assets.map(a => a.id)); offset = page.nextOffset; }
     assert.deepEqual(ids, ASSETS.map(a => a.id)); assert.equal(new Set(ids).size, ASSETS.length);
-    const end = queryAssetCatalog({ offset: ASSETS.length + 100 }); assert.deepEqual(end.assets, []); assert.equal(end.nextOffset, null);
+    const end = queryAssetCatalog({ group: '全部', offset: ASSETS.length + 100 }); assert.deepEqual(end.assets, []); assert.equal(end.nextOffset, null);
     assert.deepEqual(queryAssetCatalog({ ids: ['absent', 'person', 'absent'] }).missingIds, ['absent']);
     for (const query of [{ limit: 0 }, { limit: 51 }, { limit: 1.5 }, { offset: -1 }, { offset: Infinity }, { offset: 0.1 }]) assert.throws(() => queryAssetCatalog(query));
     assert.ok(JSON.stringify(first).length < JSON.stringify(ASSETS).length / 3);

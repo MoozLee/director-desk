@@ -1,6 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const invoke = (action, data) => ipcRenderer.invoke('director-host', { action, data });
 contextBridge.exposeInMainWorld('directorDesktop', {
+    files: (action, data) => ipcRenderer.invoke('director-files', { action, data }),
+    onSaveBeforeClose: callback => { const fn = async (_event, data) => {
+        let saved = false; try { saved = await callback() === true; } catch { }
+        ipcRenderer.send('director-save-close-result', { id: data.id, saved });
+    }; ipcRenderer.on('director-save-before-close', fn); return () => ipcRenderer.removeListener('director-save-before-close', fn); },
     update: (action, data) => ipcRenderer.invoke('director-updates', { action, data }),
     onUpdate: callback => { const fn = (_event, data) => callback(data); ipcRenderer.on('director-update-state', fn); return () => ipcRenderer.removeListener('director-update-state', fn); },
     profiles: () => invoke('profiles'), configure: data => invoke('configure', data), test: id => invoke('test', id),

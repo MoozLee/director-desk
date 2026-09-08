@@ -12,7 +12,9 @@ node scripts/project-tool.mjs apply base.director operations.json finished.direc
 node scripts/project-tool.mjs validate finished.director
 ```
 
-`query.json` 可写 `{"query":"桌","details":true}`，按需查询资产；查询多种物件可用 `{"queries":["desk","chair","blackboard"]}` 取并集。query 内空格分开的词需同时匹配同一资产，其他类别／能力条件仍取交集。仅需要完整离线目录时使用 `catalog`；不要在每次小任务都输出全部目录。
+上述是可用命令示例，不是每次必走的步骤。`query.json` 可写 `{"query":"桌","details":true}`；多种物件用 `{"queries":["desk","chair","blackboard"],"details":true}` 一次查询所需参数。query 内空格词取交集，queries 取并集；其他筛选条件仍取交集。空请求不返回目录，默认最多 8 条；found:false、missingQueries/missingIds 表示没有匹配。已知 ID 和参数直接 apply。只有用户明确要浏览整库才使用 `catalog`，不例行扫描或翻完全部页。
+
+仅几何体模式通过 `{operation:"project",patch:{creationMode:"geometry"}}` 开启；`full` 恢复完整资产，省略时默认 full。模式按戏段保存，不转换、删除已有物体。几何模式无需查目录：直接用 `shape-box`、`shape-sphere`、`shape-cylinder`、`shape-cone`、`shape-capsule`、`shape-wedge`，均为 prop；尺寸写 `patch.assetParameters:{width,height,depth}`（米，每轴 0.02—500，默认 1），底面中心为 position，rotation 弧度，scale 默认 [1,1,1]，color 为 #RRGGBB。人物用单个胶囊命名上色加 path，不加人形动作；notes.actorId 留空，正文注明角色名。家具建筑组合静态形状，门洞留真实空隙；多个形状不会自动绑定移动。摄影机仍用 asset:camera。模块也导出 `geometryCreationGuide()` 供程序按需读取同一约定。
 
 create/apply/scene 写文件均不覆盖已有输出文件；修改现有工程先读用户提供的文件，另存新文件。create 支持 blank、room、park、street、courtyard、bedroom；改变模板总时长时，模板内现有路径、动作及切镜时间同比缩放。`catalog` 输出真实资产、动作、关节、场景模板和默认对象字段；`inspect` 提供对象完整信息，但不输出参考图图片字节。
 
@@ -48,7 +50,7 @@ node scripts/project-tool.mjs validate revised.director
 
 其中 `copy.json` 为 `{"action":"copy","name":"第二场","newSceneId":"scene-b"}`，`list.json` 为 `{"action":"list"}`。复制使旧文件迁移为 v3 并选中新段；apply 仅修改当前段，保留其他段与前情快照。`scene` 查询 list/read 不带输出文件；写入支持 create/copy/switch/rename/reorder/remove，必须带新的输出文件名。create 可指定 template，默认 blank；switch/rename/remove 指定 sceneId；reorder 的 sceneIds 必须包含全部戏段 ID 各一次。离线不需要 revision/requestId。
 
-v3 外层只有 `{format:"director-desk",version:3,name,activeSceneId,resources,scenes}`。scenes 每项为 `{id,name,state,origin?}`。state 存放该段 duration/fps/aspect/room/entities/cuts/references，以及可选 production/floors/editorView；不嵌套 format/version/name/resources 或另一整份工程。外部源文件由外层 resources 共享；人物和道具实例、路径、动作、切镜、参考图和备注分别属于各段。段内实体 ID 唯一，跨段沿用同一人物的 ID 以保持身份。
+v3 外层只有 `{format:"director-desk",version:3,name,activeSceneId,resources,scenes}`。scenes 每项为 `{id,name,state,origin?}`。state 存放该段 duration/fps/aspect/room/entities/cuts/references，以及可选 creationMode/referenceLabels/production/zones/floors/editorView；不嵌套 format/version/name/resources 或另一整份工程。外部源文件由外层 resources 共享；人物和道具实例、路径、动作、切镜、参考图和备注分别属于各段。段内实体 ID 唯一，跨段沿用同一人物的 ID 以保持身份。
 
 优先用模块导出的 `readSceneDocument`、`projectForScene`、`updateDocumentScene` 和 `editIndependentScene` 完成转换和编辑；不要对 v3 外层调用只接收单段的 `assertProject`，命令行 validate 会验证整份文档及源段快照。
 
@@ -68,6 +70,7 @@ v3 外层只有 `{format:"director-desk",version:3,name,activeSceneId,resources,
 | name / duration | 名称不超过 200 字；正数秒数，按任务决定时长 |
 | fps | 24、30、50、59、60、90、120 |
 | aspect | 9:16、16:9、21:9、3:4、4:3、1:1 |
+| creationMode / referenceLabels（可选） | `"full"`／`"geometry"`；`referenceLabels:true` 让人物、群演组与胶囊名称进入参考视频，默认 false。均按戏段保存 |
 | room | `{enabled,width,depth,height}`，尺寸均为 2.3—10000 米；室外 enabled=false，另放 ground |
 | entities / cuts / references | 对象数组、切镜数组、参考图数组；无参考图时 `[]` |
 | production（可选） | `{fixedPrompt,sceneReferenceIds,notes}`；每条备注 `{id,start,end,actorId,story,emotion,dialogue,action}`；未绑定演员用空 actorId |

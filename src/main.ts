@@ -1,3 +1,5 @@
+import { saveProjectFile } from './ui/project-save.ts';
+import { mountFileLocations } from './ui/file-locations.ts';
 import { selectClip } from './ui/clip-controls.ts';
 import { captureStructureEdits, syncStructureLinks } from './building/structure-links.ts';
 import { syncFloorElevations } from './building/floors.ts';
@@ -12,13 +14,14 @@ import { extendTimelineView } from './ui/timeline-zoom.ts';
 import { assertLockedEntitiesUnchanged } from './editor/invariants.ts';
 import { freezeCamera } from './editor/camera-editing.ts';
 import { bindNavigation } from './editor/navigation.ts';
+import { mountModelControl } from './ui/model-control.ts';
 import { bindResizableLayout } from './ui/resizable-layout.ts';
 import { createScene, type SceneTemplate } from './scenes.ts';
 import { createEditingTools } from './editor/operations.ts';
 import { Engine } from './engine.ts';
 import type { Action, Entity, Project, Vec3 } from './model.ts';
 import { assertProject, clone, demoProject } from './model.ts';
-import { autosave, download, recover } from './storage.ts';
+import { autosave, recover } from './storage.ts';
 import { SceneWorkspace } from './scenes/scene-workspace.ts';
 import { readSceneDocument, projectForScene, type SceneDocument } from './scenes/sequence-project.ts';
 import type { SceneContext } from './scenes/sequence-session.ts';
@@ -140,6 +143,8 @@ function renderPanels() {
     $('#project-name').textContent = project.name;
     renderSceneSwitcher(uiContext);
     $('#aspect').value = project.aspect;
+    $('#creation-mode').value = project.creationMode ?? 'full';
+    $<HTMLInputElement>('#reference-labels').checked = project.referenceLabels ?? false;
     $('#fps').value = String(project.fps);
     $('#duration').value = String(project.duration);
     $('#duration-label').textContent = `${project.duration.toFixed(1)} s`;
@@ -218,13 +223,7 @@ function seek(t: number) { if (busy)
     inspectorSeekTimer = setTimeout(() => { if (!draft && !busy && !engine.dragging && !document.activeElement?.closest('#inspector-content input,#inspector-content select')) renderInspector(); }, 80);
 }
 function setView(value: string) { if (!['stage', 'split', 'shot'].includes(value)) return; mode = value; $('#viewports').className = 'viewports ' + value; document.querySelectorAll('.view-modes button[data-view]').forEach(el => el.classList.toggle('active', (el as HTMLElement).dataset.view === value)); engine.requestResize(); }
-function saveProject() {
-    if (draft) finishPath();
-    if (history.pending) { toast('请先结束拖动，再保存项目'); return; }
-    const document = history.document();
-    download(new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' }), document.name.replace(/[<>:"/\\|?*]/g, '_') + '.director');
-    dirty = false; toast(`项目文件已导出，包含全部 ${document.scenes.length} 个独立戏段及共享模型资源`);
-}
+async function saveProject() { return saveProjectFile(uiContext); }
 function applyDocument(document: SceneDocument, context: SceneContext, label: string, resetViews = false) {
     if (draft || history.pending || engine.exporting) throw Error('请先完成当前编辑或导出');
     for (const scene of document.scenes) engine.externalModels.assertReady(projectForScene(document, scene.id));
@@ -284,6 +283,7 @@ const uiContext: AppContext = {
 const editingTools = createEditingTools(uiContext);
 bindEvents(uiContext);
 const navigation = bindNavigation(uiContext);
+mountModelControl(uiContext);
 bindResizableLayout();
 const sidebarUI = createSidebar(uiContext);
 const inspectorUI = createInspector(uiContext);
@@ -294,6 +294,7 @@ const commandsUI = createCommands(uiContext);
 const toolService = createToolService(uiContext);
 window.directorDesktop?.onTool((name, args) => toolService.call(name, args));
 mountAI(uiContext);
+mountFileLocations(uiContext);
 mountUpdates(async run => {
     if (busy || history.pending || draft || document.querySelector('#ai-panel')?.getAttribute('data-running') === 'true') throw Error('请先完成当前编辑、导出或 AI 任务');
     busy = true; playing = false; clearTimeout(saveTimer);
@@ -309,9 +310,9 @@ void recover().then(async p => { if (p && revision === 0) {
     selected = history.restoredSelection!; time = 0; preview = 'program';
     engine.selected = selected; engine.rebuild(project);
     renderPanels();
-    toast('已恢复上次工作');
+    dirty = true; toast('已恢复上次工作');
 } }).catch(() => toast('未能读取自动恢复或模型资源，可以打开手动保存的项目文件'));
-window.addEventListener('beforeunload', event => { if (dirty) {
+window.addEventListener('beforeunload', event => { if (dirty || busy || history.pending || draft) {
     event.preventDefault();
     event.returnValue = '';
 } });

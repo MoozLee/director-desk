@@ -1,4 +1,5 @@
 import type { AppContext } from '../app-context.ts';
+import { GEOMETRY_ASSET_IDS, geometryCreationGuide } from '../assets/creation-mode.ts';
 import { resourceUsage } from '../resources/resource-usage.ts';
 import { sceneResourceReport } from '../resources/render-statistics.ts';
 import { structurePorts, worldStructurePorts } from '../building/structure-ports.ts';
@@ -74,6 +75,7 @@ export function createToolService(ctx: AppContext) {
             const resource = args.resourceId === undefined ? undefined : ctx.project.resources?.find(r => r.id === args.resourceId);
             if (args.resourceId !== undefined && !resource) throw Error('模型资源不存在');
             return { revision: currentRevision(), sceneContext: ctx.scenes?.context, scenes: ctx.scenes?.list(), name: ctx.project.name, duration: ctx.project.duration, fps: ctx.project.fps, aspect: ctx.project.aspect,
+                referenceLabels: ctx.project.referenceLabels ?? false, creationMode: ctx.project.creationMode ?? 'full', ...(ctx.project.creationMode === 'geometry' ? { geometry: geometryCreationGuide() } : {}),
                 ...(resource ? { model: ctx.engine.externalModels.inspection(resource) } : {}),
                 skill: { name: BUILTIN_SKILL.name, version: BUILTIN_SKILL.version },
                 time: ctx.time, cameraId: ctx.preview, selectedId: ctx.selected, room: ctx.project.room, floors: ctx.project.floors ?? [], zones: ctx.project.zones ?? [], editorView: ctx.project.editorView, cuts: ctx.project.cuts,
@@ -91,7 +93,7 @@ export function createToolService(ctx: AppContext) {
             try { ctx.engine.sample(time); return { revision: currentRevision(), time, ...ctx.engine.externalModels.nodes(ctx.project, String(args.entityId), args as { path?: string; query?: string; offset?: number; limit?: number }) }; }
             finally { ctx.engine.sample(previous); }
         }
-        if (name === 'director_assets') return queryAssetCatalog(args as AssetQuery);
+        if (name === 'director_assets') return queryAssetCatalog(args as AssetQuery, ctx.project.creationMode === 'geometry' ? GEOMETRY_ASSET_IDS : undefined);
         if (name === 'director_motions') return { presets: motionPresets(String(args.query ?? '')), note: '内置人形动作，通过 director_apply 的 motion 操作加入人物或群演；duration 可指定持续秒数，省略则使用目录的短默认时长，整场坐姿需显式指定全程时长；素材资源随工程保存；basicAction 基础预设复用程序姿态，无需附加素材，导入人物需完整人形骨架。' };
         if (name === 'director_job') {
             const task = jobs.get(String(args.id)); if (!task) throw new Error('任务不存在'); if (args.cancel) task.aborter.abort();

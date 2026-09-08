@@ -32,6 +32,7 @@ export { applyHandBinding, editBoundTransform, detachHandBinding, canBindHand } 
 export { contactAnchors, worldContactAnchors } from '../src/assets/contact-anchors.ts';
 export { seatedPlacement } from '../src/editor/seat-placement.ts';
 export { motionPresets } from '../src/animation/motion-catalog.ts';
+export { GEOMETRY_ASSET_IDS, geometryCreationGuide } from '../src/assets/creation-mode.ts';
 export { pathDistance } from '../src/animation/path-distance.ts';
 export { motionTransitionAt } from '../src/animation/transition-plan.ts';
 export { ASSETS, ACTIONS, ASPECTS, FRAME_RATES, JOINTS, SCENE_TEMPLATES, createScene, entity, clip, assertProject, applyOperations, applyOperationsWithResources, parameterDefaults, queryAssetCatalog };

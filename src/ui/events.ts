@@ -99,6 +99,16 @@ export function bindEvents(ctx: AppContext) {
             return;
         }
         if (ctx.draft || ctx.history.pending) { ctx.toast('请先完成或取消当前绘制／拖动操作'); ctx.renderInspector(); return; }
+        if (target.id === 'creation-mode') {
+            ctx.change(() => { ctx.project.creationMode = target.value as 'full' | 'geometry'; ctx.assetFilter = '全部'; ctx.query = ''; }, false);
+            $<HTMLInputElement>('#search').value = ctx.query;
+            return;
+        }
+        if (target.id === 'reference-labels') {
+            const enabled = target.checked;
+            ctx.change(() => { ctx.project.referenceLabels = enabled; }, false);
+            return;
+        }
         if (target.dataset.field) {
             ctx.applyField(target.dataset.field, target.value);
             return;

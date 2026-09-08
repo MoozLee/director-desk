@@ -6,7 +6,9 @@
 
 - 本说明由软件内置的 `director_skill` 按版本提供。当前对话已包含同版本说明就沿用，不反复读取、安装或更新；版本变化时读取一次最新说明。新对话没有旧说明时应重新读取，不依赖全局“已学过”标记。工具不可用的旧版软件使用随包说明。
 - 默认直接修改当前工程的当前戏段。补建场景、修改剧情、走位或运镜不需要新建或复制；只有用户要求新工程、新戏段、备选副本或接拍时才另建。房间、走廊等连续区域使用同一戏段内的物体和 zones，不拆成独立戏段；可用正常撤销修正。
-- `director_read` 获取当前工程；有任务快照时直接利用，需要对象详情或新版本时用 ids 限定查询。`director_assets(queries:[...])` 同时找多个相关资产，不必遍历目录。
+- `director_read` 获取当前工程；已有任务快照或本轮读取结果时直接利用，修改后沿用提交返回的 revision；只有缺少对象详情、版本冲突或结果未确认时再读取，详情用 ids 限定。工具返回足够时不为确认成功再次回读。
+- 按当前 `creationMode` 搭建：`geometry`（仅几何体）直接使用快照 `geometry` 中六种形状及尺寸写法，人物用命名、上色的单个胶囊加 path 占位，家具建筑用几何体组合；不检索人物、家具或动作库。几何角色为 prop，notes.actorId 用空串，剧情和对白写角色名；多个形状不会自动作为一个物体移动。`full`（完整资产／旧工程默认）仅按需要的名称、关键词、ID 或类型查询。
+- `director_assets({queries:["桌","椅","黑板"]})` 可一次找所需物件，未知尺寸参数时同次带 `details:true`。空查询不返回目录，`found:false`、missingQueries/missingIds 明确表示未找到；不要把没找到理解成要扫描全库。已知 ID 和参数可直接添加。默认最多 8 条匹配，分页只用于继续寻找确实需要的候选；不例行查全部类别或翻完全部页。
 - `director_apply` 可一批新增多个人物、道具、机位和动作，普通编辑直接提交。参数错误时按返回信息修改即可，无需逐对象预检。
 - `director_spatial` 可传 `ids:["实体ID"]` 只返回所需对象；遮挡仍使用完整场景，返回的 counts 仍为全场统计，减少重复传回无关对象的数据。连接旧版软件时若工具 schema 没有 ids，省略该字段即可。
 - `director_spatial(time:秒,cameraId:"program")` 返回该时刻实际站位、朝向、边界与节目机位取景。position 是对象原点；bounds 是占据的空间。路径、姿态、绑定会改变实际位置，不能只看初始 position 推断全过程。遮挡采样按需启用。
@@ -19,6 +21,7 @@
 - `patch.camera` 合并提供的顶层字段，例如 `{focal:50,target:[0,1.2,0]}`；内部数组和其他嵌套对象整体替换，修改前读取原值。targetId:"" 解除跟随目标。
 - 坐姿、走路等粗略动作优先查询 basic 预设。`motion` 操作用 time/duration 安排，省略 duration 会使用短默认时长；整场坐姿覆盖实际导出区间。插入会寻找空闲区间。无需手 K 面部、手指，也不用默认安排脚部校正。
 - 米/秒，世界 +Y 向上、人物 +Z 向前；rotation 为弧度、pose 为度。路径用 `{smooth:false,points:[{time,position:[x,y,z]}]}`。颜色为 #RRGGBB。duration 支持小数，不把 24.5 秒无故延长至 25 秒。
+- `project.patch.referenceLabels:true/false` 开关参考视频中的名称标签，默认关闭；随戏段保存，摄影机预览、截图与视频共用。覆盖人物、群演组和胶囊占位，名称取实体 name；POV 不显示自身标签。标签仅作角色识别，配套生成提示词注明不要把标签变成成片字幕／文字。
 - cuts 的 value 为完整 `[{time:0,cameraId},...]`；notes 的 value 为完整 `{fixedPrompt:"",sceneReferenceIds:[],notes:[{id,start,end,actorId:"",story:"",emotion:"",dialogue:"",action:""}]}`。所有文字字段齐全，未写内容用空串。可附 promptText 保存本段完整提示词。保留原有备注、引用及未改的 promptText，不用 patch 替代 value。
 - preview 不写入对象。预检成功后用 previewId、未变化的 revision 和新 requestId 提交，省略 operations；修改批次或预检失效时重新提供 operations。明确的小修改无需先预检。
 

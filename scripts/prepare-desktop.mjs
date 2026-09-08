@@ -32,6 +32,7 @@ await fs.copyFile('desktop/main.cjs', path.join(desktopRoot, 'desktop/main.cjs')
 await fs.copyFile('desktop/preload.cjs', path.join(desktopRoot, 'desktop/preload.cjs'));
 await build({ entryPoints: ['src/automation/contract.ts'], outfile: path.join(desktopRoot, 'desktop/tools-contract.cjs'), bundle: true, platform: 'node', format: 'cjs', sourcemap: false, minify: true });
 const bundled = await build({ entryPoints: ['desktop/integration.cjs'], outfile: path.join(desktopRoot, 'desktop/integration.cjs'), bundle: true, platform: 'node', format: 'cjs', external: ['electron', './tools-contract.cjs'], sourcemap: false, minify: true, metafile: true });
+await build({ entryPoints: ['desktop/files.cjs'], outfile: path.join(desktopRoot, 'desktop/files.cjs'), bundle: true, platform: 'node', format: 'cjs', external: ['electron'], sourcemap: false, minify: true });
 const updatesBundle = await build({ entryPoints: ['desktop/updates.cjs'], outfile: path.join(desktopRoot, 'desktop/updates.cjs'), bundle: true, platform: 'node', format: 'cjs', external: ['electron'], sourcemap: false, minify: true, metafile: true });
 for (const file of ['SKILL.md', 'LICENSE', 'references/project-format.md', 'references/online-workflow.md', 'scripts/project-tool.mjs', 'assets/minimal.director']) {
     const relative = path.join('skills/director-desk', file), destination = path.join(desktopRoot, relative);

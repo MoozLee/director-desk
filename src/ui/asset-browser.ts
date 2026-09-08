@@ -1,9 +1,11 @@
 import { ASSET_GROUPS, searchAssets } from '../asset-catalog.ts';
+import { isGeometryAsset } from '../assets/creation-mode.ts';
 import { libraryPreferences } from '../assets/library-preferences.ts';
 import type { AppContext } from '../app-context.ts';
 import { escape, options } from './common.ts';
 
 export function createAssetBrowser(ctx: AppContext) {
+    let creationMode = ctx.project.creationMode ?? 'full';
     let scope = 'all', page = 0, pageSize = 6, generation = 0, signature = '', host: HTMLElement | undefined;
     let observer: ResizeObserver | undefined;
     function mount(content: HTMLElement) {
@@ -40,15 +42,21 @@ export function createAssetBrowser(ctx: AppContext) {
     function render(content: HTMLElement) {
         if (!content.querySelector('.asset-browser')) mount(content);
         const focusedFavorite = content.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.favorite : undefined;
-        const next = ctx.query + '\u0000' + ctx.assetFilter + '\u0000' + scope;
+        const mode = ctx.project.creationMode ?? 'full';
+        if (mode !== creationMode) {
+            creationMode = mode; scope = 'all'; ctx.assetFilter = '全部'; ctx.query = '';
+            const search = document.querySelector<HTMLInputElement>('#search'); if (search) search.value = '';
+        }
+        const next = ctx.query + '\u0000' + ctx.assetFilter + '\u0000' + scope + '\u0000' + mode;
         if (next !== signature) { signature = next; page = 0; }
         const grid = content.querySelector<HTMLElement>('.library-grid')!;
         const favorites = new Set(libraryPreferences.favorites), recent = libraryPreferences.recent;
         let list = searchAssets(ctx.query, ctx.assetFilter);
+        if (ctx.project.creationMode === 'geometry') list = list.filter(a => isGeometryAsset(a.id));
         if (scope === 'favorites') list = list.filter(a => favorites.has(a.id));
         if (scope === 'recent') list = list.filter(a => recent.includes(a.id)).sort((a, b) => recent.indexOf(a.id) - recent.indexOf(b.id));
         const pages = Math.max(1, Math.ceil(list.length / pageSize)); page = Math.min(page, pages - 1);
-        content.querySelector<HTMLSelectElement>('#asset-category')!.innerHTML = options(['全部', ...ASSET_GROUPS].map(g => [g, g]), ctx.assetFilter);
+        content.querySelector<HTMLSelectElement>('#asset-category')!.innerHTML = options((ctx.project.creationMode === 'geometry' ? ['全部', '基础形状', '结构形状'] : ['全部', ...ASSET_GROUPS]).map(g => [g, g]), ctx.assetFilter);
         content.querySelectorAll<HTMLElement>('[data-library-scope]').forEach(el => { const active = el.dataset.libraryScope === scope; el.classList.toggle('active', active); el.setAttribute('aria-pressed', String(active)); });
         content.querySelector('#library-count')!.textContent = `${list.length} 项`;
         content.querySelector('#library-page')!.textContent = `${page + 1} / ${pages}`;

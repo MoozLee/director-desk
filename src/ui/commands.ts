@@ -131,7 +131,7 @@ export function createCommands(ctx: AppContext) {
                 el.classList.toggle('active', ctx.loop);
                 break;
             case 'save':
-                ctx.saveProject();
+                await ctx.saveProject();
                 break;
             case 'open':
                 if (ctx.dirty)
@@ -140,7 +140,7 @@ export function createCommands(ctx: AppContext) {
                     $('#project-file').click();
                 break;
             case 'save-then-open':
-                ctx.saveProject();
+                if (!await ctx.saveProject()) break;
                 ctx.closeModal();
                 $('#project-file').click();
                 break;
@@ -190,7 +190,7 @@ export function createCommands(ctx: AppContext) {
                 ctx.sceneDialog();
                 break;
             case 'save-and-new':
-                ctx.saveProject();
+                if (!await ctx.saveProject()) break;
                 ctx.createNew(($<HTMLInputElement>('input[name="scene-template"]:checked')?.value ?? 'bedroom') as import('../scenes.ts').SceneTemplate);
                 break;
             case 'confirm-new':
