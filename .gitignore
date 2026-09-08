@@ -12,6 +12,7 @@ release/
 /*
 !/.gitignore
 !/README.md
+!/LICENSE
 !/package.json
 !/package-lock.json
 !/index.html

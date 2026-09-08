@@ -1,6 +1,10 @@
 # 导演台
 
-用于 AI 短剧站位、走位、动作和运镜参考的三维预演工具。版本 0.3.8，支持浏览器和 Windows 桌面版。
+用于 AI 短剧站位、走位、动作和运镜参考的三维预演工具。版本 0.3.9，支持浏览器和 Windows 桌面版。
+
+采用 [MIT 许可证](LICENSE) 开源。可使用、修改和分发，包括商用，需保留版权及许可声明。第三方依赖与内置动作素材遵循各自许可证；动作来源见 [NOTICE](src/animation/library/NOTICE.txt)，桌面发行版附带第三方许可清单。
+
+[下载软件与配套 skill](https://github.com/mangfufu/director-desk/releases/latest) · [官网](https://bigthat.me)
 
 ## 开发
 
