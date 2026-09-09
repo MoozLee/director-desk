@@ -16,4 +16,8 @@ module.exports = {
         createDesktopShortcut: true, createStartMenuShortcut: true, shortcutName: '导演台',
         runAfterFinish: false, deleteAppDataOnUninstall: false, differentialPackage: false,
         artifactName: 'DirectorDesk-Setup-${version}.${ext}', installerLanguages: ['zh_CN', 'en_US'] },
+    // Unsigned build: skip keychain probing so packaging works without a Developer ID certificate.
+    mac: { target: [{ target: 'dmg', arch: ['arm64'] }], icon: path.join(__dirname, 'icon.icns'), identity: null,
+        category: 'public.app-category.video', artifactName: 'DirectorDesk-${version}-${arch}.${ext}' },
+    dmg: { title: '导演台 ${version}', writeUpdateInfo: false },
 };

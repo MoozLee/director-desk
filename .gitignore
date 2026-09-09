@@ -28,6 +28,7 @@ release/
 /docs/*
 !/docs/images/
 /desktop/icon.ico
+/desktop/icon.icns
 # The generated offline helper is a required, directly usable skill runtime.
 /scripts/*
 !/scripts/build-offline-skill.mjs

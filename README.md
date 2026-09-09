@@ -65,7 +65,13 @@ npm run build
 npm run desktop:pack
 ```
 
-网页产物位于 `dist/`，桌面交付文件位于 `release/`。桌面构建使用 Windows x64 和本机 Chrome，可通过 `CHROME_PATH` 指定浏览器。
+macOS（Apple Silicon）构建 DMG：
+
+```bash
+npm run desktop:pack:mac
+```
+
+网页产物位于 `dist/`，桌面交付文件位于 `release/`（Windows 为 `DirectorDesk-Setup-<版本>.exe`，macOS 为 `DirectorDesk-<版本>-arm64.dmg`）。桌面构建使用本机 Chrome，可通过 `CHROME_PATH` 指定浏览器。macOS 包未做签名和公证，首次打开如被 Gatekeeper 拦截，请右键点击应用选择“打开”；macOS 版暂不支持应用内自动更新，请从发布页下载新版本。
 
 | 目录 | 内容 |
 | --- | --- |

@@ -15,6 +15,8 @@
     "predesktop:prepare": "npm run build",
     "desktop:pack": "electron-builder --config desktop/builder.cjs --win --x64 --publish never",
     "predesktop:pack": "npm run desktop:prepare",
+    "desktop:pack:mac": "electron-builder --config desktop/builder.cjs --mac --arm64 --publish never",
+    "predesktop:pack:mac": "npm run desktop:prepare",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --experimental-strip-types --test tests/*.test.ts tests/*.test.cjs",
     "smoke": "node scripts/smoke.mjs"

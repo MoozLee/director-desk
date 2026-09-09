@@ -36,6 +36,7 @@ function createUpdateHost({ version, mode, config, makeUpdater, send, confirmIns
         save: input => exclusive(async () => { await config.save(input); updater?.removeAllListeners(); updater = null; publish({ phase: 'idle', version: '', notes: '', percent: 0, message: '更新来源已保存' }); }),
         check: () => exclusive(async () => {
             if (mode === 'development') { publish({ phase: 'idle', message: '开发预览不执行远程更新；请在打包后的软件中检查' }); return; }
+            if (mode === 'unsupported') { publish({ phase: 'idle', message: '当前平台暂不支持应用内更新，请通过项目主页获取新版本' }); return; }
             if (state.phase === 'downloaded') return;
             await config.ready.catch(() => {});
             publish({ version: '', notes: '', percent: 0 });

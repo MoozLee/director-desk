@@ -35,6 +35,8 @@ test('concurrent operations are rejected and portable/development modes never in
     const f = fixture(); const pending = f.host.check(); await assert.rejects(f.host.check(), /正在进行/); await assert.rejects(f.host.save({}), /正在进行/); await pending;
     const portable = fixture('portable'); await portable.host.check(); assert.equal(portable.host.read().phase, 'available'); await assert.rejects(portable.host.download()); await assert.rejects(portable.host.install());
     const dev = fixture('development'); await dev.host.check(); assert.equal(dev.options(), undefined);
+    const unsupported = fixture('unsupported'); await unsupported.host.check(); assert.equal(unsupported.options(), undefined);
+    assert.match(unsupported.host.read().message, /暂不支持/); await assert.rejects(unsupported.host.download()); await assert.rejects(unsupported.host.install());
     f.noRelease(); await f.host.check(); assert.equal(f.host.read().phase, 'current'); assert.equal(f.host.read().version, '');
 });
 test('update settings persist only explicit HTTPS origin settings and reject embedded credentials', async () => {

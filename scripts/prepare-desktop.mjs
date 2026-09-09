@@ -18,15 +18,30 @@ for (const { file } of manifest.files) {
     const destination = path.join(desktopRoot, 'dist', file); await fs.mkdir(path.dirname(destination), { recursive: true });
     await fs.copyFile(path.join('dist', file), destination);
 }
-// Rasterize the existing public vector product mark, then wrap its PNG as a Windows icon.
-const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || path.join(process.env.ProgramFiles, 'Google/Chrome/Application/chrome.exe'), headless: true });
+// Rasterize the existing public vector product mark, then wrap its PNG as Windows and macOS icons.
+const executablePath = process.env.CHROME_PATH || (process.platform === 'darwin'
+    ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : path.join(process.env.ProgramFiles, 'Google/Chrome/Application/chrome.exe'));
+const browser = await chromium.launch({ executablePath, headless: true });
 try {
-    const page = await browser.newPage({ viewport: { width: 256, height: 256 } });
-    await page.setContent('<style>html,body{margin:0;width:256px;height:256px;background:transparent}svg{width:256px;height:256px}</style>' + await fs.readFile('public/favicon.svg', 'utf8'));
-    const png = await page.screenshot({ omitBackground: true });
+    const page = await browser.newPage();
+    const render = async size => {
+        await page.setViewportSize({ width: size, height: size });
+        await page.setContent(`<style>html,body{margin:0;width:${size}px;height:${size}px;background:transparent}svg{width:${size}px;height:${size}px}</style>` + await fs.readFile('public/favicon.svg', 'utf8'));
+        return await page.screenshot({ omitBackground: true });
+    };
+    const png = await render(256);
     const header = Buffer.alloc(22); header.writeUInt16LE(1, 2); header.writeUInt16LE(1, 4);
     header.writeUInt16LE(1, 10); header.writeUInt16LE(32, 12); header.writeUInt32LE(png.length, 14); header.writeUInt32LE(22, 18);
     await fs.writeFile('desktop/icon.ico', Buffer.concat([header, png]));
+    // ICNS accepts embedded PNG data for every modern size on Apple's icon grid.
+    const chunks = [];
+    for (const [size, type] of [[16, 'icp4'], [32, 'icp5'], [64, 'icp6'], [128, 'ic07'], [256, 'ic08'], [512, 'ic09'], [1024, 'ic10']]) {
+        const data = await render(size), chunk = Buffer.alloc(8);
+        chunk.write(type, 0, 'ascii'); chunk.writeUInt32BE(data.length + 8, 4); chunks.push(chunk, data);
+    }
+    const icons = Buffer.concat(chunks), icnsHeader = Buffer.alloc(8);
+    icnsHeader.write('icns', 0, 'ascii'); icnsHeader.writeUInt32BE(icons.length + 8, 4);
+    await fs.writeFile('desktop/icon.icns', Buffer.concat([icnsHeader, icons]));
 } finally { await browser.close(); }
 await fs.copyFile('desktop/main.cjs', path.join(desktopRoot, 'desktop/main.cjs'));
 await fs.copyFile('desktop/preload.cjs', path.join(desktopRoot, 'desktop/preload.cjs'));

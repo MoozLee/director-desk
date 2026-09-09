@@ -6,7 +6,9 @@ const { createUpdateConfig } = require('./update-config.cjs');
 const { createUpdateHost } = require('./update-host.cjs');
 function attachUpdates(window, integration) {
     let quitting = false;
-    const mode = !app.isPackaged ? 'development' : fs.existsSync(path.join(path.dirname(app.getPath('exe')), 'portable.json')) ? 'portable' : 'installed';
+    // The updater chain (NsisUpdater + quitAndInstall) is Windows-specific; packaged mac builds only offer the release page.
+    const mode = !app.isPackaged ? 'development' : process.platform === 'darwin' ? 'unsupported'
+        : fs.existsSync(path.join(path.dirname(app.getPath('exe')), 'portable.json')) ? 'portable' : 'installed';
     const host = createUpdateHost({ version: app.getVersion(), mode, config: createUpdateConfig(app.getPath('userData')),
         makeUpdater: feed => new NsisUpdater(feed),
         send: state => { if (!window.isDestroyed()) window.webContents.send('director-update-state', state); },
@@ -33,7 +35,7 @@ function attachUpdates(window, integration) {
             return { ok: true, data };
         } catch (error) { return { ok: false, error: error.message }; }
     });
-    const timer = setTimeout(async () => { await host.initialize(); if (host.read().config.automatic && mode !== 'development') await host.check().catch(() => {}); }, 15000);
+    const timer = setTimeout(async () => { await host.initialize(); if (host.read().config.automatic && (mode === 'installed' || mode === 'portable')) await host.check().catch(() => {}); }, 15000);
     timer.unref();
     window.on('closed', () => { clearTimeout(timer); host.dispose(); ipcMain.removeHandler('director-updates'); });
     return { isQuitting: () => quitting };
