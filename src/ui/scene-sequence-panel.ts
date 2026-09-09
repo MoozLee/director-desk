@@ -1,5 +1,5 @@
 import type { AppContext } from '../app-context.ts';
-import { addDocumentScene, duplicateDocumentScene, removeDocumentScene, renameDocumentScene, reorderDocumentScenes, switchDocumentScene, type SceneDocument } from '../scenes/sequence-project.ts';
+import { addDocumentScene, duplicateDocumentScene, removeDocumentScene, renameDocumentScene, reorderDocumentScenes, type SceneDocument } from '../scenes/sequence-project.ts';
 import { createScene, SCENE_TEMPLATES, type SceneTemplate } from '../scenes.ts';
 import { $, button, escape, options } from './common.ts';
 import './scene-sequence-panel.css';
@@ -37,7 +37,11 @@ export function createSceneSequencePanel(ctx: AppContext) {
     };
     $<HTMLSelectElement>('#scene-switch').addEventListener('change', event => {
         const id = (event.target as HTMLSelectElement).value;
-        if (id !== ctx.scenes.context.sceneId && apply('切换戏段', doc => switchDocumentScene(doc, id))) ctx.toast('已切换到 ' + ctx.scenes.list().find(s => s.id === id)!.name);
+        if (id === ctx.scenes.context.sceneId) return;
+        try {
+            if (ctx.busy) throw Error('请先完成当前编辑或任务');
+            ctx.switchScene(id, ctx.scenes.context); ctx.toast('已切换到 ' + ctx.scenes.list().find(s => s.id === id)!.name);
+        } catch (error) { ctx.toast((error as Error).message, true); renderSceneSwitcher(ctx); }
     });
     function open() {
         const scenes = ctx.scenes.list(), id = ctx.scenes.context.sceneId, index = scenes.findIndex(s => s.id === id), scene = scenes[index];

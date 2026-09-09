@@ -21,24 +21,32 @@ try {
     await page.locator('#update-toggle').click(); await page.waitForFunction(version => document.querySelector('#update-version').textContent.includes(version), version);
     await page.locator('#update-check').click(); await page.waitForFunction(() => document.querySelector('#update-message').value.includes('开发预览'));
     assert.equal(await page.locator('#update-install').isDisabled(), true); assert.equal(await page.locator('#update-download').isDisabled(), true);
-    await page.locator('#update-panel summary').click(); await page.locator('#update-auto').uncheck(); await page.locator('#update-save').click();
+    await page.locator('#update-panel summary').click();
+    assert.equal(await page.locator('#update-source').inputValue(), 'auto');
+    await page.locator('#update-source').selectOption('github');
+    await page.locator('#update-auto').uncheck(); await page.locator('#update-save').click();
     await page.waitForFunction(() => document.querySelector('#update-message').value.includes('已保存'));
-    const result = await page.evaluate(() => window.directorDesktop.update('state')); assert.equal(result.data.config.automatic, false);
+    const result = await page.evaluate(() => window.directorDesktop.update('state')); assert.equal(result.data.config.automatic, false); assert.equal(result.data.config.source, 'github');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 720));
     const overflow = await page.locator('#update-panel').evaluate(p => {
-        const b = p.getBoundingClientRect(); return { panel: p.scrollHeight > p.clientHeight + 1, controls: [...p.querySelectorAll('button,input,textarea')].filter(e => e.getClientRects().length).some(e => { const r = e.getBoundingClientRect(); return r.bottom > b.bottom || r.right > b.right; }) };
+        const b = p.getBoundingClientRect(); return { panel: p.scrollHeight > p.clientHeight + 1, controls: [...p.querySelectorAll('button,input,textarea,select')].filter(e => e.getClientRects().length).some(e => { const r = e.getBoundingClientRect(); return r.bottom > b.bottom || r.right > b.right; }) };
     }); assert.deepEqual(overflow, { panel: false, controls: false });
     await page.screenshot({ path: 'tmp/update-desktop.png' }); await page.reload(); await page.waitForSelector('#update-toggle');
-    const again = await page.evaluate(() => window.directorDesktop.update('state')); assert.equal(again.data.config.automatic, false);
+    const again = await page.evaluate(() => window.directorDesktop.update('state')); assert.equal(again.data.config.automatic, false); assert.equal(again.data.config.source, 'github');
     const download = async cache => app.evaluate(async (_electron, { repo, directory, url, cache }) => {
         const req = process.getBuiltinModule('module').createRequire(repo + '/package.json');
         const { NsisUpdater } = req('electron-updater/out/NsisUpdater');
         const u = new NsisUpdater(); u.forceDevUpdateConfig = true; u.updateConfigPath = directory + '/app-update.yml';
         Object.defineProperty(u.app, 'baseCachePath', { value: directory + '/' + cache });
-        u.setFeedURL({ provider: 'generic', url }); u.autoDownload = false; u.autoInstallOnAppQuit = false; u.disableDifferentialDownload = true; u.disableWebInstaller = true;
-        u.logger = { info() {}, warn() {}, error() {}, debug() {} }; const events = []; u.on('error', () => events.push('error')); u.on('update-downloaded', () => events.push('downloaded'));
+        const events = []; u.on('error', () => events.push('error')); u.on('update-downloaded', () => events.push('downloaded'));
         u.doInstall = () => { throw Error('Tests must never execute an installer'); };
-        await u.checkForUpdates(); try { await u.downloadUpdate(); return { events, downloaded: true }; } catch { return { events, downloaded: false }; }
+        const host = req('./desktop/update-host.cjs').createUpdateHost({ version: '0.0.1', mode: 'installed',
+            config: { ready: Promise.resolve(), read: () => ({ source: 'github' }), page: () => url },
+            getGithubRelease: async () => ({ version: '99.0.0', notes: 'QA', page: url, feed: { provider: 'generic', url } }),
+            makeUpdater: feed => { u.setFeedURL(feed); return u; }, send() {}, confirmInstall: async () => false,
+            install() { throw Error('Tests must never install'); }, openPage() {},
+        });
+        await host.check(); await host.download(); return { events, downloaded: host.read().phase === 'downloaded' };
     }, { repo: process.cwd(), directory, url: updateURL, cache });
     const valid = await download('valid'); assert.equal(valid.downloaded, true); assert.ok(valid.events.includes('downloaded'));
     await writeMetadata(createHash('sha512').update('corrupt').digest('base64'));

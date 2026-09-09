@@ -1,4 +1,5 @@
 import { fitFeetToSurface } from './editor/foot-contact.ts';
+import { SceneRenderCache } from './editor/scene-render-cache.ts';
 import { ReferenceLabels } from './production/reference-labels.ts';
 import { cameraLookAt } from './animation/camera-look.ts';
 import { addZoneHelpers } from './editor/zone-helpers.ts';
@@ -45,6 +46,8 @@ interface Callbacks {
     transformEnd: (cancel?:boolean) => void;
 }
 export class Engine {
+    private renderCache = new SceneRenderCache();
+    private roomKey = '';
     private referenceLabels = new ReferenceLabels();
     private initialPoses = new InitialPoseRuntime();
     externalModels = new SceneModels();
@@ -163,22 +166,23 @@ export class Engine {
         this.externalModels.assertReady(project);
         this.referenceLabels.clear();
         this.gizmo.detach();
-        this.externalModels.clearInstances();
-        this.initialPoses.clear();
-        for (const e of this.project.entities) if (isExternalModel(e)) this.models.delete(e.id);
+        const changes = this.renderCache.reconcile(project.entities, this.models.keys());
+        for (const id of changes.removed) {
+            const external = this.externalModels.removeInstance(id, this.crowdRigs.get(id)?.map((_, i) => `${id}:${i}`));
+            const root = this.models.get(id); if (root && !external) disposeTree(root);
+            this.models.delete(id); this.rigs.delete(id); this.crowdRigs.delete(id);
+            this.cameras.delete(id); this.cameraVisuals.delete(id); this.initialPoses.remove(id);
+        }
         this.project = project;
-        this.models.forEach(disposeTree);
-        this.models.clear();
-        this.rigs.clear();
-        this.cameras.clear();
-        this.crowdRigs.clear();
-        this.cameraVisuals.clear();
-        disposeTree(this.roomGroup);
-        const room = makeRoom(project);
-        this.roomGroup = room.group;
-        this.walls = room.walls;
-        this.scene.add(this.roomGroup);
-        for (const e of project.entities) {
+        const roomKey = JSON.stringify(project.room);
+        if (roomKey !== this.roomKey) {
+            disposeTree(this.roomGroup);
+            const room = makeRoom(project);
+            this.roomGroup = room.group; this.walls = room.walls;
+            this.scene.add(this.roomGroup); this.roomKey = roomKey;
+        }
+        try {
+        for (const e of changes.added) {
             let root: T.Group;
             if (isExternalModel(e)) root = this.externalModels.create(e);
             else if (e.kind === 'actor') {
@@ -213,7 +217,8 @@ export class Engine {
             this.initialPoses.register(e, root);
             this.scene.add(root);
         }
-        this.refreshHelpers();
+        changes.commit();
+        } catch (error) { this.renderCache.invalidate(); throw error; }
         this.select(this.selected, this.selectedPoint);
         this.sample(this.time);
         this.resizeNeeded = true;

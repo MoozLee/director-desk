@@ -26,6 +26,11 @@ export class SceneWorkspace implements EditorHistory {
     resourceScenes(id: string) { return this.#session.resourceScenes(id); }
     document() { return this.#session.exportDocument(); }
     project() { return this.#session.project(); }
+    projectFor(id: string) { return this.#session.project(id); }
+    switchScene(id: string, context: SceneContext) {
+        this.rememberView(); this.#session.switchScene(id, context);
+        this.restoredView = this.#session.view(); return this.project();
+    }
     rememberView() { this.#session.setView(this.#view()); }
     begin(project: Project) {
         if (this.pending) return;

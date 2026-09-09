@@ -21,5 +21,6 @@ export class BasicHumanMotion {
         const binding = this.targets.get(e.id); if (!binding) throw Error('基础动作的人形骨架尚未准备');
         this.source.resetReference(); sampleHumanAction(this.rig, e, time); binding.apply(); return true;
     }
+    remove(id: string) { this.targets.delete(id); }
     dispose() { this.targets.clear(); disposeTree(this.rig.root); }
 }

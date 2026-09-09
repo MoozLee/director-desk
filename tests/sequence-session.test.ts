@@ -1,11 +1,67 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import { demoProject } from '../src/model.ts';
+import { demoProject, entity } from '../src/model.ts';
 import { modelResourceId } from '../src/resources/project-resources.ts';
 import { packModelFiles } from '../src/resources/model-package.ts';
 import { duplicateDocumentScene, switchDocumentScene } from '../src/scenes/sequence-project.ts';
 import { SceneSession } from '../src/scenes/sequence-session.ts';
+
+test('direct scene switches preserve views, chronological undo, conflict checks and ownership', () => {
+    const session = new SceneSession(demoProject());
+    session.editDocument(session.context, '复制', doc => duplicateDocumentScene(doc, 'scene-main', '第二场', 'second'));
+    const stale = session.context;
+    session.setView({ time: 5, preview: 'program', selected: '' });
+    session.switchScene('scene-main');
+    assert.equal(session.context.sceneId, 'scene-main');
+    assert.throws(() => session.switchScene('second', stale), /REVISION_CONFLICT/);
+    assert.throws(() => session.switchScene('missing'), /戏段不存在/);
+    const noOp = session.context;
+    session.switchScene('scene-main'); assert.deepEqual(session.context, noOp);
+    const edit = session.begin();
+    assert.throws(() => session.switchScene('second'), /完成或取消/);
+    edit.project.entities[0].position[0] = 42; session.commit(edit);
+    edit.project.entities[0].position[0] = 999;
+    assert.equal(session.project().entities[0].position[0], 42);
+    session.undo(); session.undo();
+    assert.equal(session.context.sceneId, 'second'); assert.equal(session.view().time, 5);
+    session.redo(); session.redo(); assert.equal(session.project().entities[0].position[0], 42);
+    const escaped = session.project('second'); escaped.entities.length = 0;
+    assert.ok(session.project('second').entities.length);
+});
+
+test('localized scene commits still validate locked entities and keep failed edits atomic', () => {
+    const p = demoProject(); p.entities[0].locked = true;
+    const session = new SceneSession(p), before = session.exportDocument();
+    const edit = session.begin(); edit.project.entities[0].position[0] += 1;
+    assert.throws(() => session.commit(edit), /锁定/);
+    assert.deepEqual(session.exportDocument(), before); session.rollback(edit);
+    const invalid = session.begin(); invalid.project.cuts[0].cameraId = 'missing-camera';
+    assert.throws(() => session.commit(invalid)); session.rollback(invalid);
+    assert.deepEqual(session.exportDocument(), before);
+});
+
+test('localized commits validate resource changes against inactive scenes and retain metadata edits', async () => {
+    const bytes = new Uint8Array(await fs.readFile('test-assets/external/kenney-furniture/Models/GLTF format/chair.glb'));
+    const data = packModelFiles('chair.glb', [{ path: 'chair.glb', bytes }]), id = await modelResourceId(data);
+    const p = demoProject(); p.version = 2;
+    p.resources = [{ id, name: '椅子', package: data, source: 'Kenney', copyright: '', license: 'CC0' }];
+    const prop = entity('prop', 'external-model', '共享模型');
+    prop.external = { resourceId: id, appearance: 'white', unitScale: 1, orientation: [0, 0, 0] }; p.entities.push(prop);
+    const session = new SceneSession(p);
+    session.editDocument(session.context, '复制', doc => duplicateDocumentScene(doc, 'scene-main', '第二场', 'second'));
+    const before = session.exportDocument(), removed = session.begin();
+    removed.project.entities = removed.project.entities.filter(e => e.id !== prop.id); removed.project.resources = [];
+    assert.throws(() => session.commit(removed), /资源不存在/);
+    assert.deepEqual(session.exportDocument(), before); session.rollback(removed);
+    const changed = session.begin(); changed.project.resources![0].package.entry = './chair.glb';
+    assert.throws(() => session.commit(changed), /原地改写/); session.rollback(changed);
+    const metadata = session.begin(); metadata.project.resources![0].license = '许可补充'; session.commit(metadata);
+    assert.equal(session.project('scene-main').resources![0].license, '许可补充');
+    metadata.project.resources![0].license = '外部修改';
+    assert.equal(session.project('scene-main').resources![0].license, '许可补充');
+    session.undo(); assert.deepEqual(session.exportDocument(), before);
+});
 
 test('whole-document chronological undo preserves independent scene edits and identifies their owners', () => {
     const session = new SceneSession(demoProject()), initial = session.exportDocument();

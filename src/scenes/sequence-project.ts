@@ -123,14 +123,27 @@ export function addDocumentScene(document: SceneDocument, project: Project, name
 
 /** Commit the active editor projection. Deleting a source still used by another scene fails atomically. */
 export function updateDocumentScene(document: SceneDocument, id: string, project: Project): SceneDocument {
+    assertSceneDocument(document);
+    return clone(updateValidatedDocumentScene(document, id, project));
+}
+
+/** Session boundary: input is already validated and privately owned. Keep unchanged scene snapshots
+ * shared internally; callers exposing the result outside their owner must clone it first. */
+export function updateValidatedDocumentScene(document: SceneDocument, id: string, project: Project): SceneDocument {
     assertProject(project);
-    return commit(document, next => {
-        const scene = next.scenes.find(scene => scene.id === id); if (!scene) throw Error('戏段不存在');
-        assertLockedEntitiesUnchanged(projection(next, scene), project);
+    const scene = document.scenes.find(scene => scene.id === id); if (!scene) throw Error('戏段不存在');
+    assertLockedEntitiesUnchanged(projection(document, scene), project);
+    const resourcesChanged = JSON.stringify(document.resources) !== JSON.stringify(project.resources ?? []);
+    if (resourcesChanged) {
         for (const resource of project.resources ?? []) {
-            const previous = next.resources.find(r => r.id === resource.id);
+            const previous = document.resources.find(r => r.id === resource.id);
             if (previous && JSON.stringify(previous.package) !== JSON.stringify(resource.package)) throw Error('共享源资源内容不可原地改写，请使用新的资源标识');
         }
-        scene.state = stateOf(project); next.name = project.name; next.resources = clone(project.resources ?? []);
-    });
+    }
+    const next: SceneDocument = { ...document, name: project.name,
+        resources: resourcesChanged ? clone(project.resources ?? []) : document.resources,
+        scenes: document.scenes.map(entry => entry.id === id ? { ...entry, state: stateOf(project) } : entry) };
+    // Shared catalog changes can invalidate inactive scenes and frozen continuity snapshots.
+    if (resourcesChanged) assertSceneDocument(next);
+    return next;
 }

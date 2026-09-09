@@ -39,7 +39,11 @@ export function createToolService(ctx: AppContext) {
     }
     async function execute(name: string, args: Record<string, unknown>) {
         validateToolInput(name, args);
-        if (name === 'director_skill') return readBuiltinSkill(args.knownVersion as string | undefined);
+        if (name === 'director_skill') {
+            if (args.action === 'list') return { skills: [{ id: 'builtin', name: readBuiltinSkill().name, version: readBuiltinSkill().version, enabled: true, builtin: true }] };
+            if (args.id && args.id !== 'builtin' || args.path && args.path !== 'SKILL.md') throw Error('网页版仅提供内置操作说明；自定义技能请在桌面版管理');
+            return readBuiltinSkill(args.knownVersion as string | undefined);
+        }
         if (name === 'director_help') return toolHelp(args.names as string[]);
         if (name === 'director_scene') {
             if (args.action === 'list') return { revision: currentRevision(), sceneContext: ctx.scenes.context, scenes: ctx.scenes.list() };
@@ -49,13 +53,17 @@ export function createToolService(ctx: AppContext) {
             const encoded = JSON.stringify({ name, args }), receipt = receipts.get(args.requestId);
             if (receipt) { if (receipt.args !== encoded) throw Error('requestId 已用于不同操作'); return receipt.result; }
             checkRevision(args.revision);
-            const context = ctx.scenes.context, document = ctx.scenes.document();
+            const context = ctx.scenes.context;
             ctx.busy = true; ctx.playing = false;
             try {
                 if (args.action === 'continue' && args.sceneId !== undefined && args.sceneId !== context.sceneId) throw Error('请先切换到要接拍的来源戏段');
-                const next = args.action === 'continue' ? await continueScene(ctx.engine, document, String(args.name ?? ''), args.newSceneId as string | undefined) : editIndependentScene(document, args);
-                checkRevision(args.revision);
-                ctx.applyDocument(next, context, ({ switch: '切换戏段', create: '新增戏段', copy: '复制戏段', continue: '从末帧接拍', rename: '重命名戏段', reorder: '排序戏段', remove: '删除戏段' } as Record<string, string>)[String(args.action)]);
+                if (args.action === 'switch') ctx.switchScene(String(args.sceneId ?? context.sceneId), context);
+                else {
+                    const document = ctx.scenes.document();
+                    const next = args.action === 'continue' ? await continueScene(ctx.engine, document, String(args.name ?? ''), args.newSceneId as string | undefined) : editIndependentScene(document, args);
+                    checkRevision(args.revision);
+                    ctx.applyDocument(next, context, ({ create: '新增戏段', copy: '复制戏段', continue: '从末帧接拍', rename: '重命名戏段', reorder: '排序戏段', remove: '删除戏段' } as Record<string, string>)[String(args.action)]);
+                }
                 const result = { revision: currentRevision(), sceneContext: ctx.scenes.context, scenes: ctx.scenes.list() };
                 receipts.set(args.requestId, { args: encoded, result }); if (receipts.size > 200) receipts.delete(receipts.keys().next().value!); return result;
             } finally { ctx.busy = false; ctx.updateTimeUI(); }

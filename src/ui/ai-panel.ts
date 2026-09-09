@@ -3,6 +3,7 @@ import type { AgentEvent, Channel, DesktopResult, ConversationSnapshot } from '.
 import { escape } from './common.ts';
 import './ai-panel.css';
 import { createAIPanel } from './ai-panel-view.ts';
+import { mountAISkills } from './ai-skills-panel.ts';
 export function mountAI(ctx: AppContext) {
     const bridge = window.directorDesktop;
     const { panel, find } = createAIPanel(Boolean(bridge));
@@ -13,6 +14,7 @@ export function mountAI(ctx: AppContext) {
     panel.querySelector('#ai-mcp > p')!.textContent = '让外部 Agent 操作当前工程。技能随软件内置，按版本读取，无需另装。';
     let profiles: Channel[] = [], sessionId = '', active = false;
     const status = (text: string) => { find('ai-status').textContent = text; };
+    mountAISkills(panel, status);
     const check = <T>(result: DesktopResult<T>) => { if (!result.ok) throw new Error(result.error || '操作失败'); return result.data!; };
     const log = (text: string) => { const box = find<HTMLTextAreaElement>('ai-transcript'); const follow = box.scrollHeight - box.scrollTop - box.clientHeight < 32; box.value += text; if (follow) box.scrollTop = box.scrollHeight; };
     const restoreConversation = (data: ConversationSnapshot) => { sessionId = data.sessionId; find('ai-transcript').value = data.transcript; };

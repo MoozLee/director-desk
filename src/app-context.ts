@@ -35,6 +35,7 @@ export interface AppContext {
     readonly history: EditorHistory;
     readonly scenes: SceneWorkspace;
     applyDocument(document: SceneDocument, context: SceneContext, label: string, resetViews?: boolean): void;
+    switchScene(id: string, context: SceneContext): void;
     current(): Entity | undefined;
     toast(message: string, error?: boolean): void;
     change(fn: () => void, rebuild?: boolean): boolean;

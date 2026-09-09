@@ -137,6 +137,12 @@ export class SceneModels {
         return { ...this.retargets.estimateStride(`${entity.id}:${sampleMember}`, entity, clipId), crowd: { sampleMember, count: members.length } };
     }
     motionTransitionState(id: string) { return this.transitions.state(id); }
+    removeInstance(id: string, crowdIds: string[] = []) {
+        for (const key of [id, ...crowdIds]) { this.retargets.remove(key); this.transitions.remove(key); this.humanRigs.delete(key); this.basics?.remove(key); }
+        const entry = this.instances.get(id);
+        if (entry) { entry.instance.dispose(); entry.root.removeFromParent(); entry.root.clear(); this.instances.delete(id); }
+        return !!entry;
+    }
     clearInstances() { this.retargets.clear(); this.transitions.clear(); this.humanRigs.clear(); this.basics?.dispose(); this.basics = undefined; this.instances.forEach(({ instance, root }) => { instance.dispose(); root.removeFromParent(); root.clear(); }); this.instances.clear(); }
     create(entity: Entity): T.Group {
         const data = entity.external!, source = this.sources.get(data.resourceId); if (!source) throw Error('模型尚未加载');

@@ -6,4 +6,5 @@
 .update-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
 #update-panel button{min-width:0;min-height:32px;padding:5px 8px}#update-page{width:100%}
 #update-panel details{margin-top:14px;font-size:12px}#update-panel summary{cursor:pointer}#update-panel label{display:block;margin:10px 0}
-#update-panel input[type=url]{display:block;width:100%;min-width:0;margin-top:5px;height:32px}#update-panel .update-auto{display:flex;align-items:center;gap:6px}
+#update-panel input[type=url],#update-panel select{display:block;width:100%;min-width:0;margin-top:5px;height:32px}#update-panel .update-auto{display:flex;align-items:center;gap:6px}
+@media(max-height:700px){#update-panel{padding:12px}#update-panel header{margin-bottom:6px}#update-panel p,#update-panel label{margin:6px 0}#update-notes{height:60px}#update-panel details{margin-top:8px}#update-progress{margin:6px 0}.update-actions{margin:8px 0}}

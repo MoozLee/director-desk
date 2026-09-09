@@ -4,7 +4,7 @@
 .ai-header strong{display:block;font-size:14px;font-weight:600}
 .ai-header span{display:block;font-size:11px;color:#999;margin-top:4px}
 .ai-header button{height:30px;min-height:30px;width:30px;background:transparent;border:0}
-.ai-navigation{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;padding:3px;border:1px solid #333;border-radius:6px;background:#101010;flex-shrink:0}
+.ai-navigation{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;padding:3px;border:1px solid #333;border-radius:6px;background:#101010;flex-shrink:0}
 .ai-navigation button{height:30px;min-height:30px;padding:4px;font-size:12px;background:transparent;border:0}
 .ai-navigation button[aria-pressed=true]{background:#333;color:#fff}
 .ai-view{flex:1;min-height:0;min-width:0}

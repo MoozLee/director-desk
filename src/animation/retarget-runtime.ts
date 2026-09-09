@@ -102,5 +102,10 @@ export class RetargetRuntime {
         }); }
         finally { if (binding) binding.source.sampled = ''; }
     }
+    remove(id: string) {
+        this.targets.delete(id);
+        const used = new Set([...this.targets.values()].flatMap(target => [...target.bindings.keys()]));
+        for (const [key, source] of this.sources) if (!used.has(key)) { source.instance.dispose(); this.sources.delete(key); }
+    }
     clear() { this.targets.clear(); for (const source of this.sources.values()) source.instance.dispose(); this.sources.clear(); }
 }

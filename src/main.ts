@@ -108,7 +108,12 @@ else {
     engine.project = project;
     engine.sample(time);
     engine.refreshHelpers();
-} engine.select(selected, engine.selectedPoint); renderPanels(); engine.externalModels.retain([project, ...history.undoStack, ...history.redoStack]); clearTimeout(saveTimer); const saved = history.document(), savedRevision = revision; saveTimer = setTimeout(() => autosave(saved).then(() => { if (savedRevision === revision) $('#save-status').textContent = '自动恢复已保存'; }).catch(() => { $('#save-status').textContent = '请手动保存项目'; toast('自动恢复保存失败，请导出项目文件备份', true); }), 500); }
+} engine.select(selected, engine.selectedPoint); renderPanels(); engine.externalModels.retain([project, ...history.undoStack, ...history.redoStack]); clearTimeout(saveTimer); saveTimer = setTimeout(() => {
+    const savedRevision = revision;
+    void autosave(history.document()).then(() => { if (savedRevision === revision) $('#save-status').textContent = '自动恢复已保存'; }).catch(() => {
+        if (savedRevision === revision) { $('#save-status').textContent = '请手动保存项目'; toast('自动恢复保存失败，请导出项目文件备份', true); }
+    });
+}, 500); }
 function change(fn: () => void, rebuild = true): boolean { if (busy)
     return false; if (draft || history.pending) { toast('请先完成或取消当前绘制／拖动操作'); return false; } playing = false; const original = project; history.begin(project); try {
     fn();
@@ -228,6 +233,15 @@ function applyDocument(document: SceneDocument, context: SceneContext, label: st
     if (draft || history.pending || engine.exporting) throw Error('请先完成当前编辑或导出');
     for (const scene of document.scenes) engine.externalModels.assertReady(projectForScene(document, scene.id));
     project = history.replace(document, context, label, resetViews);
+    restoreSceneView();
+}
+function switchScene(id: string, context: SceneContext) {
+    if (draft || history.pending || engine.exporting) throw Error('请先完成当前编辑或导出');
+    engine.externalModels.assertReady(history.projectFor(id));
+    project = history.switchScene(id, context);
+    restoreSceneView();
+}
+function restoreSceneView() {
     const view = history.restoredView!; time = view.time; selected = view.selected; preview = view.preview;
     playing = false; selectClip(null); engine.selectedPoint = -1; inspectorTab = 'base';
     changed(); extendTimelineView(uiContext, time); $('#timeline-center').click();
@@ -278,7 +292,7 @@ const uiContext: AppContext = {
     get busy() { return busy; }, set busy(value) { busy = value; },
     get draft() { return draft; }, set draft(value) { draft = value; },
     get aborter() { return aborter; }, set aborter(value) { aborter = value; },
-    get engine() { return engine; }, history, scenes: history, applyDocument, current, toast, change, changed, extendDuration, selectEntity, renderPanels, renderSidebar, renderInspector, renderTimeline, renderCameras, updateTimeUI, seek, saveProject, showModal, closeModal, projectDialog, roomDialog, sceneDialog, createNew, makeCamera, startPath, finishPath, cancelPath, replaceAction, deleteDialog, deleteEntity, seatDialog, seatApply, snapshot, exportDialog, startExport, helpDialog, updateExportSummary, setView, addAsset, addGroundPoint, retimePath, applyField, applyMotion, applyFraming, act
+    get engine() { return engine; }, history, scenes: history, applyDocument, switchScene, current, toast, change, changed, extendDuration, selectEntity, renderPanels, renderSidebar, renderInspector, renderTimeline, renderCameras, updateTimeUI, seek, saveProject, showModal, closeModal, projectDialog, roomDialog, sceneDialog, createNew, makeCamera, startPath, finishPath, cancelPath, replaceAction, deleteDialog, deleteEntity, seatDialog, seatApply, snapshot, exportDialog, startExport, helpDialog, updateExportSummary, setView, addAsset, addGroundPoint, retimePath, applyField, applyMotion, applyFraming, act
 };
 const editingTools = createEditingTools(uiContext);
 bindEvents(uiContext);

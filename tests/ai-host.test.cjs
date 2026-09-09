@@ -41,6 +41,37 @@ async function cleanup(directory) {
     assert.match(path.basename(resolved), /^director-(?:config|rounds)-/);
     await fs.rm(resolved, { recursive: true, force: true });
 }
+
+test('enabled skill catalog is lazy, disabling takes effect next task without deleting history', async () => {
+    const { createSkillStore } = require('../desktop/skills/store.cjs');
+    const { skillPackage } = require('../desktop/skills/package.cjs');
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'director-rounds-')), bodies = [];
+    const skill = { name: 'director-desk', version: 'v1', instructions: 'BUILTIN_TEST_BODY' };
+    const skills = createSkillStore({ directory, builtin: skill });
+    await skills.install(skillPackage([{ path: 'SKILL.md', bytes: Buffer.from('---\nname: custom\ndescription: Custom test skill\n---\nCUSTOM_LAZY_BODY') }]));
+    const custom = (await skills.list()).find(s => !s.builtin);
+    const server = http.createServer(async (req, res) => {
+        let raw = ''; for await (const part of req) raw += part; bodies.push(JSON.parse(raw));
+        res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '完成' } }] }));
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    try {
+        const deps = { directory, safeStorage: { isEncryptionAvailable: () => false }, ...toolPolicy, skill, skills, send() {}, callTool: async () => ({ ok: true, data: { revision: 1 } }) };
+        let host = createAIHost(deps);
+        const [p] = await host.configure({ baseUrl: `http://127.0.0.1:${server.address().port}/v1`, protocol: 'chat', model: 'mock', stream: false, maxTokens: 1000 });
+        await host.run({ profileId: p.id, prompt: '第一条要求保留' });
+        assert.match(bodies[0].messages.at(-1).content, /Custom test skill/);
+        assert.doesNotMatch(JSON.stringify(bodies[0]), /CUSTOM_LAZY_BODY/);
+        await skills.enable(custom.id, false); await skills.enable('builtin', false);
+        host = createAIHost(deps); await host.run({ profileId: p.id, prompt: '继续' });
+        const last = bodies[1].messages.at(-1).content;
+        assert.match(last, /历史中的已停用技能不再适用/); assert.match(last, /\[\]$/);
+        assert.doesNotMatch(last, /BUILTIN_TEST_BODY|Custom test skill/);
+        assert.match(JSON.stringify(bodies[1].messages), /第一条要求保留/);
+        assert.match(JSON.stringify(bodies[1].messages), /BUILTIN_TEST_BODY/);
+        assert.equal((await host.conversation()).transcript.includes('第一条要求保留'), true);
+    } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); await cleanup(directory); }
+});
 test('embedded skill is inserted once per retained version, survives restart, and refreshes after changes or new chat', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'director-rounds-')), bodies = [];
     const server = http.createServer(async (req, res) => {

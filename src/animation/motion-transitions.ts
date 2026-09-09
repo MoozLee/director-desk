@@ -46,5 +46,6 @@ export class MotionTransitions {
         target.frame.updateWorldMatrix(true, true); target.frame.updateMatrixWorld(true); return true;
     }
     state(id: string) { return structuredClone(this.targets.get(id)?.state ?? null); }
+    remove(id: string) { this.targets.delete(id); }
     clear() { this.targets.clear(); }
 }

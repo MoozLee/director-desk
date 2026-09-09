@@ -4,13 +4,14 @@ const path = require('node:path');
 const { NsisUpdater } = require('electron-updater/out/NsisUpdater');
 const { createUpdateConfig } = require('./update-config.cjs');
 const { createUpdateHost } = require('./update-host.cjs');
+const { githubRelease } = require('./github-release.cjs');
 function attachUpdates(window, integration) {
     let quitting = false;
     // The updater chain (NsisUpdater + quitAndInstall) is Windows-specific; packaged mac builds only offer the release page.
     const mode = !app.isPackaged ? 'development' : process.platform === 'darwin' ? 'unsupported'
         : fs.existsSync(path.join(path.dirname(app.getPath('exe')), 'portable.json')) ? 'portable' : 'installed';
     const host = createUpdateHost({ version: app.getVersion(), mode, config: createUpdateConfig(app.getPath('userData')),
-        makeUpdater: feed => new NsisUpdater(feed),
+        makeUpdater: feed => new NsisUpdater(feed), getGithubRelease: githubRelease,
         send: state => { if (!window.isDestroyed()) window.webContents.send('director-update-state', state); },
         confirmInstall: async () => {
             if (integration.isBusy()) throw Error('请等待 AI 或工具任务完成后再更新');

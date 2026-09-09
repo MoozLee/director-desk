@@ -44,7 +44,7 @@ test('update settings persist only explicit HTTPS origin settings and reject emb
     try {
         const store = createUpdateConfig(directory); await store.ready;
         await store.save({ url: 'https://example.com/files', automatic: false, token: 'ignored-field' });
-        const second = createUpdateConfig(directory); await second.ready; assert.deepEqual(second.read(), { url: 'https://example.com/files/', automatic: false });
+        const second = createUpdateConfig(directory); await second.ready; assert.deepEqual(second.read(), { url: 'https://example.com/files/', automatic: false, source: 'auto' });
         assert.equal((await fs.readFile(path.join(directory, 'updates.json'), 'utf8')).includes('ignored-field'), false);
         for (const url of ['http://example.com/', 'file:///data', 'https://user:password@example.com/', 'https://example.com/?key=secret']) assert.throws(() => validateConfig({ url, automatic: true }));
     } finally { await fs.rm(directory, { recursive: true, force: true }); }

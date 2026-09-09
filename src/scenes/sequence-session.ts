@@ -1,5 +1,5 @@
 import { clone, type Project } from '../model.ts';
-import { assertSceneDocument, projectForScene, readSceneDocument, updateDocumentScene, type SceneDocument } from './sequence-project.ts';
+import { readSceneDocument, updateValidatedDocumentScene, type SceneDocument } from './sequence-project.ts';
 
 export interface SceneContext { sessionId: string; sceneId: string; revision: number }
 export interface SceneView { time: number; preview: string; selected: string }
@@ -26,7 +26,12 @@ export class SceneSession {
     get redoCount() { return this.#redo.length; }
     sceneList() { return this.#document.scenes.map(({ id, name, state, origin }) => ({ id, name, duration: state.duration, fps: state.fps, entityCount: state.entities.length, hasOrigin: !!origin })); }
     exportDocument(): SceneDocument { return clone(this.#document); }
-    project(id = this.#document.activeSceneId): Project { return projectForScene(this.#document, id); }
+    project(id = this.#document.activeSceneId): Project {
+        // The session owns already-validated snapshots. Only the requested scene escapes, as a copy.
+        this.#sceneExists(id);
+        return clone({ format: 'director-desk', version: 2, name: this.#document.name, resources: this.#document.resources,
+            ...this.#document.scenes.find(scene => scene.id === id)!.state });
+    }
     view(id = this.#document.activeSceneId): SceneView {
         this.#sceneExists(id);
         const scene = this.#document.scenes.find(scene => scene.id === id)!;
@@ -52,8 +57,11 @@ export class SceneSession {
         return { label, sceneId, sceneName: this.#document.scenes.find(scene => scene.id === sceneId)?.name ?? sceneId };
     }
     #publish(next: SceneDocument, before: Snapshot, action: SceneHistoryLabel, revealSceneId?: string) {
-        assertSceneDocument(next);
-        if (JSON.stringify(next) === JSON.stringify(before.document)) return;
+        // Callers validate new data before publishing; unchanged owned scenes need no revalidation.
+        const old = before.document;
+        if (next.activeSceneId === old.activeSceneId && next.name === old.name
+            && (next.resources === old.resources || JSON.stringify(next.resources) === JSON.stringify(old.resources))
+            && next.scenes.length === old.scenes.length && next.scenes.every((scene, i) => scene === old.scenes[i] || JSON.stringify(scene) === JSON.stringify(old.scenes[i]))) return;
         this.#undo.push({ ...before, action, revealSceneId }); if (this.#undo.length > 35) this.#undo.shift(); this.#redo = [];
         this.#document = next; this.#revision++;
         this.#repairViews();
@@ -79,8 +87,12 @@ export class SceneSession {
     commit(token: SceneTransaction, project = token.project, label = '编辑戏段') {
         const pending = this.#transaction(token), action = this.#label(label, token.sceneId);
         // On failure the transaction stays pending, allowing an explicit rollback or corrected retry.
-        const next = updateDocumentScene(this.#document, token.sceneId, project);
+        const next = updateValidatedDocumentScene(this.#document, token.sceneId, project);
         this.#publish(next, pending.before, action, token.sceneId); this.#pending = null;
+    }
+    switchScene(id: string, context: SceneContext = this.context) {
+        this.#idle(); this.#check(context); this.#sceneExists(id);
+        this.#publish({ ...this.#document, activeSceneId: id }, this.#snapshot(), this.#label('切换戏段', context.sceneId));
     }
     rollback(token: SceneTransaction) {
         const pending = this.#transaction(token); this.#views = clone(pending.before.views); this.#pending = null;

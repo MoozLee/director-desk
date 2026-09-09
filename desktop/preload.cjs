@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const invoke = (action, data) => ipcRenderer.invoke('director-host', { action, data });
 contextBridge.exposeInMainWorld('directorDesktop', {
+    skills: data => invoke('skills', data),
     files: (action, data) => ipcRenderer.invoke('director-files', { action, data }),
     onSaveBeforeClose: callback => { const fn = async (_event, data) => {
         let saved = false; try { saved = await callback() === true; } catch { }

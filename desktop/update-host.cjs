@@ -1,9 +1,11 @@
+const semver = require('semver');
+const { configureUpdater, probeUpdater, releaseNotes } = require('./update-provider.cjs');
 /** Owns update state; Electron transport and local credentials are separate adapters. */
-function createUpdateHost({ version, mode, config, makeUpdater, send, confirmInstall, install, openPage }) {
-    let updater, flight = null, installing = false;
-    let state = { currentVersion: version, mode, phase: 'idle', version: '', notes: '', percent: 0, message: '尚未检查更新', checkedAt: '' };
+function createUpdateHost({ version, mode, config, makeUpdater, getGithubRelease, send, confirmInstall, install, openPage }) {
+    let updater, selected, flight = null, installing = false, disposed = false;
+    let state = { currentVersion: version, mode, phase: 'idle', version: '', notes: '', percent: 0, message: '尚未检查更新', checkedAt: '', source: '', canDownload: false };
     const read = () => ({ ...state, config: config.read() });
-    const publish = patch => { state = { ...state, ...patch }; send(read()); };
+    const publish = patch => { state = { ...state, ...patch }; if (!disposed) send(read()); };
     const fail = error => { // Provider errors may contain Authorization headers, local paths, or signed asset URLs.
         installing = false;
         const detail = String(error?.code || '') + ' ' + String(error?.message || '');
@@ -17,35 +19,59 @@ function createUpdateHost({ version, mode, config, makeUpdater, send, confirmIns
         const task = Promise.resolve().then(fn); flight = task;
         try { await task; return read(); } finally { flight = null; }
     }
-    function setup() {
-        updater?.removeAllListeners(); updater = makeUpdater(config.feed());
-        updater.autoDownload = false; updater.autoInstallOnAppQuit = false; updater.allowDowngrade = false; updater.allowPrerelease = false;
-        updater.disableDifferentialDownload = true; updater.disableWebInstaller = true;
-        updater.logger = { info() {}, warn() {}, error() {}, debug() {} };
-        updater.on('checking-for-update', () => publish({ phase: 'checking', message: '正在检查更新…' }));
-        updater.on('update-available', info => {
-            const notes = typeof info.releaseNotes === 'string' ? info.releaseNotes : Array.isArray(info.releaseNotes) ? info.releaseNotes.map(n => n.note || '').join('\n') : '';
-            publish({ phase: 'available', version: info.version, notes, message: `发现新版本 ${info.version}`, checkedAt: new Date().toISOString() });
-        });
-        updater.on('update-not-available', () => publish({ phase: 'current', message: '当前已是最新版本', checkedAt: new Date().toISOString() }));
+    function bindDownload(candidate) {
+        updater = candidate;
         updater.on('download-progress', progress => publish({ phase: 'downloading', percent: Math.max(0, Math.min(100, progress.percent)), message: '正在下载更新…' }));
         updater.on('update-downloaded', () => publish({ phase: 'downloaded', percent: 100, message: '更新已下载并通过校验，可重启安装' }));
         updater.on('error', fail);
     }
     return { read, async initialize() { try { await config.ready; publish({}); } catch { publish({ phase: 'error', message: '本机更新配置无法读取，请重新保存设置' }); } },
-        save: input => exclusive(async () => { await config.save(input); updater?.removeAllListeners(); updater = null; publish({ phase: 'idle', version: '', notes: '', percent: 0, message: '更新来源已保存' }); }),
+        save: input => exclusive(async () => { await config.save(input); updater?.removeAllListeners(); updater = null; selected = null; publish({ phase: 'idle', version: '', notes: '', percent: 0, source: '', canDownload: false, message: '更新来源已保存' }); }),
         check: () => exclusive(async () => {
             if (mode === 'development') { publish({ phase: 'idle', message: '开发预览不执行远程更新；请在打包后的软件中检查' }); return; }
             if (mode === 'unsupported') { publish({ phase: 'idle', message: '当前平台暂不支持应用内更新，请通过项目主页获取新版本' }); return; }
             if (state.phase === 'downloaded') return;
             await config.ready.catch(() => {});
-            publish({ version: '', notes: '', percent: 0 });
-            try { setup(); await updater.checkForUpdates(); } catch (e) { fail(e); }
+            updater?.removeAllListeners(); updater = null; selected = null;
+            const source = config.read().source ?? 'website';
+            const sources = source === 'auto' ? ['website', 'github'] : [source];
+            publish({ phase: 'checking', version: '', notes: '', percent: 0, source: '', canDownload: false, message: '正在检查' + sources.map(s => s === 'website' ? '网站' : 'GitHub').join('和') + '更新…' });
+            const results = await Promise.allSettled(sources.map(async source => {
+                if (source === 'github') {
+                    const release = await getGithubRelease();
+                    return { ...release, source, available: semver.gt(release.version, version) };
+                }
+                const candidate = configureUpdater(makeUpdater, config.feed());
+                const { info, available } = await probeUpdater(candidate);
+                if (!semver.valid(info.version)) throw Error('Invalid update version');
+                return { source, version: info.version, available: available && semver.gt(info.version, version), notes: releaseNotes(info.releaseNotes), page: config.page(), updater: candidate };
+            }));
+            const valid = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+            if (!valid.length) { fail(results[0].reason); return; }
+            const failures = sources.filter((_, i) => results[i].status === 'rejected').map(s => s === 'website' ? '网站' : 'GitHub');
+            const suffix = failures.length ? `；${failures.join('、')}暂不可用，本次仅检查了另一来源` : '';
+            selected = valid.filter(r => r.available && !semver.prerelease(r.version)).sort((a, b) => semver.rcompare(a.version, b.version))[0];
+            if (!selected) {
+                publish({ phase: 'current', message: (failures.length ? '可用来源未发现新版本' : '当前已是最新版本') + suffix, checkedAt: new Date().toISOString() }); return;
+            }
+            const canDownload = mode === 'installed' && Boolean(selected.updater || selected.feed);
+            if (selected.updater) bindDownload(selected.updater);
+            const label = selected.source === 'website' ? '网站' : 'GitHub';
+            publish({ phase: 'available', version: selected.version, notes: selected.notes, source: selected.source, canDownload,
+                message: `发现新版本 ${selected.version}（${label}）` + (canDownload ? '' : '，请从下载页获取') + suffix, checkedAt: new Date().toISOString() });
         }),
         download: () => exclusive(async () => {
-            if (mode !== 'installed' || state.phase !== 'available' || !updater) throw Error('请先在安装版中检查到可用更新');
+            if (mode !== 'installed' || state.phase !== 'available' || !state.canDownload || !selected) throw Error('请先在安装版中检查到可下载更新');
             publish({ phase: 'downloading', percent: 0, message: '正在下载更新…' });
-            try { await updater.downloadUpdate(); } catch (e) { fail(e); }
+            try {
+                if (!updater) {
+                    const candidate = configureUpdater(makeUpdater, selected.feed);
+                    const { info, available } = await probeUpdater(candidate);
+                    if (!available || !semver.eq(info.version, selected.version)) throw Error('Update version mismatch');
+                    bindDownload(candidate);
+                }
+                await updater.downloadUpdate();
+            } catch (e) { fail(e); }
         }),
         install: () => exclusive(async () => {
             if (mode !== 'installed' || state.phase !== 'downloaded' || !updater) throw Error('更新尚未下载并校验完成');
@@ -54,8 +80,8 @@ function createUpdateHost({ version, mode, config, makeUpdater, send, confirmIns
             try { install(updater); } catch (e) { fail(e); }
             if (state.phase === 'error') installing = false;
         }),
-        openPage: () => openPage(config.page()),
-        dispose() { updater?.removeAllListeners(); },
+        openPage: () => openPage(selected?.page || config.page()),
+        dispose() { disposed = true; },
     };
 }
 module.exports = { createUpdateHost };

@@ -29,6 +29,7 @@ export function captureInitialPose(root: Object3D, entity: Entity): InitialPose 
 export class InitialPoseRuntime {
     #entries = new Map<string, { root: Object3D; nodes: Map<string, Object3D>; rest: PoseNode[] }>();
     clear() { this.#entries.clear(); }
+    remove(id: string) { this.#entries.delete(id); }
     register(e: Entity, root: Object3D) {
         if (!e.initialPose) return;
         const nodes = poseNodes(root), rest = read(nodes);
