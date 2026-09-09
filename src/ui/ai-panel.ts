@@ -6,11 +6,12 @@ import { createAIPanel } from './ai-panel-view.ts';
 import { mountAISkills } from './ai-skills-panel.ts';
 export function mountAI(ctx: AppContext) {
     const bridge = window.directorDesktop;
-    const { panel, find } = createAIPanel(Boolean(bridge));
+    const { panel, find, open } = createAIPanel(Boolean(bridge));
     find('ai-context').textContent = '默认编辑当前戏段；图片不自动上传。';
     find('ai-new').title = '仅重置 AI 对话，不新建或清空工程';
     find('ai-send').title = '发送任务 · Ctrl / Cmd + Enter';
     find('ai-scene-prompt').onclick = () => { void ctx.act('production-prompt', find('ai-scene-prompt')); };
+    find('ai-changes').onclick = () => { open(false); void ctx.act('ai-changes-open', find('ai-changes')); };
     panel.querySelector('#ai-mcp > p')!.textContent = '让外部 Agent 操作当前工程。技能随软件内置，按版本读取，无需另装。';
     let profiles: Channel[] = [], sessionId = '', active = false;
     const status = (text: string) => { find('ai-status').textContent = text; };

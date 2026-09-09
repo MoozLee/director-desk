@@ -43,6 +43,7 @@ release/
 !/scripts/verify-editing.mjs
 !/scripts/benchmark-editing.mjs
 !/scripts/verify-render-reuse.mjs
+!/scripts/verify-cinematography.mjs
 !/scripts/verify-timeline.mjs
 !/scripts/verify-building.mjs
 !/scripts/verify-model-control.mjs
@@ -73,3 +74,5 @@ file-locations.json
 *.log
 *.zip
 *.exe
+
+!/scripts/verify-curves-and-ai-changes.mjs

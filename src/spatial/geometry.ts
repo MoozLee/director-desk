@@ -1,9 +1,11 @@
-import { Box3, InstancedMesh, Matrix4, Mesh, Object3D, PerspectiveCamera, Vector3, Vector4 } from 'three';
+import { Box3, InstancedMesh, Matrix4, Mesh, Object3D, PerspectiveCamera, Vector2, Vector3, Vector4 } from 'three';
+import { lensProjection, lensOverscan, lensScreen, overscanCamera } from '../cinematography/lens-projection.ts';
 import type { Vec3 } from '../model.ts';
 import { modelNodeHidden } from '../resources/model-node-visibility.ts';
 
 export interface BoundsData { min: Vec3; max: Vec3; size: Vec3; center: Vec3 }
 export interface FrameData {
+    method?: 'distorted-bounds-samples';
     status: 'inside' | 'intersecting' | 'outside' | 'hidden' | 'not-rendered' | 'unknown';
     // Normalized viewport coordinates: origin top-left. Measures projected AABB, not silhouette.
     rectangle: { left: number; top: number; right: number; bottom: number } | null;
@@ -51,7 +53,7 @@ const clipPlanes = [(p: Vector4) => p.w + p.x, (p: Vector4) => p.w - p.x,
     (p: Vector4) => p.w + p.z, (p: Vector4) => p.w - p.z];
 
 /** Clip box faces in homogeneous coordinates, including the near plane; never divide behind-camera corners. */
-export function frameBounds(box: Box3 | null, camera: PerspectiveCamera): FrameData {
+function pinholeFrameBounds(box: Box3 | null, camera: PerspectiveCamera): FrameData {
     const empty: FrameData = { status: 'unknown', rectangle: null, occlusion: 'not-checked' };
     if (!box || box.isEmpty()) return empty;
     camera.updateWorldMatrix(true, false);
@@ -85,6 +87,25 @@ export function frameBounds(box: Box3 | null, camera: PerspectiveCamera): FrameD
         left: clamp(Math.min(...projected.map(p => p[0]))), top: clamp(Math.min(...projected.map(p => p[1]))),
         right: clamp(Math.max(...projected.map(p => p[0]))), bottom: clamp(Math.max(...projected.map(p => p[1])))
     } };
+}
+
+export function frameBounds(box: Box3 | null, camera: PerspectiveCamera): FrameData {
+    const lens = lensProjection(camera);
+    if (!lens) return pinholeFrameBounds(box, camera);
+    const scale = lensOverscan(lens), base = pinholeFrameBounds(box, overscanCamera(camera, scale));
+    if (!base.rectangle) return { ...base, method: 'distorted-bounds-samples' };
+    const r = base.rectangle, points: Vector2[] = [];
+    // Sample the conservative clipped rectangle boundary; nonlinear lens curves may bow beyond corners.
+    for (let i = 0; i <= 64; i++) {
+        const u = i / 64, x = r.left + (r.right - r.left) * u, y = r.top + (r.bottom - r.top) * u;
+        for (const [px, py] of [[x, r.top], [x, r.bottom], [r.left, y], [r.right, y]]) points.push(lensScreen(new Vector2((px * 2 - 1) * scale, (1 - py * 2) * scale), camera.aspect, lens));
+    }
+    const x = points.map(p => (p.x + 1) / 2), y = points.map(p => (1 - p.y) / 2);
+    const left = Math.min(...x), right = Math.max(...x), top = Math.min(...y), bottom = Math.max(...y);
+    const empty = { ...base, method: 'distorted-bounds-samples' as const, status: 'outside' as const, rectangle: null };
+    if (right < 0 || left > 1 || bottom < 0 || top > 1) return empty;
+    return { ...base, method: 'distorted-bounds-samples', status: base.status === 'inside' && left >= 0 && right <= 1 && top >= 0 && bottom <= 1 ? 'inside' : 'intersecting',
+        rectangle: { left: Math.max(0, left), top: Math.max(0, top), right: Math.min(1, right), bottom: Math.min(1, bottom) } };
 }
 
 export function boxRelationship(a: BoundsData, b: BoundsData) {

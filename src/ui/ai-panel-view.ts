@@ -13,6 +13,8 @@ export function createAIPanel(desktop: boolean) {
 <form id="ai-settings" class="ai-view" hidden><div class="ai-settings-fields"><label>编辑渠道<select id="ai-edit-channel"><option value="">新建</option></select></label><label>名称<input id="ai-name" maxlength="80" placeholder="我的渠道"/></label><label>接口协议<select id="ai-protocol"><option value="chat">OpenAI Chat 兼容</option><option value="responses">OpenAI Responses</option><option value="anthropic">Anthropic Messages</option></select></label><label>模型 ID<input id="ai-model" placeholder="模型名称"/></label><label class="ai-full-row">接口地址<input id="ai-url" placeholder="https://api.deepseek.com/v1"/></label><label class="ai-full-row">密钥<input id="ai-key" type="password" autocomplete="off" placeholder="留空保留同渠道密钥"/></label><label class="ai-check"><input id="ai-remember" type="checkbox"/>系统加密保存密钥</label><label class="ai-check"><input id="ai-stream" type="checkbox" checked/>流式响应</label><label>输出 tokens（0 自动）<input id="ai-max-tokens" type="number" min="0" step="1" value="0"/></label><label>任务轮数（0 不限）<input id="ai-max-rounds" type="number" min="0" step="1" value="64"/></label></div><p>输出填 0 自动采用模型额度；轮数填 0 不限。连通测试使用少量 token。</p><div class="ai-buttons"><button type="submit" class="primary">保存渠道</button><button type="button" id="ai-test">连通测试</button><button type="button" id="ai-remove" class="subtle">删除</button></div></form>
 <section id="ai-mcp" class="ai-view" hidden><div class="ai-mcp-heading"><label class="ai-check"><input id="ai-mcp-enabled" type="checkbox"/>启用本机 MCP</label></div><p>让外部 Agent 连接当前软件，查询场景、编辑工程并导出文件。</p><div class="ai-connection"><span>连接地址</span><div id="ai-mcp-status">关闭</div></div><button id="ai-mcp-copy" class="wide subtle" disabled>复制连接配置</button><button id="ai-mcp-reset" class="wide subtle" disabled>重置连接凭据</button><p>配置保存于本机，重启或重新开启后仍可复用。只有重置凭据后需要重新复制配置。</p></section>
 <footer class="ai-footer"><textarea id="ai-status" readonly role="status" aria-label="助手运行状态">${desktop ? '选择渠道后输入任务。' : 'AI 接口与 MCP 在桌面版使用。网页版仍可导入 AI 生成的工程文件。'}</textarea><button id="ai-background-stop" class="subtle" hidden>停止任务</button></footer>`;
+    const changes = document.createElement('button'); changes.id = 'ai-changes'; changes.className = 'subtle'; changes.textContent = '修改定位';
+    panel.querySelector('.ai-context-row')!.append(changes);
     document.body.append(panel);
     const find = <T extends HTMLElement = HTMLInputElement>(id: string) => panel.querySelector<T>('#' + id)!;
     const windowLayout = floatingPanel(panel, panel.querySelector('.ai-header')!, find('ai-resize'), find<HTMLButtonElement>('ai-collapse'), 'director-ai-window-v1');
@@ -26,5 +28,5 @@ export function createAIPanel(desktop: boolean) {
     panel.querySelectorAll<HTMLElement>('[data-ai-view]').forEach(button => button.onclick = () => navigate(button.dataset.aiView!));
     panel.addEventListener('keydown', event => { if (event.key === 'Escape' && (event.target as HTMLElement).tagName !== 'SELECT') { event.preventDefault(); event.stopPropagation(); open(false); } });
     navigate('chat');
-    return { panel, find, navigate };
+    return { panel, find, navigate, open };
 }

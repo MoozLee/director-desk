@@ -1,14 +1,16 @@
 import { Vector3 } from 'three';
 import type { Vec3, Waypoint } from '../model.ts';
+import { assertEasing, eased } from './channels.ts';
 export interface CameraLookPath { smooth: boolean; points: Waypoint[] }
 export function assertCameraLookPath(path: CameraLookPath | null | undefined) {
     if (path == null) return;
     if (!path || typeof path !== 'object' || Array.isArray(path) || Object.keys(path).some(k => !['smooth', 'points'].includes(k))
         || typeof path.smooth !== 'boolean' || !Array.isArray(path.points) || !path.points.length) throw Error('摄影机视线需要 smooth 和至少一个关键帧');
     path.points.forEach((p, i) => {
-        if (!p || Object.keys(p).some(k => !['time', 'position'].includes(k)) || !Number.isFinite(p.time) || p.time < 0
+        if (!p || Object.keys(p).some(k => !['time', 'position', 'easing'].includes(k)) || !Number.isFinite(p.time) || p.time < 0
             || !Array.isArray(p.position) || p.position.length !== 3 || !p.position.every(Number.isFinite)
             || i > 0 && p.time <= path.points[i - 1].time) throw Error('摄影机视线关键帧需有效坐标与严格递增的时间');
+        assertEasing(p.easing);
     });
 }
 /** World-space targets with bounded interpolation: smooth eases time, never overshoots a doorway. */
@@ -17,7 +19,7 @@ export function cameraLookAt(path: CameraLookPath, time: number): Vector3 {
     if (time <= pts[0].time) return new Vector3(...pts[0].position);
     for (let i = 1; i < pts.length; i++) if (time < pts[i].time) {
         let t = (time - pts[i - 1].time) / (pts[i].time - pts[i - 1].time);
-        if (path.smooth) t = t * t * (3 - 2 * t);
+        t = eased(t, pts[i].easing ?? (path.smooth ? 'smooth' : 'linear'));
         return new Vector3(...pts[i - 1].position).lerp(new Vector3(...pts[i].position), t);
     }
     return new Vector3(...pts.at(-1)!.position);

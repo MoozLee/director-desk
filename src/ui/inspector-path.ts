@@ -1,3 +1,4 @@
+import { easingChoice, easingChoices, chosenEasing } from './easing-options.ts';
 import type { AppContext } from '../app-context.ts';
 import type { Entity } from '../model.ts';
 import { button, num, options, select } from './common.ts';
@@ -8,6 +9,10 @@ export function createPathInspector(ctx: AppContext, navigation: InspectorNaviga
     const content = document.querySelector<HTMLElement>('#inspector-content')!;
     content.addEventListener('change', event => {
         const input = event.target as HTMLSelectElement;
+        if (input.id === 'path-point-easing') {
+            event.stopPropagation(); const e = ctx.current(); if (!e?.path || e.locked) return;
+            ctx.change(() => { e.path!.points[Math.max(0, Math.min(e.path!.points.length - 1, ctx.engine.selectedPoint))].easing = chosenEasing(input.value, e.path!.points[Math.max(0, Math.min(e.path!.points.length - 1, ctx.engine.selectedPoint))].easing); }, false); refresh(); return;
+        }
         if (input.id === 'path-section-choice') { event.stopPropagation(); sectionIndex = Number(input.value); refresh(); return; }
         if (input.id !== 'path-point-choice') return;
         event.stopPropagation(); ctx.engine.select(ctx.selected, Number(input.value)); refresh();
@@ -40,6 +45,7 @@ export function createPathInspector(ctx: AppContext, navigation: InspectorNaviga
         const frozen = path.sections ? 'disabled' : '';
         const points = `<div class="inspector-picker"><button data-step-point="-1" aria-label="上一个途经点" ${index === 0 ? 'disabled' : ''}>‹</button><select id="path-point-choice" aria-label="选择途经点">${options(path.points.map((point, i) => [String(i), `途经点 ${i + 1} / ${path.points.length} · ${point.time.toFixed(2)} 秒`]), String(index))}</select><button data-step-point="1" aria-label="下一个途经点" ${index === path.points.length - 1 ? 'disabled' : ''}>›</button></div>`
             + `<div class="waypoint single-waypoint"><div class="waypoint-heading"><label class="point-time"><span>时间 / 秒</span><input type="number" data-point="${index}" data-axis="time" ${frozen} value="${p.time.toFixed(2)}" step=".1" min="0"/></label><button class="icon-button" data-act="remove-point" data-index="${index}" ${frozen} title="删除此途经点">×</button></div><div class="point-coords">${p.position.map((v, axis) => `<label>${['X', 'Y', 'Z'][axis]} / 米<input type="number" data-point="${index}" data-axis="${axis}" value="${v.toFixed(2)}" step=".05"/></label>`).join('')}</div></div>`
+            + `<label class="field"><span>到达此点的速度变化</span><select id="path-point-easing" ${index === 0 ? 'disabled' : ''}>${options(easingChoices(p.easing), easingChoice(p.easing))}</select></label>`
             + `<div class="button-row">${button('append-point', '添加点', 'plus', 'subtle', frozen)}${button('hold-point', '停留 1 秒', '', 'subtle', frozen)}</div>`;
         const timing = (path.points.length > 1 ? `<div class="field-pair">${num('开始 / 秒', 'path-start', path.points[0].time, '.1', 'min="0" ' + frozen)}${num('结束 / 秒', 'path-end', path.points.at(-1)!.time, '.1', 'min="0" ' + frozen)}</div>` : '')
             + select('路线形状', 'path-smooth', [['true', '平滑曲线'], ['false', '直线 / 途经停顿']], String(path.smooth))

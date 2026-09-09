@@ -140,7 +140,8 @@ function extendDuration() { for (const e of project.entities) {
 } }
 function selectEntity(id: string) { if (draft)
     finishPath(); selected = id; const e = current(); if (!e)
-    return; if (e.kind === 'camera')
+    return; if (e.light) inspectorTab = 'light';
+else if (e.kind === 'camera')
     inspectorTab = 'camera';
 else if (!['base', 'path', 'actions', 'pose', 'structure'].includes(inspectorTab) || e.kind === 'prop' && ['actions', 'pose'].includes(inspectorTab))
     inspectorTab = 'base'; engine.select(id); renderPanels(); }
@@ -304,7 +305,7 @@ const inspectorUI = createInspector(uiContext);
 const timelineUI = createTimeline(uiContext);
 const dialogsUI = createDialogs(uiContext);
 const videopanelUI = createVideoPanel(uiContext);
-const commandsUI = createCommands(uiContext);
+const commandsUI = createCommands(uiContext, inspectorUI);
 const toolService = createToolService(uiContext);
 window.directorDesktop?.onTool((name, args) => toolService.call(name, args));
 mountAI(uiContext);

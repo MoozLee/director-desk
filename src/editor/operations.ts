@@ -1,3 +1,4 @@
+import { CAMERA_PRESETS, applyCameraMotion } from '../cinematography/motion-presets.ts';
 import { setEntityColor } from './entity-color.ts';
 import { worldContactAnchors } from '../assets/contact-anchors.ts';
 import { removeCameraVisibilityReference } from '../scenes/camera-visibility.ts';
@@ -26,6 +27,7 @@ export function createEditingTools(ctx: AppContext) {
             const target = ctx.engine.orbit.target;
             const e = entity(asset.kind, asset.id, asset.name, ctx.engine.snapPosition(position ?? [target.x, workingElevation(ctx.project), target.z]));
             if (!position) e.position[1] = workingElevation(ctx.project);
+            if (e.light && !position) { e.position[1] += 3; e.rotation[0] = -Math.PI / 4; }
             if (ctx.project.editorView?.activeFloorId) e.floorId = ctx.project.editorView.activeFloorId;
             if (asset.kind === 'actor' || asset.kind === 'crowd') {
                 e.color = COLORS[ctx.project.entities.filter(x => x.kind === 'actor').length % COLORS.length];
@@ -33,7 +35,7 @@ export function createEditingTools(ctx: AppContext) {
             }
             ctx.project.entities.push(e);
             ctx.selected = e.id;
-            ctx.inspectorTab = 'base';
+            ctx.inspectorTab = e.light ? 'light' : 'base';
         });
         if (added) libraryPreferences.used(id);
         ctx.engine.select(ctx.selected);
@@ -230,13 +232,15 @@ export function createEditingTools(ctx: AppContext) {
                 switch (key.slice(7)) {
                     case 'aim':
                         if (value === 'manual') {
-                            const r = ctx.engine.cameras.get(e.id)!.rotation;
+                            const camera = ctx.engine.cameras.get(e.id)!, base = camera.userData.directorBasePose;
+                            const r = base ? new T.Euler().setFromQuaternion(new T.Quaternion().fromArray(base.quaternion)) : camera.rotation;
                             e.rotation = [r.x, r.y, r.z];
                         }
                         c.aim = value as typeof c.aim;
                         break;
                     case 'focal':
                         c.focal = n;
+                        if (c.effects) { delete c.effects.channels?.focal; c.effects.dollyZoom = null; }
                         break;
                     case 'targetHeight':
                         c.targetHeight = n;
@@ -309,29 +313,9 @@ export function createEditingTools(ctx: AppContext) {
             return;
         const applied=ctx.change(() => {
             if (e.camera!.mode !== 'free') freezeCamera(ctx.engine, e);
-            const start = Math.round(ctx.time * ctx.project.fps) / ctx.project.fps, end = start + 5;
-            const origin = ctx.engine.getShotCamera(e.id).position.clone(), target = ctx.engine.targetPosition(e), dir = target.clone().sub(origin).normalize(), side = new T.Vector3().crossVectors(dir, new T.Vector3(0, 1, 0)).normalize();
-            let positions: T.Vector3[];
-            if (name === '环绕') {
-                const delta = origin.clone().sub(target);
-                positions = Array.from({ length: 5 }, (_, i) => target.clone().add(delta.clone().applyAxisAngle(new T.Vector3(0, 1, 0), (i / 4) * Math.PI / 2)));
-            }
-            else {
-                const dest = origin.clone();
-                if (name === '推近')
-                    dest.addScaledVector(dir, Math.min(1, origin.distanceTo(target) * .35));
-                if (name === '拉远')
-                    dest.addScaledVector(dir, -1);
-                if (name === '横移')
-                    dest.addScaledVector(side, 1.2);
-                if (name === '升高')
-                    dest.y += 1;
-                positions = [origin, dest];
-            }
-            e.camera!.mode = 'free';
-            if (name === '环绕') e.camera!.aim = 'target';
-            e.path = { smooth: true, points: positions.map((p, i) => ({ time: start + (end - start) * i / (positions.length - 1), position: p.toArray() as Vec3 })) };
-            e.position = origin.toArray() as Vec3;
+            const preset = Object.entries(CAMERA_PRESETS).find(([, label]) => label === name)?.[0];
+            if (!preset) throw Error('未知运镜预设');
+            applyCameraMotion(ctx.project, e.id, preset, Math.round(ctx.time * ctx.project.fps) / ctx.project.fps, 5);
             ctx.extendDuration();
         }, false);
         if(!applied)return;
@@ -345,7 +329,7 @@ export function createEditingTools(ctx: AppContext) {
             return;
         const target=ctx.project.entities.find(t=>t.id===e.camera!.targetId)||ctx.project.entities.find(t=>t.kind==='actor');
         if(!target){ctx.toast('先选择一个构图目标或添加人物');return;}
-        ctx.change(() => { e.camera!.targetPath = null; e.camera!.aim = 'target'; e.camera!.targetId = target.id; const heights: Record<string, number> = { '全景': 2.2, '中景': 1.15, '近景': .65, '特写': .3 }; const h = heights[name], targetY = name === '全景' ? target.height * .5 : name === '中景' ? target.height * .67 : target.height * .88; e.camera!.targetHeight = targetY; e.camera!.mode = 'free'; e.camera!.focal = name === '特写' ? 70 : 35; const cam = ctx.engine.getShotCamera(e.id); const aspect = ctx.project.aspect.split(':').map(Number); const filmHeight = 36 / Math.max(aspect[0] / aspect[1], 1); const distance = h * e.camera!.focal / filmHeight; const targetPos = entityPosition(target, ctx.time).add(new T.Vector3(0, targetY, 0)); const direction = cam.position.clone().sub(targetPos).normalize(); e.position = targetPos.addScaledVector(direction, distance).toArray() as Vec3; e.path = null; }, false);
+        ctx.change(() => { if (e.camera!.effects) { delete e.camera!.effects.channels?.focal; e.camera!.effects.dollyZoom = null; } e.camera!.targetPath = null; e.camera!.aim = 'target'; e.camera!.targetId = target.id; const heights: Record<string, number> = { '全景': 2.2, '中景': 1.15, '近景': .65, '特写': .3 }; const h = heights[name], targetY = name === '全景' ? target.height * .5 : name === '中景' ? target.height * .67 : target.height * .88; e.camera!.targetHeight = targetY; e.camera!.mode = 'free'; e.camera!.focal = name === '特写' ? 70 : 35; const cam = ctx.engine.getShotCamera(e.id); const aspect = ctx.project.aspect.split(':').map(Number); const filmHeight = 36 / Math.max(aspect[0] / aspect[1], 1); const distance = h * e.camera!.focal / filmHeight; const targetPos = entityPosition(target, ctx.time).add(new T.Vector3(0, targetY, 0)); const direction = cam.position.clone().sub(targetPos).normalize(); e.position = targetPos.addScaledVector(direction, distance).toArray() as Vec3; e.path = null; }, false);
         ctx.preview = e.id;
         ctx.renderCameras();
         ctx.toast('已调整机位与焦距；请检查室内墙体遮挡');

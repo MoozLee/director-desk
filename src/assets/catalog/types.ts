@@ -10,7 +10,7 @@ export interface AssetDefinition {
     icon: string;
     aliases?: readonly string[];
     family?: string;
-    defaults?: Partial<Pick<Entity, 'height' | 'gender' | 'build'>>;
+    defaults?: Partial<Pick<Entity, 'height' | 'gender' | 'build' | 'light' | 'color'>>;
     capabilities?: { rig: 'human-legacy' | 'human' | 'quadruped' | 'bird' | 'fish' | 'serpent' | 'none'; actions: readonly Action[]; pose: boolean; path: boolean };
     joints?: JointLabels;
     parameters?: Readonly<Record<string, AssetParameter>>;

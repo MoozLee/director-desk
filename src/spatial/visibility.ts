@@ -1,6 +1,7 @@
 import { Box3, Matrix4, Mesh, PerspectiveCamera, Quaternion, Raycaster, Vector2, Vector3 } from 'three';
 import type { Engine } from '../engine.ts';
 import { frameBounds } from './geometry.ts';
+import { lensProjection, lensSource } from '../cinematography/lens-projection.ts';
 import { meshesOf, sceneTargets, type SceneTarget } from './scene-targets.ts';
 export interface SampleVisibility {
     status: 'unblocked-samples' | 'partly-blocked-samples' | 'blocked-samples' | 'no-samples' | 'out-of-frame' | 'hidden' | 'not-facing-camera' | 'not-applicable';
@@ -24,7 +25,7 @@ export function sampleVisibility(camera: PerspectiveCamera, meshes: Mesh[], all:
     const view = new Matrix4().copy(camera.matrixWorldInverse);
     for (let y = 0; y < grid; y++) for (let x = 0; x < grid; x++) {
         const u = rect.left + (rect.right - rect.left) * (x + .5) / grid, v = rect.top + (rect.bottom - rect.top) * (y + .5) / grid;
-        ray.setFromCamera(new Vector2(u * 2 - 1, 1 - v * 2), camera);
+        ray.setFromCamera(lensSource(new Vector2(u * 2 - 1, 1 - v * 2), camera.aspect, lensProjection(camera)), camera);
         const cosine = ray.ray.direction.dot(cameraForward);
         ray.near = camera.near / cosine; ray.far = camera.far / cosine;
         const target = ray.intersectObjects(meshes, false)[0];

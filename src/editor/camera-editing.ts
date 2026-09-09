@@ -1,5 +1,6 @@
 import type { Engine } from '../engine.ts';
 import type { Entity, Vec3 } from '../model.ts';
+import { freezeEndingCamera } from '../cinematography/continuity.ts';
 
 /** Freeze the evaluated camera pose before removing its target or binding. */
 export function freezeCamera(engine: Engine, entity: Entity) {
@@ -10,4 +11,5 @@ export function freezeCamera(engine: Engine, entity: Entity) {
     entity.path = null;
     entity.camera.mode = 'free';
     entity.camera.aim = 'manual';
+    freezeEndingCamera(entity, camera, engine.time);
 }

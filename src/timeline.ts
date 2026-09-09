@@ -1,4 +1,5 @@
 import { MathUtils, Vector3 } from 'three';
+import { eased } from './animation/channels.ts';
 import type { Entity, MotionPath, Pose, Project, Vec3 } from './model.ts';
 export function pathPosition(path: MotionPath | null, base: Vec3, time: number): Vector3 {
     if (path) time=pathSourceTime(path,time);
@@ -29,7 +30,7 @@ function sourcePathPosition(path:MotionPath|null,base:Vec3,time:number):Vector3 
     let i = 0;
     while (i < points.length - 2 && time >= points[i + 1].time)
         i++;
-    const t = (time - points[i].time) / (points[i + 1].time - points[i].time);
+    const t = eased((time - points[i].time) / (points[i + 1].time - points[i].time), points[i + 1].easing);
     const a = new Vector3(...points[i].position), b = new Vector3(...points[i + 1].position);
     if (!path.smooth || points.length === 2 || a.distanceToSquared(b) < 1e-12)
         return a.lerp(b, t);

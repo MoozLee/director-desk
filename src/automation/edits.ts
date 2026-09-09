@@ -10,8 +10,10 @@ import { replaceProp, type ReplacePropOptions } from '../resources/replace-prop.
 import { editResourceMetadata, removeUnusedResource } from '../resources/resource-usage.ts';
 import { parameterDefaults } from '../parametric-props.ts';
 import { assertProductionShape } from '../production/validation.ts';
+import { applyCameraMotion, type CameraMotionOptions } from '../cinematography/motion-presets.ts';
+import { lightingPreset } from '../lighting/presets.ts';
 export interface EditOperation { operation: string; id?: string; asset?: string; kind?: 'actor' | 'prop'; name?: string; position?: Vec3; time?: number; duration?: number; patch?: Record<string, unknown>; value?: unknown }
-const editable = new Set(['floorId', 'structureLink', 'handBinding', 'contactAnchors', 'external', 'name', 'color', 'position', 'rotation', 'scale', 'visible', 'height', 'build', 'gender', 'path', 'face', 'faceTarget', 'clips', 'pose', 'poseKeys', 'camera', 'count', 'spacing', 'seed', 'reference', 'parameters', 'assetParameters', 'actionBlend', 'footContact']);
+const editable = new Set(['light', 'floorId', 'structureLink', 'handBinding', 'contactAnchors', 'external', 'name', 'color', 'position', 'rotation', 'scale', 'visible', 'height', 'build', 'gender', 'path', 'face', 'faceTarget', 'clips', 'pose', 'poseKeys', 'camera', 'count', 'spacing', 'seed', 'reference', 'parameters', 'assetParameters', 'actionBlend', 'footContact']);
 function patch(target: object, value: Record<string, unknown> | undefined, allowed: Set<string>) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('patch 必须是对象');
     for (const key of Object.keys(value)) { if (!allowed.has(key)) throw new Error('不允许修改字段：' + key); Object.assign(target, { [key]: clone(value[key]) }); }
@@ -20,7 +22,7 @@ function patchEntity(target: Entity, value: Record<string, unknown> | undefined)
     if (value && Object.hasOwn(value, 'camera') && target.kind === 'camera') {
         const camera = value.camera;
         if (!camera || typeof camera !== 'object' || Array.isArray(camera)) throw Error('patch.camera 必须是摄影机参数对象');
-        const allowedCamera = new Set(['aim', 'focal', 'target', 'targetId', 'targetHeight', 'mode', 'offset', 'inheritRotation', 'targetPath', 'hideWalls', 'hiddenEntityIds']);
+        const allowedCamera = new Set(['aim', 'focal', 'target', 'targetId', 'targetHeight', 'mode', 'offset', 'inheritRotation', 'targetPath', 'hideWalls', 'hiddenEntityIds', 'effects']);
         for (const key of Object.keys(camera)) if (!allowedCamera.has(key)) throw Error('不支持摄影机字段：patch.camera.' + key);
         value = { ...value, camera: { ...target.camera, ...camera } };
     }
@@ -67,7 +69,9 @@ export function applyOperations(original: Project, operations: EditOperation[]):
         else if (op.operation === 'resource') editResourceMetadata(project, op.id ?? '', op.patch);
         else if (op.operation === 'resource-remove') removeUnusedResource(project, op.id ?? '');
         else if (op.operation === 'motion') insertBuiltinMotion(project, op.id ?? '', op.asset ?? '', op.time ?? 0, op.duration);
-        else if (op.operation === 'project') patch(project, op.patch, new Set(['name', 'duration', 'fps', 'aspect', 'room', 'floors', 'zones', 'editorView', 'creationMode', 'referenceLabels']));
+        else if (op.operation === 'camera-motion') applyCameraMotion(project, op.id ?? '', op.asset ?? '', op.time ?? 0, op.duration ?? 5, op.patch as CameraMotionOptions | undefined);
+        else if (op.operation === 'lighting-preset') project.lighting = lightingPreset(op.asset ?? '');
+        else if (op.operation === 'project') patch(project, op.patch, new Set(['name', 'duration', 'fps', 'aspect', 'room', 'floors', 'zones', 'editorView', 'creationMode', 'referenceLabels', 'lighting']));
         else if (op.operation === 'cuts') project.cuts = clone(op.value) as Project['cuts'];
         else if (op.operation === 'notes') { assertProductionShape(op.value); project.production = clone(op.value); }
         else throw new Error('未知操作');
@@ -86,5 +90,5 @@ export function changeSummary(before: Project, after: Project) {
     return { hasChanges: JSON.stringify(before) !== JSON.stringify(after), added: after.entities.filter(e => !old.has(e.id)).map(e => ({ id: e.id, name: e.name })),
         updated: after.entities.filter(e => old.has(e.id) && JSON.stringify(old.get(e.id)) !== JSON.stringify(e)).map(e => ({ id: e.id, name: e.name })),
         removed: before.entities.filter(e => !fresh.has(e.id)).map((e: Entity) => ({ id: e.id, name: e.name })),
-        projectChanged: ['name', 'duration', 'fps', 'aspect', 'room', 'cuts', 'production', 'floors', 'zones', 'editorView', 'resources', 'creationMode', 'referenceLabels'].some(k => JSON.stringify(before[k as keyof Project]) !== JSON.stringify(after[k as keyof Project])) };
+        projectChanged: ['name', 'duration', 'fps', 'aspect', 'room', 'cuts', 'production', 'floors', 'zones', 'editorView', 'resources', 'creationMode', 'referenceLabels', 'lighting'].some(k => JSON.stringify(before[k as keyof Project]) !== JSON.stringify(after[k as keyof Project])) };
 }

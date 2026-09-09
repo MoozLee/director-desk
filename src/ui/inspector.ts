@@ -20,7 +20,13 @@ import { cameraInspector } from './inspector-camera.ts';
 import { createPoseInspector } from './inspector-pose.ts';
 import { transformInspector } from './inspector-transform.ts';
 import { createLegacyParameterEditor } from './legacy-parameter-editor.ts';
+import { createLightingPanel } from './lighting-panel.ts';
+import { createCameraEffectsPanel } from './camera-effects-panel.ts';
+import { createCurveEditor } from './curve-editor.ts';
+import { createAIEditLocations } from './ai-edit-locations.ts';
 export function createInspector(ctx: AppContext) {
+    const lightingEditor = createLightingPanel(ctx), cameraEffects = createCameraEffectsPanel(ctx);
+    const curveEditor = createCurveEditor(ctx), editLocations = createAIEditLocations(ctx);
     const navigation = createInspectorNavigation(renderInspector);
     $('#inspector-header').addEventListener('click', event => {
         if (!(event.target as HTMLElement).closest('[data-inspector-origin]')) return;
@@ -38,9 +44,34 @@ export function createInspector(ctx: AppContext) {
     const contactEditor = createContactAnchorEditor(ctx, renderInspector);
     const handEditor = createHandBindingEditor(ctx, renderInspector);
     const transformFields = (e: Entity) => transformInspector(ctx, e);
+    let rendering = false, renderPending = false;
     function renderInspector() {
+        // Replacing a focused input can fire its native change event. Its commit
+        // requests a refresh, which must wait until this DOM replacement finishes.
+        if (rendering) { renderPending = true; return; }
+        rendering = true;
+        try { renderContent(); }
+        finally {
+            rendering = false;
+            if (renderPending) { renderPending = false; queueMicrotask(renderInspector); }
+        }
+    }
+    function renderContent() {
         const e = ctx.current();
         if (!e || ctx.inspectorTab !== 'contacts' || e.kind !== 'prop') ctx.engine.showContactAnchor();
+        if (ctx.inspectorTab === 'ai-changes') {
+            $('#inspector-header').innerHTML = '<div class="inspect-title"><h2>AI 修改定位</h2></div><div class="inspect-subtitle">内置助手与 MCP · 点击记录定位</div>';
+            $('#inspector-tabs').innerHTML = '';
+            $('#inspector-content').innerHTML = editLocations.render(); editLocations.bind();
+            $('#inspector-footer').innerHTML = button('inspector-return', '返回所选对象', '', 'wide subtle'); return;
+        }
+        if (ctx.inspectorTab === 'environment') {
+            $('#inspector-header').innerHTML = '<div class="inspect-title"><h2>灯光与环境</h2></div><div class="inspect-subtitle">调整直接作用于当前戏段</div>';
+            $('#inspector-tabs').innerHTML = '';
+            $('#inspector-content').innerHTML = lightingEditor.render(); lightingEditor.bind();
+            $('#inspector-footer').innerHTML = `<div class="inspector-tool-actions">${lightingEditor.footer()}</div>` + button('inspector-return', '返回所选对象', '', 'wide subtle');
+            return;
+        }
         if (!e) {
             $('#inspector-header').innerHTML = '<div class="inspect-title">场景设置</div>';
             $('#inspector-tabs').innerHTML = '';
@@ -54,13 +85,16 @@ export function createInspector(ctx: AppContext) {
         const animal = isAnimalAsset(e.asset);
         const supportedActions = Object.entries(ACTIONS).filter(([key]) => !definition?.capabilities || definition.capabilities.actions.includes(key as keyof typeof ACTIONS));
         const colorButton = `<button data-act="color-open" class="model-color-button subtle" title="打开色板调色" ${e.locked ? 'disabled' : ''}><i class="model-color-chip" style="background:${e.color}"></i>调色</button>`;
-        $('#inspector-header').innerHTML = `<div class="inspect-title"><h2>${escape(e.name)}</h2><span class="type-badge">${{ actor: animal ? '动物' : '人物', camera: '摄影机', prop: '道具', crowd: '群演' }[e.kind]}</span>${colorButton}</div><div class="inspect-subtitle">${external ? `导入模型 · ${e.clips.some(c => c.retarget || c.action !== 'idle' && c.action !== 'native') ? '预设动作与路径调度' : hasAnimations ? '自带动画与路径调度' : '静态姿态与路径调度'}` : animal ? `动物白模 · 总高 ${e.height.toFixed(2)} m · 姿态可调` : e.kind === 'actor' ? `${e.gender === 'male' ? '男' : '女'} · 身高 ${e.height.toFixed(2)} m · 关节可调` : e.kind === 'camera' ? '同场景真实取景' : '可编辑的三维白模'}</div>`;
+        $('#inspector-header').innerHTML = `<div class="inspect-title"><h2>${escape(e.name)}</h2><span class="type-badge">${e.light ? '灯光' : { actor: animal ? '动物' : '人物', camera: '摄影机', prop: '道具', crowd: '群演' }[e.kind]}</span>${colorButton}</div><div class="inspect-subtitle">${external ? `导入模型 · ${e.clips.some(c => c.retarget || c.action !== 'idle' && c.action !== 'native') ? '预设动作与路径调度' : hasAnimations ? '自带动画与路径调度' : '静态姿态与路径调度'}` : animal ? `动物白模 · 总高 ${e.height.toFixed(2)} m · 姿态可调` : e.kind === 'actor' ? `${e.gender === 'male' ? '男' : '女'} · 身高 ${e.height.toFixed(2)} m · 关节可调` : e.kind === 'camera' ? '同场景真实取景' : e.light ? '同场景真实照明' : '可编辑的三维白模'}</div>`;
         const initialStatus = e.initialPose?.layout !== poseLayout(e) ? '模型已调整，继承姿态不再应用' : inheritedPoseAt(e, ctx.time) ? '当前保持接拍姿态' : '新动作接管，保留开头姿态';
         if (e.initialPose) $('#inspector-header .inspect-subtitle').innerHTML = `<button class="initial-pose-link" data-inspector-origin title="${initialStatus}">接拍姿态 · 查看详情</button>`;
         if (e.locked) $('#inspector-header .inspect-title').insertAdjacentHTML('beforeend', button('unlock-selected', '解锁', '', 'inspector-unlock subtle', 'title="当前对象已锁定，仅可查看；点击解锁"'));
         const tabs = external ? [['base', '基础'], ['structure', '模型'], ...(hasBones ? [['rig', '骨架']] : []), ...(hasAnimations ? [['actions', '动画']] : []), ['path', '路径']] : e.kind === 'camera' ? [['base', '基础'], ['camera', '摄影机'], ['path', '路径']] : e.kind === 'prop' ? [['base', '基础'], ...(parameterDefaults[e.asset] || definition?.parameters ? [['structure','结构']] : []), ['path', '路径']] : [['base', '基础'], ...(definition?.parameters ? [['structure', '外形']] : []), ['actions', '动作'], ['path', '路径'], ['pose', '姿态']];
         if (!animal && ((external && e.kind === 'actor' && hasBones) || (!external && ['actor', 'crowd'].includes(e.kind)))) tabs.splice(tabs.findIndex(([key]) => key === 'path'), 0, ['retarget', '素材']);
-        if (e.kind === 'prop') tabs.splice(tabs.findIndex(([key]) => key === 'path'), 0, ['hand', '手持'], ['contacts', '接触']);
+        if (e.kind === 'prop' && !e.light) tabs.splice(tabs.findIndex(([key]) => key === 'path'), 0, ['hand', '手持'], ['contacts', '接触']);
+        if (e.light) tabs.splice(0, tabs.length, ['light', '灯光'], ['base', '变换'], ['path', '路径']);
+        if (e.camera) tabs.splice(2, 0, ['effects', '运镜效果']);
+        tabs.push(['curves', '曲线']);
         if (!tabs.some(([k]) => k === ctx.inspectorTab))
             ctx.inspectorTab = tabs[0][0];
         $('#inspector-tabs').innerHTML = tabs.map(([k, label]) => `<button data-inspect="${k}" class="${ctx.inspectorTab === k ? 'active' : ''}">${label}</button>`).join('');
@@ -100,16 +134,30 @@ export function createInspector(ctx: AppContext) {
         else if (ctx.inspectorTab === 'actions') html = external ? nativeEditor.render(e) : actionEditor.render(e, supportedActions, animal);
         else if (ctx.inspectorTab === 'pose') html = poseEditor.render(e);
         else if (ctx.inspectorTab === 'camera') html = cameraInspector(ctx, e, navigation);
+        else if (ctx.inspectorTab === 'light') html = lightingEditor.render(e);
+        else if (ctx.inspectorTab === 'effects' && e.camera) html = cameraEffects.render(e);
+        else if (ctx.inspectorTab === 'curves') html = curveEditor.render();
         $('#inspector-content').innerHTML = html;
+        if (ctx.inspectorTab === 'light') lightingEditor.bind();
+        if (ctx.inspectorTab === 'effects') cameraEffects.bind();
+        if (ctx.inspectorTab === 'curves') curveEditor.bind();
         $('#inspector-footer').innerHTML = ctx.draft ? `<div class="button-row">${button('cancel-path', '取消', '', 'subtle')}${button('finish-path', '完成路线', '', 'primary wide')}</div>` : ctx.inspectorTab === 'pose' ? button('pose-key', '在此刻记录姿态', 'plus', 'primary wide') : `<div class="button-row">${button('focus', '定位对象', '', 'subtle wide')}${button('duplicate', '', 'copy', 'icon-button', 'title="复制对象"')}${button('delete', '', 'trash', 'icon-button danger', 'title="删除对象"')}</div>`;
         if (ctx.inspectorTab === 'camera') $('#inspector-footer .button-row')?.insertAdjacentHTML('beforeend', button('camera-hidden-open', '', 'eye', 'icon-button', `title="本机位隐藏对象 · ${e.camera?.hiddenEntityIds?.length ?? 0}" aria-label="本机位隐藏对象"`));
         if (e.kind === 'prop' && !ctx.draft) $('#inspector-footer .button-row')?.insertAdjacentHTML('beforeend', button('replace-prop-open', '', 'folder', 'icon-button', 'title="替换道具模型" aria-label="替换道具模型"'));
+        const toolFooter = ctx.inspectorTab === 'curves' ? curveEditor.footer() : ctx.inspectorTab === 'effects' ? cameraEffects.footer() : ctx.inspectorTab === 'light' ? lightingEditor.footer() : '';
+        if (toolFooter) $('#inspector-footer').innerHTML = `<div class="inspector-tool-actions">${toolFooter}</div>`;
         if (e.locked) {
             document.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>('#inspector-content input,#inspector-content select,#inspector-content button,#inspector-footer button').forEach(el => {
                 const act = el.dataset.act;
-                el.disabled = !el.dataset.inspectorSection && el.dataset.stepPoint === undefined && !['legacy-parameter-choice', 'path-section-choice', 'pose-group', 'pose-key-choice', 'path-point-choice', 'basic-clip-choice', 'hand-target', 'hand-parameter', 'contact-choice', 'contact-parameter', 'asset-parameter-key', 'external-parameter-key', 'rig-view', 'rig-part', 'native-source', 'native-clip', 'native-parameter', 'retarget-source', 'retarget-clip', 'retarget-parameter'].includes(el.id) && !el.dataset.rigReadonly && el.dataset.rigAction !== 'focus' && el.dataset.field !== 'locked' && !['nodes-open','unlock-selected','focus','duplicate','preview-selected','cut-selected','select-point','seek-key'].includes(act ?? '');
+                el.disabled = !el.dataset.lightTab && !el.dataset.cinemaTab && !el.dataset.inspectorSection && el.dataset.stepPoint === undefined && !['curve-channel', 'curve-segment', 'lighting-channel', 'lighting-key', 'cinema-channel', 'cinema-key', 'legacy-parameter-choice', 'path-section-choice', 'pose-group', 'pose-key-choice', 'path-point-choice', 'basic-clip-choice', 'hand-target', 'hand-parameter', 'contact-choice', 'contact-parameter', 'asset-parameter-key', 'external-parameter-key', 'rig-view', 'rig-part', 'native-source', 'native-clip', 'native-parameter', 'retarget-source', 'retarget-clip', 'retarget-parameter'].includes(el.id) && !el.dataset.rigReadonly && el.dataset.rigAction !== 'focus' && el.dataset.field !== 'locked' && !['nodes-open','unlock-selected','focus','duplicate','preview-selected','cut-selected','select-point','seek-key'].includes(act ?? '');
             });
         }
     }
-    return { transformFields, renderInspector };
+    return { transformFields, renderInspector, handle(action: string) {
+        if (action === 'ai-changes-open') { editLocations.open(); return true; }
+        if (ctx.inspectorTab === 'curves') return curveEditor.handle(action);
+        if (ctx.inspectorTab === 'effects') return cameraEffects.handle(action);
+        if (ctx.inspectorTab === 'light' || ctx.inspectorTab === 'environment') return lightingEditor.handle(action);
+        return false;
+    } };
 }

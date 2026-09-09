@@ -14,6 +14,9 @@ import { assertInitialPose, type InitialPose } from './scenes/initial-pose.ts';
 import { assertProductionShape } from './production/validation.ts';
 import { assertCameraLookPath, type CameraLookPath } from './animation/camera-look.ts';
 import { assertZones, type SceneZone } from './building/zones.ts';
+import { assertEasing, type Easing } from './animation/channels.ts';
+import { assertCameraEffects, type CameraEffects } from './cinematography/camera-effects.ts';
+import { assertLightEntity, assertLighting, type LightConfig, type LightingConfig } from './lighting/model.ts';
 export type Vec3 = [
     number,
     number,
@@ -24,6 +27,7 @@ export type Action = 'idle' | 'walk' | 'run' | 'sit' | 'standup' | 'crouch' | 'c
 export type Joint = JointName;
 export type Pose = Partial<Record<Joint, number>>;
 export interface Waypoint {
+    easing?: Easing;
     time: number;
     position: Vec3;
 }
@@ -50,6 +54,7 @@ export interface PoseKey {
     pose: Pose;
 }
 export interface CameraConfig {
+    effects?: CameraEffects;
     targetPath?: CameraLookPath | null;
     aim: 'target' | 'manual';
     focal: number;
@@ -63,6 +68,7 @@ export interface CameraConfig {
     hiddenEntityIds?: string[];
 }
 export interface Entity {
+    light?: LightConfig;
     initialPose?: InitialPose;
     floorId?: string;
     structureLink?: StructureLink | null;
@@ -110,6 +116,7 @@ export interface ReferenceImage {
 export interface ProductionNote { id: string; start: number; end: number; actorId: string; story: string; emotion: string; dialogue: string; action: string }
 export interface ProductionData { fixedPrompt: string; sceneReferenceIds: string[]; notes: ProductionNote[]; promptText?: string }
 export interface Project {
+    lighting?: LightingConfig;
     creationMode?: 'full' | 'geometry';
     referenceLabels?: boolean;
     zones?: SceneZone[];
@@ -146,7 +153,7 @@ export function entity(kind: Kind, asset: string, name: string, position: Vec3 =
         height: 1.75, build: 'normal', gender: 'male', path: null, face: 'path', faceTarget: '', clips: [], pose: {}, poseKeys: [],
         camera: kind === 'camera' ? { aim: 'target', focal: 28, target: [0, 1, 0], targetId: '', targetHeight: 1.2, mode: 'free', offset: [0, 1.6, -1.8], inheritRotation: true, hideWalls: [] } : null,
         count: 12, spacing: .75, seed: 42, reference: '',
-        ...(asset === 'woman' ? { gender: 'female' as const, height: 1.65 } : {}), ...findAsset(asset)?.defaults };
+        ...(asset === 'woman' ? { gender: 'female' as const, height: 1.65 } : {}), ...structuredClone(findAsset(asset)?.defaults ?? {}) };
 }
 export function clip(action: Action, start: number, end: number): Clip { return { id: uid(), action, start, end, speed: 1 }; }
 export function demoProject(): Project {
@@ -218,6 +225,7 @@ export function assertProject(input: unknown): asserts input is Project {
     if (!Array.isArray(p.entities) || !Array.isArray(p.cuts) || !Array.isArray(p.references))
         fail('缺少场景数据');
     assertModelResources(p);
+    assertLighting(p.lighting);
     const safeId=(id:unknown)=>typeof id==='string' && /^[\p{L}\p{N}_:.-]{1,200}$/u.test(id);
     const ids = new Set<string>();
     for (const e of p.entities) {
@@ -259,6 +267,7 @@ export function assertProject(input: unknown): asserts input is Project {
                 fail('动作时间重叠或范围错误');
         }
         validatePropParameters(e);
+        assertLightEntity(e);
         assertInitialPose(e.initialPose);
         if (e.kind === 'camera' && e.initialPose) fail('摄影机使用位置与朝向继承，不使用模型姿态');
         validateAssetParameters(e);
@@ -270,7 +279,7 @@ export function assertProject(input: unknown): asserts input is Project {
             if (typeof e.path.smooth !== 'boolean' || !Array.isArray(e.path.points) || e.path.points.length < 1)
                 fail('路径至少需要一个位置点');
             e.path.points.forEach((w, i) => { if (!w || !v3(w.position) || !n(w.time) || w.time < 0 || (i > 0 && w.time <= e.path!.points[i - 1].time))
-                fail('路径时间必须递增'); });
+                fail('路径时间必须递增'); assertEasing(w.easing); });
             if (e.path.sections !== undefined) {
                 if (!Array.isArray(e.path.sections) || !e.path.sections.length || e.path.sections.some(s=>!s)) fail('路径片段不能为空');
                 const parts = [...e.path.sections].sort((a,b)=>a.start-b.start);
@@ -283,6 +292,7 @@ export function assertProject(input: unknown): asserts input is Project {
             if (!c || !['target', 'manual'].includes(c.aim) || !n(c.focal) || c.focal < 8 || c.focal > 300 || !v3(c.target) || !v3(c.offset) || !n(c.targetHeight) || typeof c.targetId !== 'string' || !['free', 'follow', 'pov'].includes(c.mode) || typeof c.inheritRotation !== 'boolean' || !Array.isArray(c.hideWalls) || c.hideWalls.some(w => !['north', 'south', 'east', 'west', 'ceiling'].includes(w)))
                 fail('摄影机参数错误');
             assertCameraLookPath(c!.targetPath);
+            assertCameraEffects(c!.effects, id => p.entities.some(e => e.id === id && e.kind !== 'camera'));
         }
     }
     assertFloors(p);

@@ -1,5 +1,6 @@
 import { findAsset } from '../asset-catalog.ts';
 import { clone, type Project, type Vec3 } from '../model.ts';
+import { LIGHT_TYPES, defaultLight } from '../lighting/model.ts';
 export interface ReplacePropOptions {
     animation?: 'preserve' | 'clear';
     unitScale?: number;
@@ -32,5 +33,6 @@ export function replaceProp(project: Project, id: string, asset: string, options
         e.external = { ...before, resourceId: resource.id, unitScale: options.unitScale ?? before?.unitScale ?? 1,
             orientation: clone(options.orientation ?? before?.orientation ?? [0, 0, 0]), appearance: options.appearance ?? before?.appearance ?? 'original' };
     } else { e.asset = asset; delete e.external; }
+    if (!sameSource) { if (Object.hasOwn(LIGHT_TYPES, asset)) e.light = defaultLight(asset); else delete e.light; }
     // Structure links deliberately remain: unsupported replacement ports or locked dependants reject the transaction.
 }

@@ -8,6 +8,7 @@ export function bindSidebarTools() {
     menu.id = 'sidebar-tools-menu'; menu.className = 'sidebar-tools';
     menu.setAttribute('aria-label', '场景工具');
     menu.append(...footer.childNodes);
+    const lighting = document.createElement('button'); lighting.dataset.act = 'lighting-open'; lighting.textContent = '灯光与环境'; menu.append(lighting);
     const trigger = document.createElement('button');
     trigger.type = 'button'; trigger.className = 'wide sidebar-tools-trigger';
     trigger.innerHTML = `${icon('grid')}场景工具 <span aria-hidden="true">⌃</span>`;

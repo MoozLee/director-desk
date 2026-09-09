@@ -46,7 +46,7 @@ export function checkPathSurfaces(project: Project, models: Map<string, Object3D
     const entity = project.entities.find(e => e.id === options.entityId), clearance = options.clearance ?? 0, tolerance = options.tolerance ?? .03;
     if (!entity?.path || entity.handBinding) throw Error('请选择有独立路径的对象');
     if (!Number.isFinite(clearance) || clearance < 0 || clearance > 100 || !Number.isFinite(tolerance) || tolerance < .001 || tolerance > 1) throw Error('净空需为 0—100 米，容差需为 0.001—1 米');
-    const candidates = project.entities.filter(e => e.kind === 'prop' && e.visible && e.id !== entity.id && (!options.surfaceId || e.id === options.surfaceId));
+    const candidates = project.entities.filter(e => e.kind === 'prop' && !e.light && e.visible && e.id !== entity.id && (!options.surfaceId || e.id === options.surfaceId));
     const floor = project.room.enabled && (!options.surfaceId || options.surfaceId === ROOM_FLOOR_SURFACE) ? models.get(ROOM_FLOOR_SURFACE) : undefined;
     if (!candidates.length && !floor) throw Error('未找到指定的可见承托对象');
     const moving = (e: Entity) => !!e.path || !!e.handBinding || e.clips.some(c => c.action === 'native' || c.action === 'retarget');

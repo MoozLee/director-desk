@@ -13,8 +13,8 @@ export interface SceneDocument {
     scenes: SceneEntry[];
 }
 export interface SceneEntry { id: string; name: string; state: SceneState; origin?: ContinuityOrigin }
-export type SceneState = Pick<Project, 'duration' | 'fps' | 'aspect' | 'room' | 'entities' | 'cuts' | 'references' | 'production' | 'floors' | 'zones' | 'editorView' | 'creationMode' | 'referenceLabels'>;
-const stateKeys = ['duration', 'fps', 'aspect', 'room', 'entities', 'cuts', 'references', 'production', 'floors', 'zones', 'editorView', 'creationMode', 'referenceLabels'] as const;
+export type SceneState = Pick<Project, 'duration' | 'fps' | 'aspect' | 'room' | 'entities' | 'cuts' | 'references' | 'production' | 'floors' | 'zones' | 'editorView' | 'creationMode' | 'referenceLabels' | 'lighting'>;
+const stateKeys = ['duration', 'fps', 'aspect', 'room', 'entities', 'cuts', 'references', 'production', 'floors', 'zones', 'editorView', 'creationMode', 'referenceLabels', 'lighting'] as const;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const validId = (id: unknown): id is string => typeof id === 'string' && /^[\p{L}\p{N}_:.-]{1,200}$/u.test(id);
 const validName = (name: unknown): name is string => typeof name === 'string' && name.trim().length > 0 && name.length <= 200;

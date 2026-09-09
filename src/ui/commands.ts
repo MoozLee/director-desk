@@ -28,7 +28,7 @@ import { clone, uid } from '../model.ts';
 import { addCut, entityPosition, samplePose, shiftPath } from '../timeline.ts';
 import { $, button } from './common.ts';
 import type { AppContext } from '../app-context.ts';
-export function createCommands(ctx: AppContext) {
+export function createCommands(ctx: AppContext, inspectorTools: { handle(action: string): boolean }) {
     const colorPalette = createColorPalette(ctx);
     const sceneSequence = createSceneSequencePanel(ctx);
     const modelNodes = createModelNodesPanel(ctx);
@@ -56,6 +56,11 @@ export function createCommands(ctx: AppContext) {
         if (resourceStatistics.handle(action)) return;
         if (sceneReuse.handle(action) || cameraVisibility.handle(action)) return;
         if (surfacePanel.handle(action)) return;
+        if (['cinema-open', 'lighting-open', 'light-open', 'inspector-return'].includes(action)) {
+            ctx.inspectorTab = action === 'cinema-open' ? 'effects' : action === 'lighting-open' ? 'environment' : action === 'light-open' || e?.light ? 'light' : e?.camera ? 'camera' : 'base';
+            ctx.renderInspector(); return;
+        }
+        if (inspectorTools.handle(action)) return;
         if (structurePanel.handle(action)) return;
         if (floorPanel.handle(action) || zonePanel.handle(action) || lookPanel.handle(action)) return;
         if (spatialPanel.handle(action)) return;

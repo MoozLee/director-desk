@@ -3,6 +3,9 @@ import { entityPosition, entityYaw } from '../timeline.ts';
 import { emptyEditorView } from '../building/floors.ts';
 import { portableRoom } from './portable-room.ts';
 import { cameraLookAt } from '../animation/camera-look.ts';
+import { numberAt } from '../animation/channels.ts';
+import { lightIntensity } from '../lighting/model.ts';
+import { lightColor } from '../lighting/runtime.ts';
 
 export interface MergeSceneOptions {
     offset: Vec3;
@@ -29,6 +32,7 @@ export function mergeScene(destination: Project, source: Project, options: Merge
     const p = clone(destination), incoming = portableRoom(source), { offset, timeOffset, scheduling } = options;
     const initial = scheduling === 'reset' ? new Map(incoming.entities.map(e => [e.id, { position: entityPosition(e, 0).toArray(), yaw: entityYaw(e, 0, incoming) }])) : null;
     const warnings: string[] = [];
+    if (source.lighting) warnings.push('已保留目标场景的全局环境照明；源场景中的独立灯具随对象导入。');
     const reserved = new Set<string>();
     for (const data of [destination, incoming]) {
         data.entities.forEach(e => { reserved.add(e.id); e.clips.forEach(c => reserved.add(c.id)); });
@@ -79,6 +83,16 @@ export function mergeScene(destination: Project, source: Project, options: Merge
         if (e.handBinding) e.handBinding.actorId = entityMap.get(e.handBinding.actorId)!;
         if (e.structureLink) e.structureLink.parentId = entityMap.get(e.structureLink.parentId)!;
         if (e.camera) {
+            const effects = e.camera.effects;
+            if (effects) {
+                if (effects.focusTargetId) effects.focusTargetId = entityMap.get(effects.focusTargetId)!;
+                for (const key of Object.keys(effects.channels ?? {}) as (keyof NonNullable<typeof effects.channels>)[]) {
+                    const value = effects.channels![key];
+                    if (scheduling === 'reset') effects.channels![key] = numberAt(value, 0);
+                    else if (typeof value === 'object') value.keys.forEach(k => k.time += timeOffset);
+                }
+                if (effects.shake) { if (scheduling === 'reset') effects.shake = null; else { effects.shake.start += timeOffset; effects.shake.end += timeOffset; } }
+            }
             if (e.camera.targetPath) {
                 const route = e.camera.targetPath;
                 if (scheduling === 'reset') route.points = [{ time: 0, position: move(cameraLookAt(route, 0).toArray()) }];
@@ -87,6 +101,15 @@ export function mergeScene(destination: Project, source: Project, options: Merge
             if (e.camera.targetId) e.camera.targetId = entityMap.get(e.camera.targetId)!;
             e.camera.target = move(e.camera.target);
             if (e.camera.hiddenEntityIds) e.camera.hiddenEntityIds = e.camera.hiddenEntityIds.map(id => entityMap.get(id)!);
+        }
+        if (e.light) {
+            if (scheduling === 'reset') {
+                e.color = '#' + lightColor(e, 0).getHexString(); e.light.intensity = lightIntensity(e.light, 0); delete e.light.temperature; delete e.light.colorKeys; e.light.flicker = null;
+            } else {
+                for (const value of [e.light.intensity, e.light.temperature]) if (typeof value === 'object') value.keys.forEach(k => k.time += timeOffset);
+                e.light.colorKeys?.forEach(k => k.time += timeOffset);
+                if (e.light.flicker) e.light.flicker.start = (e.light.flicker.start ?? 0) + timeOffset;
+            }
         }
         p.entities.push(e);
     }

@@ -16,6 +16,8 @@
 
 ## 常用编辑约定
 
+- 运镜和布光是可选能力：`camera-motion` 生成可编辑路径或镜头参数；`lighting-preset` 调整环境，独立灯具用 `light-point/light-spot/light-area/light-sun`。镜头效果存 `camera.effects`，环境存 `project.lighting`，灯具存实体 `light`；需要时查 `director_help` 的 `director_apply` 详情。读取已有嵌套设置后修改，保留无关通道，不默认给每段都加晃动、畸变或灯光效果。POV 可以直接加手持晃动，路径预设需先切为独立机位。
+
 - 每批携带当前 revision 和唯一 requestId，正常批次失败不会部分写入，可撤销。不要改 locked/id/kind/asset；保留未修改的数据。遇到版本冲突，尊重用户的并行修改。超时先读取实际状态，避免重复新增。
 - add 使用真实 asset ID 并省略 kind；kind 只用于已有导入资源的 actor/prop。显式指定新 ID，可被同批后续动作、机位和切镜引用。目录的 parameters 是定义，尺寸值写入 parameterPatchField，通常为 assetParameters，旧 stairs/road/wall/ground 为 parameters。
 - `patch.camera` 合并提供的顶层字段，例如 `{focal:50,target:[0,1.2,0]}`；内部数组和其他嵌套对象整体替换，修改前读取原值。targetId:"" 解除跟随目标。

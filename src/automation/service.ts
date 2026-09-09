@@ -19,6 +19,8 @@ import { continueScene, continuitySummary } from '../scenes/continue-scene.ts';
 import { editIndependentScene, readIndependentScene } from './scene-tools.ts';
 import { inheritedPoseAt } from '../scenes/initial-pose.ts';
 import { BUILTIN_SKILL, readBuiltinSkill } from './skill.ts';
+import { editLocations } from './edit-locations.ts';
+import { recordEdits } from './edit-journal.ts';
 export function createToolService(ctx: AppContext) {
     // A new renderer must not accept a revision captured before a reload/reconnect.
     let revision = Date.now() * 1000 + Math.floor(Math.random() * 1000), fingerprint = '', sequence = Promise.resolve<unknown>(null);
@@ -63,6 +65,11 @@ export function createToolService(ctx: AppContext) {
                     const next = args.action === 'continue' ? await continueScene(ctx.engine, document, String(args.name ?? ''), args.newSceneId as string | undefined) : editIndependentScene(document, args);
                     checkRevision(args.revision);
                     ctx.applyDocument(next, context, ({ create: '新增戏段', copy: '复制戏段', continue: '从末帧接拍', rename: '重命名戏段', reorder: '排序戏段', remove: '删除戏段' } as Record<string, string>)[String(args.action)]);
+                    const sceneId = ['rename', 'remove'].includes(String(args.action)) ? String(args.sceneId ?? context.sceneId) : ctx.scenes.context.sceneId;
+                    const scene = next.scenes.find(s => s.id === sceneId) ?? document.scenes.find(s => s.id === sceneId)!;
+                    const label = ({ create: '新增戏段', copy: '复制戏段', continue: '接拍戏段', rename: '重命名戏段', reorder: '排序戏段', remove: '删除戏段' } as Record<string, string>)[String(args.action)];
+                    if (JSON.stringify(document) !== JSON.stringify(next)) recordEdits({ id: uid(), sceneId, sceneName: scene.name, created: Date.now(), label,
+                        locations: [{ name: scene.name, action: args.action === 'remove' ? 'removed' : ['create', 'copy', 'continue'].includes(String(args.action)) ? 'added' : 'updated', field: label, start: 0, end: scene.state.duration }] });
                 }
                 const result = { revision: currentRevision(), sceneContext: ctx.scenes.context, scenes: ctx.scenes.list() };
                 receipts.set(args.requestId, { args: encoded, result }); if (receipts.size > 200) receipts.delete(receipts.keys().next().value!); return result;
@@ -86,7 +93,7 @@ export function createToolService(ctx: AppContext) {
                 referenceLabels: ctx.project.referenceLabels ?? false, creationMode: ctx.project.creationMode ?? 'full', ...(ctx.project.creationMode === 'geometry' ? { geometry: geometryCreationGuide() } : {}),
                 ...(resource ? { model: ctx.engine.externalModels.inspection(resource) } : {}),
                 skill: { name: BUILTIN_SKILL.name, version: BUILTIN_SKILL.version },
-                time: ctx.time, cameraId: ctx.preview, selectedId: ctx.selected, room: ctx.project.room, floors: ctx.project.floors ?? [], zones: ctx.project.zones ?? [], editorView: ctx.project.editorView, cuts: ctx.project.cuts,
+                time: ctx.time, cameraId: ctx.preview, selectedId: ctx.selected, room: ctx.project.room, lighting: ctx.project.lighting, floors: ctx.project.floors ?? [], zones: ctx.project.zones ?? [], editorView: ctx.project.editorView, cuts: ctx.project.cuts,
                 references: ctx.project.references.map(({ id, name }) => ({ id, name })), production: productionData(ctx.project),
                 resources: (ctx.project.resources ?? []).map(({ package: _package, ...metadata }) => metadata),
                 ...(args.details || resource ? { resourceUsage: resourceUsage(ctx.project).filter(r => !resource || r.id === resource.id).map(r => ({ ...r, sceneReferences: ctx.scenes?.resourceScenes(r.id) ?? [], used: ctx.scenes ? ctx.scenes.resourceScenes(r.id).length > 0 : r.used })) } : {}),
@@ -132,7 +139,11 @@ export function createToolService(ctx: AppContext) {
                 if (!args.preview && !ctx.change(() => { ctx.project = after; })) throw new Error('修改提交失败');
                 const previewId = args.preview ? uid() : undefined;
                 if (previewId) { previews.set(previewId, { revision: currentRevision(), operations: clone(operations) }); if (previews.size > 20) previews.delete(previews.keys().next().value!); }
-                const result = { revision: currentRevision(), preview: Boolean(args.preview), committed: !args.preview, summary, ...(previewId ? { previewId } : {}),
+                const changeId = !args.preview && summary.hasChanges ? uid() : undefined;
+                if (changeId && ctx.scenes) recordEdits({ id: changeId, sceneId: ctx.scenes.context.sceneId,
+                    sceneName: ctx.scenes.list().find(s => s.id === ctx.scenes.context.sceneId)?.name ?? ctx.project.name,
+                    created: Date.now(), label: `${operations.length} 项操作`, locations: editLocations(before, after) });
+                const result = { revision: currentRevision(), preview: Boolean(args.preview), committed: !args.preview, summary, ...(previewId ? { previewId } : {}), ...(changeId ? { changeId } : {}),
                     message: args.preview ? '仅预检通过，未写入工程，added 的 ID 尚不存在。确认提交时传 revision、全新 requestId 和 previewId，省略 operations；需要修改这批内容则重新提交完整 operations。'
                         : '本批已提交，可撤销。后续编辑请使用本次返回的 revision。' };
                 if (!args.preview) { receipts.set(args.requestId, { args: encoded, result }); if (receipts.size > 200) receipts.delete(receipts.keys().next().value!); }
@@ -156,7 +167,14 @@ export function createToolService(ctx: AppContext) {
         }
         if (name === 'director_history') {
             checkRevision(args.revision); if (!['undo', 'redo'].includes(String(args.action))) throw new Error('无效历史操作');
-            await ctx.act(String(args.action), document.createElement('button')); return { revision: currentRevision() };
+            const before = clone(ctx.project), context = ctx.scenes?.context;
+            await ctx.act(String(args.action), document.createElement('button'));
+            if (context && JSON.stringify(before) !== JSON.stringify(ctx.project)) {
+                const sceneId = ctx.scenes.context.sceneId, label = args.action === 'undo' ? '撤销' : '重做';
+                recordEdits({ id: uid(), sceneId, sceneName: ctx.scenes.list().find(s => s.id === sceneId)!.name, created: Date.now(), label,
+                    locations: sceneId === context.sceneId ? editLocations(before, ctx.project) : [{ name: '戏段', action: 'updated', field: label, start: 0, end: ctx.project.duration }] });
+            }
+            return { revision: currentRevision() };
         }
         if (name === 'director_export') {
             const kind = String(args.kind); if (!['project', 'screenshot', 'video', 'bundle'].includes(kind)) throw new Error('未知导出格式');

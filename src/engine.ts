@@ -1,7 +1,11 @@
+import { SceneLighting } from './lighting/runtime.ts';
+import { installWallTransmission, isWallEntity } from './lighting/wall-transmission.ts';
 import { fitFeetToSurface } from './editor/foot-contact.ts';
 import { SceneRenderCache } from './editor/scene-render-cache.ts';
 import { ReferenceLabels } from './production/reference-labels.ts';
 import { cameraLookAt } from './animation/camera-look.ts';
+import { applyCameraEffects, cameraFocal, cameraFocusDistance } from './cinematography/camera-effects.ts';
+import { ShotEffects } from './cinematography/shot-effects.ts';
 import { addZoneHelpers } from './editor/zone-helpers.ts';
 import { InitialPoseRuntime } from './scenes/initial-pose-runtime.ts';
 import { inheritedPoseAt } from './scenes/initial-pose.ts';
@@ -46,6 +50,8 @@ interface Callbacks {
     transformEnd: (cancel?:boolean) => void;
 }
 export class Engine {
+    private shotEffects = new ShotEffects();
+    private lighting: SceneLighting;
     private renderCache = new SceneRenderCache();
     private roomKey = '';
     private referenceLabels = new ReferenceLabels();
@@ -96,33 +102,22 @@ export class Engine {
     disposed = false;
     exporting = false;
     monochrome = false;
+    previewQuality: 'full' | 'draft' = 'full';
+    setPreviewQuality(value: 'full' | 'draft') { this.previewQuality = value; this.resizeNeeded = true; this.render(); }
     private cb: Callbacks;
     private pointerDown = [0, 0];
     private stage: HTMLElement;
     private shot: HTMLElement;
     private resizeObserver: ResizeObserver;
     private resizeNeeded = true;
+    private events = new AbortController();
     constructor(project: Project, stage: HTMLElement, shot: HTMLElement, callbacks: Callbacks) {
         this.project = project;
         this.stage = stage;
         this.shot = shot;
         this.cb = callbacks;
         this.scene.background = new T.Color('#c6c8c6');
-        this.scene.add(new T.HemisphereLight('#ffffff', '#88847e', 2.5));
-        const sun = new T.DirectionalLight('#fff7e9', 3.5);
-        sun.position.set(-3.7, 7, 4);
-        sun.castShadow = true;
-        sun.shadow.mapSize.set(2048, 2048);
-        sun.shadow.camera.left = -7;
-        sun.shadow.camera.right = 7;
-        sun.shadow.camera.top = 7;
-        sun.shadow.camera.bottom = -7;
-        sun.shadow.normalBias = .025;
-        sun.shadow.bias = -.0001;
-        this.scene.add(sun);
-        const fill = new T.DirectionalLight('#d6e4f7', 1.1);
-        fill.position.set(4, 3, -1);
-        this.scene.add(fill);
+        this.lighting = new SceneLighting(this.scene);
         this.editorRenderer = this.renderer();
         this.shotRenderer = this.renderer();
         stage.append(this.editorRenderer.domElement);
@@ -150,12 +145,13 @@ export class Engine {
             this.cb.transform(this.proxy.position.toArray() as Vec3, [this.proxy.rotation.x, this.proxy.rotation.y, this.proxy.rotation.z], this.proxy.scale.toArray() as Vec3); });
         this.gizmo.addEventListener('mouseUp', () => this.finishTransform());
         const canvas = this.editorRenderer.domElement;
-        canvas.addEventListener('pointercancel',()=>this.finishTransform(true));
-        window.addEventListener('blur',()=>this.finishTransform(true));
-        document.addEventListener('keydown',event=>{if(event.key==='Escape' && this.dragging){event.preventDefault();this.finishTransform(true);}},true);
-        canvas.addEventListener('pointerdown', e => this.pointerDown = [e.clientX, e.clientY]);
-        canvas.addEventListener('pointerup', e => this.pick(e));
-        canvas.addEventListener('dblclick', () => { if (this.pickingEnabled) this.focus(this.selected); });
+        const signal = this.events.signal;
+        canvas.addEventListener('pointercancel',()=>this.finishTransform(true), { signal });
+        window.addEventListener('blur',()=>this.finishTransform(true), { signal });
+        document.addEventListener('keydown',event=>{if(event.key==='Escape' && this.dragging){event.preventDefault();this.finishTransform(true);}}, { capture: true, signal });
+        canvas.addEventListener('pointerdown', e => this.pointerDown = [e.clientX, e.clientY], { signal });
+        canvas.addEventListener('pointerup', e => this.pick(e), { signal });
+        canvas.addEventListener('dblclick', () => { if (this.pickingEnabled) this.focus(this.selected); }, { signal });
         this.resizeObserver = new ResizeObserver(() => this.resizeNeeded = true);
         this.resizeObserver.observe(stage);
         this.resizeObserver.observe(shot);
@@ -179,6 +175,7 @@ export class Engine {
             disposeTree(this.roomGroup);
             const room = makeRoom(project);
             this.roomGroup = room.group; this.walls = room.walls;
+            this.walls.forEach(wall => installWallTransmission(wall));
             this.scene.add(this.roomGroup); this.roomKey = roomKey;
         }
         try {
@@ -213,6 +210,7 @@ export class Engine {
             else
                 root = makeProp(e);
             root.traverse(o => o.userData.entityId = e.id);
+            if (isWallEntity(e)) installWallTransmission(root);
             this.models.set(e.id, root);
             this.initialPoses.register(e, root);
             this.scene.add(root);
@@ -259,7 +257,7 @@ export class Engine {
         }
         const grounded = this.project.entities.filter(e => e.visible && !inheritedPoseAt(e, time) && transitionGroundingAt(e, time));
         if (grounded.length) {
-            const surfaces = this.project.entities.filter(e => e.kind === 'prop' && e.visible && !e.handBinding).map(e => this.models.get(e.id)!);
+            const surfaces = this.project.entities.filter(e => e.kind === 'prop' && !e.light && e.visible && !e.handBinding).map(e => this.models.get(e.id)!);
             if (this.project.room.enabled) surfaces.push(this.roomGroup);
             const query = footSurfaceQuery(surfaces);
             for (const e of grounded) {
@@ -283,7 +281,7 @@ export class Engine {
         }
         const contactActors=this.project.entities.filter(e=>e.kind==='actor' && e.visible && !inheritedPoseAt(e,time) && e.footContact && ['idle','walk','run','wave','point','turn'].includes(sampledAction(e,time).action));
         if(contactActors.length){
-            const surfaces=this.project.entities.filter(e=>e.kind==='prop'&&e.visible&&!e.handBinding).map(e=>this.models.get(e.id)!);
+            const surfaces=this.project.entities.filter(e=>e.kind==='prop'&&!e.light&&e.visible&&!e.handBinding).map(e=>this.models.get(e.id)!);
             if(this.project.room.enabled)surfaces.push(this.roomGroup);
             const ray=new T.Raycaster();ray.ray.direction.set(0,-1,0);ray.far=2;
             const surface=(x:number,y:number,z:number)=>{
@@ -299,6 +297,7 @@ export class Engine {
             root.visible = e.visible && !!this.project.entities.find(a => a.id === e.handBinding!.actorId)?.visible;
         }
         this.contactMarker.update(this.project.entities, this.models);
+        this.lighting.sample(this.scene, this.project.lighting, this.project.entities, this.models, time, [this.editorRenderer, this.shotRenderer]);
         for (const e of this.project.entities.filter(x => x.kind === 'camera')) {
             const c = e.camera!, camera = this.cameras.get(e.id)!;
             camera.position.copy(entityPosition(e, time));
@@ -321,9 +320,10 @@ export class Engine {
                     }
                 }
                 else {
+                    const lagTime = Math.max(0, time - (c.effects?.followLag ?? 0));
                     if (c.inheritRotation)
-                        offset.applyAxisAngle(new T.Vector3(0, 1, 0), targetRoot.rotation.y);
-                    camera.position.copy(targetRoot.position).add(offset);
+                        offset.applyAxisAngle(new T.Vector3(0, 1, 0), c.effects?.followLag ? entityYaw(target, lagTime, this.project) : targetRoot.rotation.y);
+                    camera.position.copy(c.effects?.followLag && !target.handBinding ? entityPosition(target, lagTime) : targetRoot.position).add(offset);
                     camera.lookAt(this.targetPosition(e));
                 }
             }
@@ -331,7 +331,8 @@ export class Engine {
                 camera.rotation.set(...e.rotation);
             else
                 camera.lookAt(this.targetPosition(e));
-            configureCamera(camera, c.focal, aspectNumber(this.project.aspect));
+            configureCamera(camera, cameraFocal(c.effects, time, c.focal, camera.position.distanceTo(this.targetPosition(e))), aspectNumber(this.project.aspect));
+            applyCameraEffects(camera, c.effects, time);
             camera.updateMatrixWorld(true);
             const visual = this.cameraVisuals.get(e.id)!;
             visual.position.copy(camera.position);
@@ -380,7 +381,7 @@ export class Engine {
     private collectSnapTargets(exclude: string) {
         const targets: SnapBounds[] = [];
         for (const entity of this.project.entities) {
-            if (entity.id === exclude || entity.kind !== 'prop' || !editorEntityVisible(this.project, entity)) continue;
+            if (entity.id === exclude || entity.kind !== 'prop' || entity.light || !editorEntityVisible(this.project, entity)) continue;
             const root = this.models.get(entity.id);
             const bounds = root ? objectBounds(root, entity.id, entity.name) : null;
             if (bounds) targets.push(bounds);
@@ -476,9 +477,11 @@ export class Engine {
             if (rig)
                 rig.head.visible = false;
         }
-        this.scene.background = new T.Color(editor ? '#252a2d' : '#c6c8c6');
+        this.scene.background = new T.Color(editor ? '#252a2d' : this.project.lighting?.background ?? '#c6c8c6');
     }
     resize() {
+        const ratio = Math.min(window.devicePixelRatio, 1.5) * (this.previewQuality === 'draft' ? .65 : 1);
+        this.editorRenderer.setPixelRatio(ratio); this.shotRenderer.setPixelRatio(ratio);
         const sw = this.stage.clientWidth, sh = this.stage.clientHeight;
         if (sw && sh) {
             this.editorRenderer.setSize(sw, sh);
@@ -505,8 +508,7 @@ export class Engine {
             this.editorRenderer.render(this.scene, this.editorCamera);
         this.prepareView(false);
         if (this.shot.clientWidth) {
-            this.shotRenderer.render(this.scene, this.getShotCamera());
-            this.renderReferenceLabels(this.getShotCamera(), this.previewId);
+            this.renderShot(this.previewId);
         }
         this.onFrame();
     }
@@ -514,11 +516,9 @@ export class Engine {
         this.sample(time);
         this.shotRenderer.setPixelRatio(1);
         this.shotRenderer.setSize(width, height, false);
-        const cam = this.getShotCamera(cameraId);
         // Same physical gate as preview. Integer output pixels only affect resolution, never camera framing.
         this.prepareView(false, cameraId);
-        this.shotRenderer.render(this.scene, cam);
-        this.renderReferenceLabels(cam, cameraId);
+        this.renderShot(cameraId);
         return this.shotRenderer.domElement;
     }
     private renderReferenceLabels(camera: T.PerspectiveCamera, id: string) {
@@ -533,6 +533,11 @@ export class Engine {
     focus(id: string) {
         const target = this.models.get(id); if (!target) return;
         this.focusBounds(new T.Box3().setFromObject(target));
+    }
+    private renderShot(id: string) {
+        const camera = this.getShotCamera(id), effects = this.cameraEntity(id).camera!.effects;
+        const focusTarget = effects?.focusTargetId ? this.models.get(effects.focusTargetId)?.getWorldPosition(new T.Vector3()) : undefined;
+        this.shotEffects.render(this.shotRenderer, this.scene, camera, effects, this.time, cameraFocusDistance(camera, effects, this.time, focusTarget), cam => this.renderReferenceLabels(cam, id));
     }
     focusBounds(bounds: T.Box3) {
         if (bounds.isEmpty()) return;
@@ -555,7 +560,7 @@ export class Engine {
         try {
         if (this.drawingPath) {
             if (this.pathSurfaceMode === 'surface') {
-                const surfaces: T.Object3D[] = this.project.entities.filter(item => item.kind === 'prop' && item.visible && item.id !== this.selected).map(item => this.models.get(item.id)!);
+                const surfaces: T.Object3D[] = this.project.entities.filter(item => item.kind === 'prop' && !item.light && item.visible && item.id !== this.selected).map(item => this.models.get(item.id)!);
                 if (this.project.room.enabled) surfaces.push(this.roomGroup);
                 const surface = ray.intersectObjects(surfaces, true).find(hit => {
                     let node: T.Object3D | null = hit.object;
@@ -588,4 +593,17 @@ export class Engine {
         return this.project.entities.filter(e => editorEntityVisible(this.project, e) && (e.kind === 'actor' || e.kind === 'camera')).map(e => { const p = this.models.get(e.id)!.position.clone().add(new T.Vector3(0, e.kind === 'actor' ? e.height + .16 : .25, 0)); p.project(this.editorCamera); return { id: e.id, name: e.name.split(' · ')[0], color: e.color, x: (p.x * .5 + .5) * w, y: (-.5 * p.y + .5) * h, visible: p.z >= -1 && p.z <= 1 && Math.abs(p.x) < 1 && Math.abs(p.y) < 1 }; });
     }
     projectionSignature(id = this.previewId) { const c = this.getShotCamera(id); return { cameraId: this.cameraEntity(id).id, time: this.time, world: c.matrixWorld.toArray(), projection: c.projectionMatrix.toArray() }; }
+    dispose() {
+        if (this.disposed) return;
+        this.disposed = true; this.events.abort(); this.resizeObserver.disconnect();
+        this.gizmo.detach(); this.gizmo.dispose(); this.orbit.dispose();
+        this.referenceLabels.clear(); this.shotEffects.dispose(); this.lighting.dispose();
+        for (const [id, root] of this.models) {
+            if (!this.externalModels.removeInstance(id, this.crowdRigs.get(id)?.map((_, i) => `${id}:${i}`))) disposeTree(root);
+        }
+        this.externalModels.dispose(); this.models.clear(); this.cameras.clear(); this.rigs.clear(); this.crowdRigs.clear(); this.cameraVisuals.clear();
+        disposeTree(this.roomGroup); disposeTree(this.helpers); disposeTree(this.pathHelpers); this.selectionBox?.dispose();
+        this.scene.clear();
+        for (const renderer of [this.editorRenderer, this.shotRenderer]) { renderer.dispose(); renderer.domElement.remove(); }
+    }
 }

@@ -14,8 +14,10 @@ import { makeIndustrial } from './industrial.ts';
 import { makeThemed } from './themed.ts';
 import { makeVehicle } from './vehicles.ts';
 import { makeRoomPart } from './room-part.ts';
+import { makeLight } from '../lighting/runtime.ts';
 
 export function makeProp(e: Entity) {
+    if (e.light) return makeLight(e);
     if (e.asset === 'room-part') return makeRoomPart(e);
     if (findAsset(e.asset)?.family === 'industrial-v1') return makeIndustrial(e);
     if (findAsset(e.asset)?.family === 'themed-v1') return makeThemed(e);

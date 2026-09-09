@@ -12,6 +12,7 @@ import { BUILDING_ASSETS } from './assets/catalog/buildings.ts';
 import { INDUSTRIAL_ASSETS, THEMED_ASSETS, VEHICLE_ASSETS } from './assets/catalog/production-props.ts';
 import type { AssetDefinition } from './assets/catalog/types.ts';
 import { ROOM_PART_ASSETS } from './assets/catalog/room-parts.ts';
+import { LIGHT_ASSETS } from './assets/catalog/lights.ts';
 const legacyAssets = [
     { id: 'ground', name: '地面 · 可调尺寸', kind: 'prop', group: '搭建', icon: '▱' },
     { id: 'road', name: '道路 · 可调尺寸', kind: 'prop', group: '室外', icon: 'Ⅱ' },
@@ -44,7 +45,7 @@ const legacyAssets = [
     { id: 'door', name: '门 · 旋转开合', kind: 'prop', group: '搭建', icon: '▯' },
 ] as const;
 
-export const ASSETS: readonly AssetDefinition[] = [...legacyAssets, ...HUMAN_ASSETS, ...ANIMAL_ASSETS, ...CREATURE_ASSETS, ...SHAPE_ASSETS, ...FURNITURE_ASSETS, ...HAND_PROP_ASSETS, ...ARCHITECTURE_ASSETS, ...CIRCULATION_ASSETS, ...ROAD_ASSETS, ...PLANT_ASSETS, ...TERRAIN_ASSETS, ...BUILDING_ASSETS, ...INDUSTRIAL_ASSETS, ...THEMED_ASSETS, ...VEHICLE_ASSETS, ...ROOM_PART_ASSETS];
+export const ASSETS: readonly AssetDefinition[] = [...legacyAssets, ...HUMAN_ASSETS, ...ANIMAL_ASSETS, ...CREATURE_ASSETS, ...SHAPE_ASSETS, ...FURNITURE_ASSETS, ...HAND_PROP_ASSETS, ...ARCHITECTURE_ASSETS, ...CIRCULATION_ASSETS, ...ROAD_ASSETS, ...PLANT_ASSETS, ...TERRAIN_ASSETS, ...BUILDING_ASSETS, ...INDUSTRIAL_ASSETS, ...THEMED_ASSETS, ...VEHICLE_ASSETS, ...ROOM_PART_ASSETS, ...LIGHT_ASSETS];
 export const ASSET_GROUPS = [...new Set(ASSETS.map(a => a.group))];
 export const findAsset = (id: string) => ASSETS.find(a => a.id === id);
 export const isAnimalAsset = (id: string) => ['quadruped', 'bird', 'fish', 'serpent'].includes(findAsset(id)?.capabilities?.rig ?? '');

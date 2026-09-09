@@ -13,8 +13,13 @@ function curve(path: MotionPath) {
     let previous = pathPosition(raw, origin, path.points[0]?.time ?? 0), total = 0;
     if (path.points.length) { times.push(path.points[0].time); distances.push(0); }
     for (let i = 1; i < path.points.length; i++) {
+        if (path.points[i].easing === 'hold') {
+            times.push(path.points[i].time); distances.push(total);
+            previous = pathPosition(raw, origin, path.points[i].time);
+            continue;
+        }
         // Linear paths are exact. Smooth cubic segments use a fixed, deterministic arc-length approximation.
-        const steps = path.smooth && path.points.length > 2 ? 256 : 1;
+        const steps = path.smooth && path.points.length > 2 || path.points[i].easing && path.points[i].easing !== 'linear' ? 256 : 1;
         for (let j = 1; j <= steps; j++) {
             const time = path.points[i - 1].time + (path.points[i].time - path.points[i - 1].time) * j / steps;
             const position = pathPosition(raw, origin, time); total += position.distanceTo(previous);

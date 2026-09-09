@@ -149,6 +149,20 @@ reference 字段引用 references 中的 ID。图片项为 `{id,name,data}`，da
 
 接拍实体可含 initialPose，由真实模型节点采样产生。离线必须保留，不能改写节点路径／四元数伪造延续。首个新动作开始前保持继承姿态，之后新动作接管；需要清除用 `clear-inherited-pose` 操作。结构和比例变化可能使旧快照失效。
 
+## 镜头与灯光
+
+这些字段可选；省略保持旧工程的默认照明和镜头。`camera.effects`、实体 `light`、工程 `lighting` 作为嵌套对象整体替换，先读取原值并保留无关参数。
+
+- **运镜预设**：`{operation:"camera-motion",id:"机位ID",asset:"arc-push",time:0,duration:5,patch:{amplitude:2,angle:70,side:1,easing:"smooth"}}`。预设有 push、pull、truck、rise、descend、arc、arc-push、crane-reveal、ground-rise、whip-pan、push-pause、dolly-zoom、roll-recover、reframe。路径预设替换整条机位路径；倾斜、构图、甩镜改对应通道。POV 先改为独立机位才能应用路径预设。
+- **速度**：路径和视线途经点可加 `easing`，控制从前一点到该点的进度：linear、smooth、ease-in、ease-out、hold、whip。hold 为到时跳变；普通停顿用相同位置的两个点。路径 `smooth` 仍控制空间曲线。
+- **镜头通道**：`camera.effects.channels` 可含 focal（8–300 mm）、roll/pan/tilt（度）、offsetX/Y/Z（机身局部米）、frameX/Y（−0.9–0.9，中心 0，左右三分位 ±0.333，正值右／上）、focusDistance（0.05–2000 m）、blur/distortion（0–1）、bloom（0–2）。每个值为常数，或 `{keys:[{time:0,value:28},{time:5,value:70,easing:"smooth"}]}`；时间严格递增，端点外保持。
+- **镜头设置**：effects 可加 `distortionType:"barrel"|"pincushion"|"fisheye"`、`focusTargetId`（空串改用对焦距离）、`followLag`（跟随机位位置延迟，0–5 秒）、`shake:{preset:"breath"|"walk"|"run"|"impact"|"pov",amount:1,frequency:1,seed:1,start:0,end:5}`。晃动强度 0–5，频率倍率 0.1–10；null 关闭。`dollyZoom:{distance:参考距离米,focal:参考焦距mm}` 优先于焦距通道，距离变化时反向配合焦距，超出 8–300 mm 会钳制；null 关闭。
+- **环境预设**：`{operation:"lighting-preset",asset:"dusk"}`；可选 daylight、dusk、moonlight、interior-warm、interior-cool、silhouette。只替换全局环境，保留用户独立灯具。
+- **独立灯具**：add 的 asset 可用 light-point、light-spot、light-area、light-sun，kind 省略。沿用实体 position、rotation、path、color；光朝局部 −Z。默认参数随资产生成，读取后可改 `light:{intensity:100,range:20,angle:40,penumbra:0.3,width:3,height:2,shadows:true}`。面光需要 shadows:false。可选 throughWalls:boolean 默认 false；开启后仅忽略内置墙顶和建筑外壳对该灯的挡光，保留人物、家具阴影。普通几何体和导入模型不自动归为墙体。intensity 为 0–100000；可为动画值。可加 temperature（1000–15000 K 的动画值）、colorKeys（`[{time,color,easing?}]`）、flicker（`{strength:0.3,frequency:4,seed:1,start:0}`）。灯具标记不进参考视频，实际照明会进入。
+- **场景环境**：`lighting:{defaultLights:true,ambient:2.5,exposure:1.05,background:"#c6c8c6",groundColor:"#88847e",quality:"medium"}`；quality 为 off/low/medium/high。ambient（0–20）、exposure（0.05–10）支持动画值；可加 sunColor、sunIntensity（0–100）、sunDirection（非零 XYZ 向量），以及 `fog:{color:"#cccccc",density:0.02}`（density 0–0.5，可动画）。设 defaultLights:false 可只用环境光与自建灯具。
+
+畸变后的空间入画范围是包围边界采样估计，遮挡射线用同一畸变的逆投影；景深模糊不算几何遮挡。离线校验只检查格式和引用，不能代替实际渲染。灯光和镜头参数随戏段独立保存，接拍冻结实际末帧，不重播前段效果动画。
+
 ## 导入与校验边界
 
 交付真正的 `.director` 文件，附简短说明：“在网页版点击打开，选择此文件”。用户已有工程时交付新版本，不覆盖原件。文件生成和结构校验不依赖桌面版、MCP 或模型 API。
@@ -156,3 +170,9 @@ reference 字段引用 references 中的 ID。图片项为 `{id,name,data}`，da
 校验器复用软件的格式、引用和时间规则，不能离线证明人物在画面中、无遮挡或没有穿模。有可操作的浏览器时，应在网页版导入，检查不同时刻的实际机位画面和播放；没有时明确请用户预览，不宣称完成视觉检查。视频仍由网页版或桌面版实际渲染导出，不能把 JSON 当成成品视频。
 
 自动化补丁：`patch.camera` 支持按顶层字段合并（例如仅改 focal），内部数组整体替换，其余嵌套补丁沿用整体替换规则。`motion` 操作可附 `duration` 指定正秒数并向上取整到帧，省略仍用目录默认时长；离线 apply 与在线复用相同规则。在线的 previewId 是运行中窗口的临时预检引用，离线 operations 文件仍提供完整操作数组。
+
+### 自定义速度曲线与修改定位
+
+关键帧／路径点的 `easing` 除现有预设名外，也可为 `{bezier:[x1,y1,x2,y2]}`，四个控制值均为 0—1，横轴为归一化时间，纵轴为归一化进度；控制相邻前一帧到此帧的插值，不改变空间路线。UI 选中对象的「曲线」可拖动控制柄。真正停留用同位置关键帧或恒定参数；hold 是保持后跳变。UI「起点停留 1 秒」复制区间起点值，并顺延本通道后续关键帧，不移动其他轨道；带时间重排片段的路径需在时间轴安排停留。
+
+在线提交成功后，软件自动生成「AI 改动」定位记录并保存在本机，不进入工程或素材包；内置助手与 MCP 共用。返回的 changeId 是本批记录标识，无需为了记录再调用工具或生成总结。预检、失败和已提交请求的重试不会新增记录。相关时段包含插值邻域，记录不代表后续修改后的最新状态。

@@ -6,6 +6,10 @@ import { captureInitialPose } from './initial-pose-runtime.ts';
 import { stableSceneJson } from './initial-pose.ts';
 import { addDocumentScene, assertSceneDocument, updateDocumentScene, type SceneDocument } from './sequence-project.ts';
 import type { ContinuityOrigin } from './continuity-origin.ts';
+import { freezeEndingCamera } from '../cinematography/continuity.ts';
+import { numberAt } from '../animation/channels.ts';
+import { lightIntensity } from '../lighting/model.ts';
+import { lightColor } from '../lighting/runtime.ts';
 
 export async function sceneContentHash(value: unknown) {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(stableSceneJson(value)));
@@ -29,6 +33,10 @@ export async function continueScene(engine: Engine, document: SceneDocument, nam
             entity.position = root.position.toArray(); entity.rotation = [root.rotation.x, root.rotation.y, root.rotation.z];
             entity.path = null; entity.face = 'fixed'; entity.faceTarget = ''; entity.clips = []; entity.pose = {}; entity.poseKeys = [];
             if (entity.kind === 'actor' || entity.kind === 'crowd' || entity.external) entity.initialPose = captureInitialPose(root, entity);
+            if (entity.light) {
+                entity.color = '#' + lightColor(entity, time).getHexString();
+                entity.light.intensity = lightIntensity(entity.light, time); delete entity.light.temperature; delete entity.light.colorKeys; entity.light.flicker = null;
+            }
             if (entity.camera) {
                 const camera = engine.cameras.get(entity.id)!;
                 entity.position = camera.position.toArray(); entity.rotation = [camera.rotation.x, camera.rotation.y, camera.rotation.z];
@@ -38,9 +46,14 @@ export async function continueScene(engine: Engine, document: SceneDocument, nam
                     }
                     entity.camera.targetPath = null;
                 }
+                freezeEndingCamera(entity, camera, time, engine.models.get(entity.camera.targetId));
             }
         }
         project.cuts = [{ time: 0, cameraId }];
+        if (project.lighting) {
+            for (const key of ['ambient', 'exposure', 'sunIntensity'] as const) if (project.lighting[key] !== undefined) project.lighting[key] = numberAt(project.lighting[key], time);
+            if (project.lighting.fog) project.lighting.fog.density = numberAt(project.lighting.fog.density, time);
+        }
         if (project.production) { project.production.notes = []; delete project.production.promptText; }
         assertProject(project);
     } finally { engine.sample(previous); }
