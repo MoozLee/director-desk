@@ -1,3 +1,4 @@
+import { VISUAL_ASSETS } from './visuals/catalog.ts';
 import { HUMAN_ASSETS } from './assets/catalog/humans.ts';
 import { SHAPE_ASSETS } from './assets/catalog/shapes.ts';
 import { ANIMAL_ASSETS } from './assets/catalog/animals.ts';
@@ -45,7 +46,7 @@ const legacyAssets = [
     { id: 'door', name: '门 · 旋转开合', kind: 'prop', group: '搭建', icon: '▯' },
 ] as const;
 
-export const ASSETS: readonly AssetDefinition[] = [...legacyAssets, ...HUMAN_ASSETS, ...ANIMAL_ASSETS, ...CREATURE_ASSETS, ...SHAPE_ASSETS, ...FURNITURE_ASSETS, ...HAND_PROP_ASSETS, ...ARCHITECTURE_ASSETS, ...CIRCULATION_ASSETS, ...ROAD_ASSETS, ...PLANT_ASSETS, ...TERRAIN_ASSETS, ...BUILDING_ASSETS, ...INDUSTRIAL_ASSETS, ...THEMED_ASSETS, ...VEHICLE_ASSETS, ...ROOM_PART_ASSETS, ...LIGHT_ASSETS];
+export const ASSETS: readonly AssetDefinition[] = [...legacyAssets, ...HUMAN_ASSETS, ...ANIMAL_ASSETS, ...CREATURE_ASSETS, ...SHAPE_ASSETS, ...FURNITURE_ASSETS, ...HAND_PROP_ASSETS, ...ARCHITECTURE_ASSETS, ...CIRCULATION_ASSETS, ...ROAD_ASSETS, ...PLANT_ASSETS, ...TERRAIN_ASSETS, ...BUILDING_ASSETS, ...INDUSTRIAL_ASSETS, ...THEMED_ASSETS, ...VEHICLE_ASSETS, ...ROOM_PART_ASSETS, ...LIGHT_ASSETS, ...VISUAL_ASSETS];
 export const ASSET_GROUPS = [...new Set(ASSETS.map(a => a.group))];
 export const findAsset = (id: string) => ASSETS.find(a => a.id === id);
 export const isAnimalAsset = (id: string) => ['quadruped', 'bird', 'fish', 'serpent'].includes(findAsset(id)?.capabilities?.rig ?? '');

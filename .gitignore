@@ -85,3 +85,8 @@ file-locations.json
 !/scripts/verify-editor-maintenance.mjs
 !/scripts/verify-feature-scenes.mjs
 !/scripts/verify-inspector-layout.mjs
+!/scripts/test-media-visuals.mjs
+!/scripts/test-visual-keyframes.mjs
+!/scripts/browser-media-deps.ts
+!/scripts/verify-media-optics.mjs
+!/scripts/benchmark-video-surfaces.mjs

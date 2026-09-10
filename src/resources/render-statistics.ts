@@ -5,12 +5,15 @@ import { resourceUsage } from './resource-usage.ts';
 /** Allocated mesh resources, including hidden objects. Counts are not visibility or VRAM estimates. */
 export function collectRenderStatistics(roots: readonly T.Object3D[]) {
     const visited = new Set<T.Object3D>(), geometries = new Set<T.BufferGeometry>(), materials = new Set<T.Material>(), textures = new Set<T.Texture>();
-    const buffers = new Set<ArrayBufferLike>(); let meshes = 0, instances = 0, triangles = 0;
+    const buffers = new Set<ArrayBufferLike>(); let meshes = 0, instances = 0, triangles = 0, points = 0, lines = 0;
     for (const root of roots) root.traverse(object => {
         if (visited.has(object)) return; visited.add(object);
-        if (!(object instanceof T.Mesh)) return;
-        meshes++; const count = object instanceof T.InstancedMesh ? object.count : 1; instances += count;
-        triangles += Math.floor((object.geometry.index?.count ?? object.geometry.getAttribute('position')?.count ?? 0) / 3) * count;
+        if (!(object instanceof T.Mesh || object instanceof T.Points || object instanceof T.Line)) return;
+        const count = object instanceof T.InstancedMesh ? object.count : 1;
+        const vertices=object.geometry.index?.count ?? object.geometry.getAttribute('position')?.count ?? 0;
+        if(object instanceof T.Mesh){meshes++;instances+=count;triangles+=Math.floor(vertices/3)*count;}
+        else if(object instanceof T.Points)points+=vertices;
+        else lines+=object instanceof T.LineSegments?Math.floor(vertices/2):Math.max(0,vertices-1);
         geometries.add(object.geometry);
         for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
     });
@@ -37,7 +40,7 @@ export function collectRenderStatistics(roots: readonly T.Object3D[]) {
         }
         if (known) baseLevelTexels += pixels; else unknownTextureSizes++;
     }
-    return { meshes, instances, triangles, uniqueGeometries: geometries.size, geometryBufferBytes: [...buffers].reduce((sum, buffer) => sum + buffer.byteLength, 0),
+    return { meshes, instances, triangles, points, lines, uniqueGeometries: geometries.size, geometryBufferBytes: [...buffers].reduce((sum, buffer) => sum + buffer.byteLength, 0),
         materials: materials.size, textures: textures.size, baseLevelTexels, unknownTextureSizes };
 }
 

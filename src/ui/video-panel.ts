@@ -9,7 +9,8 @@ import type { AppContext } from '../app-context.ts';
 
 export function createVideoPanel(ctx: AppContext) {
     let sceneInfo: ExportScene[] = [], picker: ReturnType<typeof createExportScenePicker>;
-    let previewKey = '', previousScope = '';
+    let previewKey = '', previousScope = '',previewGeneration=0;
+    let previewTask:Promise<void>=Promise.resolve();
     const value = (id: string) => $<HTMLInputElement>(`#export-${id}`).value;
     const batch = () => value('scope') === 'batch';
     async function snapshot() {
@@ -18,6 +19,7 @@ export function createVideoPanel(ctx: AppContext) {
         ctx.playing = false; ctx.busy = true; ctx.engine.exporting = true;
         try {
             const [w, h] = outputSize(ctx.project.aspect, 1920);
+            await ctx.engine.prepareOutput(at);
             const canvas = ctx.engine.renderOutput(at, w, h, ctx.preview);
             const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
             if (!blob) throw new Error('未能生成截图');
@@ -97,15 +99,20 @@ export function createVideoPanel(ctx: AppContext) {
         const sampleTime = Math.max(o.start, Math.min(ctx.time, o.end - 1 / o.fps));
         const key = JSON.stringify([sampleTime, o.monochrome, o.cameraId]);
         if (key === previewKey) return;
-        const oldTime = ctx.time, oldMono = ctx.engine.monochrome;
-        const [width, height] = outputSize(ctx.project.aspect, 640);
-        try {
-            ctx.engine.monochrome = o.monochrome;
-            const canvas = ctx.engine.renderOutput(sampleTime, width, height, o.cameraId);
-            $<HTMLImageElement>('.export-preview img').src = canvas.toDataURL('image/png');
-            $('.export-preview .section-label').innerHTML = `当前戏段 · ${escape(ctx.engine.cameraEntity(o.cameraId).name)}<span>${sampleTime.toFixed(2)} s</span>`;
-            previewKey = key;
-        } finally { ctx.engine.monochrome = oldMono; ctx.engine.restorePreview(oldTime); }
+        const generation=++previewGeneration;
+        previewTask=previewTask.then(async()=>{
+            if(generation!==previewGeneration||ctx.busy||!document.querySelector('.export-preview img'))return;
+            const oldTime=ctx.time,oldMono=ctx.engine.monochrome;
+            const [width,height]=outputSize(ctx.project.aspect,640);ctx.engine.exporting=true;
+            try{
+                ctx.engine.monochrome=o.monochrome;await ctx.engine.prepareOutput(sampleTime);
+                if(generation!==previewGeneration||!document.querySelector('.export-preview img'))return;
+                const canvas=ctx.engine.renderOutput(sampleTime,width,height,o.cameraId);
+                $<HTMLImageElement>('.export-preview img').src=canvas.toDataURL('image/png');
+                $('.export-preview .section-label').innerHTML=`当前戏段 · ${escape(ctx.engine.cameraEntity(o.cameraId).name)}<span>${sampleTime.toFixed(2)} s</span>`;previewKey=key;
+            }catch(error){if(generation===previewGeneration)ctx.toast((error as Error).message,true);}
+            finally{ctx.engine.monochrome=oldMono;ctx.engine.restorePreview(oldTime);}
+        });
     }
     async function startExport() {
         if (ctx.busy) return;
@@ -118,6 +125,7 @@ export function createVideoPanel(ctx: AppContext) {
             if (large) { ctx.toast(`“${large.sceneName}”预计超过 250 MB，请选择直接写入或降低规格`, true); return; }
         }
         ctx.busy = true; ctx.playing = false; ctx.updateTimeUI();
+        ++previewGeneration;await previewTask;
         ctx.aborter = new AbortController();
         let started = false, count = 0;
         try {

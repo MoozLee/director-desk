@@ -365,25 +365,6 @@ export function createCommands(ctx: AppContext, inspectorTools: { handle(action:
             case 'seat-apply':
                 ctx.seatApply();
                 break;
-            case 'add-reference':
-                $('#reference-file').click();
-                break;
-            case 'assign-reference':
-                if (e)
-                    ctx.change(() => { e.reference = el.dataset.id!; }, false);
-                else
-                    ctx.toast('先选择要关联的人物或道具');
-                break;
-            case 'delete-reference':
-                ctx.change(() => {
-                    ctx.project.references = ctx.project.references.filter(r => r.id !== el.dataset.id);
-                    if (ctx.project.production) ctx.project.production.sceneReferenceIds = ctx.project.production.sceneReferenceIds.filter(id => id !== el.dataset.id);
-                    ctx.project.entities.forEach(e => {
-                        if (e.reference === el.dataset.id)
-                            e.reference = '';
-                    });
-                }, false);
-                break;
             case 'snapshot':
                 await ctx.snapshot();
                 break;

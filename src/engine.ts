@@ -1,3 +1,8 @@
+import {collectWarps} from './visuals/warps.ts';
+import {sampleVisual,disposeVisual} from './visuals/runtime.ts';
+import {sampleFields,sampleParticleFields} from './visuals/fields.ts';
+import {DeformationRuntime} from './visuals/deformation.ts';
+import { SurfaceRuntime } from './media/surface-runtime.ts';
 import { SceneLighting } from './lighting/runtime.ts';
 import { installWallTransmission, isWallEntity } from './lighting/wall-transmission.ts';
 import { fitFeetToSurface } from './editor/foot-contact.ts';
@@ -50,6 +55,9 @@ interface Callbacks {
     transformEnd: (cancel?:boolean) => void;
 }
 export class Engine {
+    deformations=new DeformationRuntime();
+    surfaces = new SurfaceRuntime(() => { this.needsRender = true; });
+    async prepareOutput(time:number,signal?:AbortSignal) { this.sample(time); signal?.throwIfAborted(); await this.surfaces.prepare(); signal?.throwIfAborted(); }
     private shotEffects = new ShotEffects();
     private lighting: SceneLighting;
     private renderCache = new SceneRenderCache();
@@ -104,7 +112,7 @@ export class Engine {
     exporting = false;
     monochrome = false;
     previewQuality: 'full' | 'draft' = 'full';
-    setPreviewQuality(value: 'full' | 'draft') { this.previewQuality = value; this.resizeNeeded = true; this.render(); }
+    setPreviewQuality(value: 'full' | 'draft') { this.previewQuality = value; this.resizeNeeded = true; this.sample(this.time); this.render(); }
     private cb: Callbacks;
     private pointerDown = [0, 0];
     private stage: HTMLElement;
@@ -169,6 +177,8 @@ export class Engine {
         this.gizmo.detach();
         const changes = this.renderCache.reconcile(project.entities, this.models.keys());
         for (const id of changes.removed) {
+            this.surfaces.remove(id);this.deformations.remove(id);
+            const visualRoot=this.models.get(id);if(visualRoot)disposeVisual(visualRoot);
             const external = this.externalModels.removeInstance(id, this.crowdRigs.get(id)?.map((_, i) => `${id}:${i}`));
             const root = this.models.get(id); if (root && !external) disposeTree(root);
             this.models.delete(id); this.rigs.delete(id); this.crowdRigs.delete(id);
@@ -256,6 +266,11 @@ export class Engine {
                         colorHuman(r, this.monochrome ? '#d9dcd7' : e.color); });
             }
         }
+        this.deformations.prepareVisuals();
+        for(const e of this.project.entities)if(e.visual||e.field||e.warp)sampleVisual(e,this.models.get(e.id)!,time,this.previewQuality==='draft'&&!this.exporting);
+        for(const e of this.project.entities)if(e.visual?.preset==='portal'){const mesh=this.models.get(e.id)?.children[0];if(mesh)mesh.userData.portalCamera=this.cameras.get(e.visual.cameraId??'');}
+        sampleFields(this.project.entities,this.models,time);sampleParticleFields(this.project.entities,this.models,time);
+        this.deformations.sample(this.project.entities,this.models,time);
         this.scene.updateMatrixWorld(true);
         for (const e of this.project.entities) if (this.initialPoses.apply(e, time)) {
             const rig = this.rigs.get(e.id); if (rig) applyHumanPose(rig, e, time);
@@ -303,6 +318,8 @@ export class Engine {
             root.visible = e.visible && !!this.project.entities.find(a => a.id === e.handBinding!.actorId)?.visible;
         }
         this.contactMarker.update(this.project.entities, this.models);
+        this.surfaces.textures.maxEdge=this.previewQuality==='draft'&&!this.exporting?1024:2048;
+        this.surfaces.sample(this.project,this.models,time);
         this.lighting.sample(this.scene, this.project.lighting, this.project.entities, this.models, time, [this.editorRenderer, this.shotRenderer]);
         for (const e of this.project.entities.filter(x => x.kind === 'camera')) {
             const c = e.camera!, camera = this.cameras.get(e.id)!;
@@ -349,7 +366,7 @@ export class Engine {
             this.syncProxy();
         this.selectionBox?.update();
     }
-    targetPosition(e: Entity) { const c = e.camera!; if (c.targetPath) return cameraLookAt(c.targetPath, this.time); const target = this.project.entities.find(x => x.id === c.targetId); return target ? (target.handBinding ? this.models.get(target.id)!.position.clone() : entityPosition(target, this.time)).add(new T.Vector3(0, c.targetHeight, 0)) : new T.Vector3(...c.target); }
+    targetPosition(e: Entity) { const c = e.camera!; if (c.targetPath) return cameraLookAt(c.targetPath, this.time); const target = this.project.entities.find(x => x.id === c.targetId); return target ? (this.models.get(target.id)?.position.clone()??entityPosition(target, this.time)).add(new T.Vector3(0, c.targetHeight, 0)) : new T.Vector3(...c.target); }
     cameraEntity(id = this.previewId) { const realId = id === 'program' ? activeCameraId(this.project, this.time) : id; return this.project.entities.find(e => e.id === realId && e.kind === 'camera') ?? this.project.entities.find(e => e.kind === 'camera')!; }
     getShotCamera(id = this.previewId) { return this.cameras.get(this.cameraEntity(id).id)!; }
     spatialReport(options: SpatialOptions = {}) {
@@ -470,7 +487,7 @@ export class Engine {
         const cameraEntity = this.cameraEntity(id);
         for (const e of this.project.entities) {
             const root = this.models.get(e.id); if (!root) continue;
-            root.visible = editor ? editorEntityVisible(this.project, e) : shotEntityVisible(this.project, e, cameraEntity.camera);
+            root.visible = (editor ? editorEntityVisible(this.project, e) : shotEntityVisible(this.project, e, cameraEntity.camera)) && (!e.visual || this.time>=e.visual.start&&(!e.visual.end||this.time<e.visual.end));
         }
         this.contactMarker.update(this.project.entities, this.models);
         const room = this.project.room;
@@ -513,6 +530,8 @@ export class Engine {
             this.resize();
         this.helpers.traverse(o => { if (o instanceof T.CameraHelper)
             o.update(); });
+        this.surfaces.textures.maxEdge=this.previewQuality==='draft'&&!this.exporting?1024:2048;
+        this.surfaces.sample(this.project,this.models,this.time);
         this.prepareView(true);
         if (this.stage.clientWidth)
             this.editorRenderer.render(this.scene, this.editorCamera);
@@ -547,7 +566,7 @@ export class Engine {
     private renderShot(id: string) {
         const camera = this.getShotCamera(id), effects = this.cameraEntity(id).camera!.effects;
         const focusTarget = effects?.focusTargetId ? this.models.get(effects.focusTargetId)?.getWorldPosition(new T.Vector3()) : undefined;
-        this.shotEffects.render(this.shotRenderer, this.scene, camera, effects, this.time, cameraFocusDistance(camera, effects, this.time, focusTarget), cam => this.renderReferenceLabels(cam, id));
+        this.shotEffects.render(this.shotRenderer, this.scene, camera, effects, this.time, cameraFocusDistance(camera, effects, this.time, focusTarget), cam => this.renderReferenceLabels(cam, id),collectWarps(this.project.entities,this.models,camera,this.time));
     }
     focusBounds(bounds: T.Box3) {
         if (bounds.isEmpty()) return;
@@ -607,6 +626,7 @@ export class Engine {
         if (this.disposed) return;
         this.disposed = true; this.events.abort(); this.resizeObserver.disconnect();
         this.gizmo.detach(); this.gizmo.dispose(); this.orbit.dispose();
+        this.surfaces.dispose();this.deformations.dispose();for(const root of this.models.values())disposeVisual(root);
         this.referenceLabels.clear(); this.shotEffects.dispose(); this.lighting.dispose();
         for (const [id, root] of this.models) {
             if (!this.externalModels.removeInstance(id, this.crowdRigs.get(id)?.map((_, i) => `${id}:${i}`))) disposeTree(root);

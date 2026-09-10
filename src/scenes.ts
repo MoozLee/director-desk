@@ -1,9 +1,11 @@
+import {createAbstractShowcase} from './scenes/abstract-showcase.ts';
 import { finishStarterScene, type StarterScene } from './scenes/starter-details.ts';
 import { demoProject, entity, type Project, type Vec3 } from './model.ts';
 import { createFeatureScene, FEATURE_SCENES, type FeatureScene } from './scenes/feature-showcases.ts';
 
 export const SCENE_TEMPLATES = [
     ...FEATURE_SCENES,
+    {id:'abstract-stage',name:'流光空间',type:'抽象 · 10 秒',detail:'粒子与漩涡、薄膜、镜面、折射和关键帧形变'},
     { id: 'bedroom', name: '卧室 · 四人调度', type: '室内', detail: '窗光与床头暖灯、家具配色、四人调度' },
     { id: 'room', name: '空房间', type: '室内', detail: '8 × 6 米，窗光、墙裙和木地板，留空布置' },
     { id: 'park', name: '林地空地', type: '室外', detail: '前后景树群、林间步道、长椅与双人调度' },
@@ -14,6 +16,7 @@ export const SCENE_TEMPLATES = [
 export type SceneTemplate = typeof SCENE_TEMPLATES[number]['id'];
 
 export function createScene(template: SceneTemplate): Project {
+    if(template==='abstract-stage')return createAbstractShowcase();
     if (FEATURE_SCENES.some(t => t.id === template)) return createFeatureScene(template as FeatureScene);
     if (template === 'bedroom') return finishStarterScene(demoProject(), 'bedroom');
     const p = demoProject();

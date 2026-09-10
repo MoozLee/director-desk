@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 
 // The skill changes with its instructions/contracts, not with the application version.
 const sources = ['skills/director-desk/SKILL.md', 'skills/director-desk/references/online-workflow.md',
-    'skills/director-desk/references/project-format.md', 'src/automation/contract.ts', 'src/automation/tool-summaries.ts'];
+    'skills/director-desk/references/project-format.md', 'src/automation/contract.ts', 'src/automation/tool-summaries.ts', 'src/media/help.ts'];
 const contents = await Promise.all(sources.map(file => fs.readFile(file, 'utf8').then(text => text.replace(/\r\n/g, '\n'))));
 const version = 'sha256:' + createHash('sha256').update(JSON.stringify(contents)).digest('hex');
 const payload = { name: 'director-desk', version, instructions: contents[1] };

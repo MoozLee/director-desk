@@ -29,7 +29,7 @@ export class SceneSession {
     project(id = this.#document.activeSceneId): Project {
         // The session owns already-validated snapshots. Only the requested scene escapes, as a copy.
         this.#sceneExists(id);
-        return clone({ format: 'director-desk', version: 2, name: this.#document.name, resources: this.#document.resources,
+        return clone({ format: 'director-desk', version: 2, name: this.#document.name, resources: this.#document.resources, ...(this.#document.media?.length?{media:this.#document.media}:{}),
             ...this.#document.scenes.find(scene => scene.id === id)!.state });
     }
     view(id = this.#document.activeSceneId): SceneView {
@@ -60,6 +60,7 @@ export class SceneSession {
         // Callers validate new data before publishing; unchanged owned scenes need no revalidation.
         const old = before.document;
         if (next.activeSceneId === old.activeSceneId && next.name === old.name
+            && (next.media===old.media||JSON.stringify(next.media?.map(({data:_data,...r})=>r))===JSON.stringify(old.media?.map(({data:_data,...r})=>r)))
             && (next.resources === old.resources || JSON.stringify(next.resources) === JSON.stringify(old.resources))
             && next.scenes.length === old.scenes.length && next.scenes.every((scene, i) => scene === old.scenes[i] || JSON.stringify(scene) === JSON.stringify(old.scenes[i]))) return;
         this.#undo.push({ ...before, action, revealSceneId }); if (this.#undo.length > 35) this.#undo.shift(); this.#redo = [];

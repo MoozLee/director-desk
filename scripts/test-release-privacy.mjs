@@ -11,7 +11,7 @@ try {
     await fs.mkdir(path.join(fixture, 'dist/assets'), { recursive: true });
     // The release gate now requires the bundled motion payload and desktop/helper inputs as well as web files.
     for (const relative of ['src/animation/library/humanoid-v1.json', 'src/animation/library/humanoid-v1-manifest.json',
-        'desktop/main.cjs', 'desktop/preload.cjs', 'desktop/integration.cjs', 'desktop/file-host.cjs', 'desktop/files.cjs', 'desktop/ai-host.cjs', 'desktop/ai-conversation.cjs', 'desktop/providers.cjs', 'desktop/update-config.cjs', 'desktop/update-host.cjs', 'desktop/updates.cjs',
+        'desktop/main.cjs', 'desktop/preload.cjs', 'desktop/integration.cjs', 'desktop/media-import.cjs', 'desktop/file-host.cjs', 'desktop/files.cjs', 'desktop/ai-host.cjs', 'desktop/ai-conversation.cjs', 'desktop/providers.cjs', 'desktop/update-config.cjs', 'desktop/update-host.cjs', 'desktop/updates.cjs',
         'desktop/model-limits.cjs', 'desktop/director-prompt.cjs', 'desktop/mcp-server.cjs', 'desktop/mcp-config.cjs', 'desktop/mcp-host.cjs', 'skills/director-desk/SKILL.md', 'skills/director-desk/references/project-format.md', 'skills/director-desk/references/online-workflow.md',
         'skills/director-desk/scripts/project-tool.mjs', 'skills/director-desk/assets/minimal.director']) {
         const destination = path.join(fixture, relative); await fs.mkdir(path.dirname(destination), { recursive: true });

@@ -1,3 +1,4 @@
+import {assertMediaResources,type MediaResource} from '../media/model.ts';
 import { assertProject, clone, type Project } from '../model.ts';
 import { assertModelResources, type ModelResource } from '../resources/project-resources.ts';
 import { assertLockedEntitiesUnchanged } from '../editor/invariants.ts';
@@ -10,6 +11,7 @@ export interface SceneDocument {
     name: string;
     activeSceneId: string;
     resources: ModelResource[];
+    media?: MediaResource[];
     scenes: SceneEntry[];
 }
 export interface SceneEntry { id: string; name: string; state: SceneState; origin?: ContinuityOrigin }
@@ -23,16 +25,17 @@ function stateOf(project: Project): SceneState {
     return Object.fromEntries(stateKeys.filter(key => project[key] !== undefined).map(key => [key, clone(project[key])])) as unknown as SceneState;
 }
 function projection(document: SceneDocument, scene: SceneEntry): Project {
-    return { format: 'director-desk', version: 2, name: document.name, resources: document.resources, ...scene.state };
+    return { format: 'director-desk', version: 2, name: document.name, resources: document.resources, ...(document.media?.length?{media:document.media}:{}), ...scene.state };
 }
 
 /** All scene references are checked against their own scene, with one shared source catalog. */
 export function assertSceneDocument(input: unknown): asserts input is SceneDocument {
     if (!record(input) || input.format !== 'director-desk' || input.version !== 3
-        || Object.keys(input).some(key => !['format', 'version', 'name', 'activeSceneId', 'resources', 'scenes'].includes(key))) throw Error('多戏段工程格式无效');
+        || Object.keys(input).some(key => !['format', 'version', 'name', 'activeSceneId', 'resources', 'media', 'scenes'].includes(key))) throw Error('多戏段工程格式无效');
     const document = input as unknown as SceneDocument;
     if (typeof document.name !== 'string' || document.name.length > 200 || !Array.isArray(document.scenes) || !document.scenes.length || !Array.isArray(document.resources)) throw Error('多戏段工程需要名称、戏段及资源列表');
     assertModelResources({ version: 2, resources: document.resources } as Project);
+    assertMediaResources(document.media);
     const ids = new Set<string>();
     for (const scene of document.scenes) {
         if (!record(scene) || Object.keys(scene).some(key => !['id', 'name', 'state', 'origin'].includes(key)) || !validId(scene.id) || ids.has(scene.id) || !validName(scene.name)) throw Error('戏段标识重复、名称或结构无效');
@@ -55,8 +58,8 @@ export function assertSceneDocument(input: unknown): asserts input is SceneDocum
 export function readSceneDocument(input: unknown): SceneDocument {
     if (record(input) && input.version === 3) { assertSceneDocument(input); return clone(input); }
     assertProject(input);
-    if (Object.keys(input).some(key => ![...stateKeys, 'format', 'version', 'name', 'resources'].includes(key))) throw Error('旧工程包含未识别字段，不能静默丢弃后迁移');
-    const document: SceneDocument = { format: 'director-desk', version: 3, name: input.name, activeSceneId: 'scene-main', resources: clone(input.resources ?? []),
+    if (Object.keys(input).some(key => ![...stateKeys, 'format', 'version', 'name', 'resources', 'media'].includes(key))) throw Error('旧工程包含未识别字段，不能静默丢弃后迁移');
+    const document: SceneDocument = { format: 'director-desk', version: 3, name: input.name, activeSceneId: 'scene-main', resources: clone(input.resources ?? []), ...(input.media?.length?{media:clone(input.media)}:{}),
         scenes: [{ id: 'scene-main', name: '第一场', state: stateOf(input) }] };
     assertSceneDocument(document); return document;
 }
@@ -117,6 +120,7 @@ export function addDocumentScene(document: SceneDocument, project: Project, name
             if (previous && JSON.stringify(previous.package) !== JSON.stringify(resource.package)) throw Error('同一资源标识对应不同内容');
             if (!previous) next.resources.push(clone(resource));
         }
+        next.media=mergeMedia(next.media,project.media);
         next.scenes.push({ id, name, state: stateOf(project) }); next.activeSceneId = id;
     });
 }
@@ -140,10 +144,15 @@ export function updateValidatedDocumentScene(document: SceneDocument, id: string
             if (previous && JSON.stringify(previous.package) !== JSON.stringify(resource.package)) throw Error('共享源资源内容不可原地改写，请使用新的资源标识');
         }
     }
-    const next: SceneDocument = { ...document, name: project.name,
+    const media=mergeMedia(document.media,project.media);
+    const next: SceneDocument = { ...document, name: project.name, ...(media.length?{media}:{}),
         resources: resourcesChanged ? clone(project.resources ?? []) : document.resources,
         scenes: document.scenes.map(entry => entry.id === id ? { ...entry, state: stateOf(project) } : entry) };
     // Shared catalog changes can invalidate inactive scenes and frozen continuity snapshots.
     if (resourcesChanged) assertSceneDocument(next);
     return next;
+}
+
+function mergeMedia(existing:MediaResource[]=[],incoming:MediaResource[]=[]):MediaResource[]{
+ const result=[...existing];for(const r of incoming){const previous=result.find(p=>p.id===r.id);if(previous&&(previous.data!==r.data||previous.mime!==r.mime||previous.width!==r.width||previous.height!==r.height||previous.duration!==r.duration))throw Error('媒体源内容不可原地改写，请重新导入');if(!previous)result.push({...r});}return result;
 }

@@ -17,6 +17,9 @@ import { assertZones, type SceneZone } from './building/zones.ts';
 import { assertEasing, type Easing } from './animation/channels.ts';
 import { assertCameraEffects, type CameraEffects } from './cinematography/camera-effects.ts';
 import { assertLightEntity, assertLighting, type LightConfig, type LightingConfig } from './lighting/model.ts';
+import {assertWarp,type WarpConfig} from './visuals/warps.ts';
+import { SURFACE_VISUALS,assertVisual,assertField,assertDeform,type VisualConfig,type FieldConfig,type DeformConfig } from './visuals/model.ts';
+import { assertMediaResources, assertSurface, type MediaResource, type SurfaceAppearance } from './media/model.ts';
 export type Vec3 = [
     number,
     number,
@@ -69,6 +72,11 @@ export interface CameraConfig {
     hiddenEntityIds?: string[];
 }
 export interface Entity {
+    surface?: SurfaceAppearance | null;
+    visual?: VisualConfig;
+    warp?: WarpConfig;
+    field?: FieldConfig;
+    deform?: DeformConfig | null;
     light?: LightConfig;
     initialPose?: InitialPose;
     floorId?: string;
@@ -117,6 +125,7 @@ export interface ReferenceImage {
 export interface ProductionNote { id: string; start: number; end: number; actorId: string; story: string; emotion: string; dialogue: string; action: string }
 export interface ProductionData { fixedPrompt: string; sceneReferenceIds: string[]; notes: ProductionNote[]; promptText?: string }
 export interface Project {
+    media?: MediaResource[];
     lighting?: LightingConfig;
     creationMode?: 'full' | 'geometry';
     referenceLabels?: boolean;
@@ -148,7 +157,14 @@ export const clipLabel = (c: Clip) => c.name ?? (c.action === 'retarget' ? built
 export const JOINTS = JOINT_LABELS;
 export const COLORS = ['#a7bdd7', '#b8c7b3', '#d1bfa0', '#c5b3c9', '#d0d2d0', '#bdaca4'];
 export const uid = () => crypto.randomUUID();
-export const clone = <T>(x: T): T => structuredClone(x);
+/** Media strings are immutable; clone metadata without copying hundreds of MB per undo point. */
+export const clone = <T>(x:T):T => {
+    if(x&&typeof x==='object'&&!Array.isArray(x)&&Array.isArray((x as {media?:unknown}).media)){
+        const {media,...rest}=x as T&{media:MediaResource[]};
+        return {...structuredClone(rest),media:media.map(r=>({...r}))} as T;
+    }
+    return structuredClone(x);
+};
 export function entity(kind: Kind, asset: string, name: string, position: Vec3 = [0, 0, 0]): Entity {
     return { id: uid(), kind, asset, name, color: kind === 'actor' ? COLORS[0] : '#d5d5d0', position, rotation: [0, 0, 0], scale: [1, 1, 1], visible: true, locked: false,
         height: 1.75, build: 'normal', gender: 'male', path: null, face: 'path', faceTarget: '', clips: [], pose: {}, poseKeys: [],
@@ -321,6 +337,10 @@ export function assertProject(input: unknown): asserts input is Project {
     p.cuts.forEach((c, i) => { if (!c || !n(c.time) || c.time < 0 || c.time>=p.duration || (i > 0 && c.time <= p.cuts[i - 1].time) || !cameras.some(e => e.id === c.cameraId))
         fail('切镜时间或机位错误'); });
     const referenceIds=new Set<string>();
+    if(p.entities.filter(e=>e.warp&&e.visible).length>8||p.entities.filter(e=>e.field&&e.visible).length>8)fail('同时启用的空间扭曲或影响区域各最多 8 个；可隐藏暂不用的区域');
+    for(const e of p.entities){assertWarp(e.warp);assertVisual(e.visual);assertField(e.field,p.entities.filter(x=>x.id!==e.id&&x.kind!=='camera'&&!x.field&&!x.warp).map(x=>x.id));assertDeform(e.deform);if(e.asset.startsWith('visual-')&&!e.visual||e.asset.startsWith('field-')&&!e.field||e.asset.startsWith('warp-')&&!e.warp)fail('此资产缺少对应的视觉配置');if(e.warp&&e.asset!=='warp-'+e.warp.type)fail('空间扭曲与资产不匹配');if(e.visual?.cameraId&&!p.entities.some(x=>x.id===e.visual!.cameraId&&x.kind==='camera'))fail('传送门摄影机不存在');if(e.visual && e.asset!=='visual-'+e.visual.preset)fail('视觉元素类型与资产不匹配');if(e.field && e.asset!=='field-'+e.field.type)fail('影响区域与资产不匹配');if(e.deform&&(e.kind==='camera'||e.field||e.warp||e.light))fail('此对象不支持形变');}
+    assertMediaResources(p.media);
+    for (const e of p.entities) { assertSurface(e.surface,p.media); if(e.surface&&e.visual&&!SURFACE_VISUALS.has(e.visual.preset))fail('此视觉元素不使用网格表面贴图');if(e.deform&&e.visual&&!SURFACE_VISUALS.has(e.visual.preset))fail('此视觉元素不支持网格形变');if(e.surface&&e.light&&(e.asset!=='light-spot'||e.surface.layers.length>1))fail('投影使用聚光灯，每灯一个媒体层');if(e.surface && e.kind==='camera')fail('摄影机不能承载表面贴图'); }
     for (const r of p.references) {
         if (!r || !safeId(r.id) || referenceIds.has(r.id) || typeof r.name !== 'string' || typeof r.data !== 'string' || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(r.data))
             fail('参考图标识重复或内容不是内嵌 PNG、JPEG、WebP');

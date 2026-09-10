@@ -13,6 +13,8 @@ description: 通过导演台工具或离线生成 .director 工程文件搭建�
 
 需要自定义关键帧曲线、运镜预设、希区柯克变焦、手持、镜头畸变、景深或布光时，在线按需查 `director_help(names:["director_apply"])`，离线查[镜头与灯光](references/project-format.md#镜头与灯光)。它们都写入现有戏段并可继续编辑，不要求另建工程或额外扫描。
 
+需要物体承载图片／视频、粒子、文字、影响区域、形变或局部扭曲时，在线按需查 `director_help(names:["director_media"])`，离线查[媒体与抽象元素](references/project-format.md#媒体与抽象元素)。仍然编辑当前戏段；媒体源共享，显示参数按对象独立保存。
+
 有可用 `director_*` 工具时操作当前打开的工程，可用导出工具交付工程文件。用户使用网页版、明确要求离线制作或未连接 MCP 时，直接制作可导入的 `.director` 文件；这条流程不需要桌面版、MCP 或 API key。不要因没有 MCP 就停止生成工程，或要求用户必须安装桌面版。
 
 离线制作先读 [工程格式与离线工具](references/project-format.md)。附带 `scripts/project-tool.mjs` 可以建立模板工程、查询目录、按操作数组编辑及校验，复用软件的实际规则；有 Node.js 22+ 即可独立运行。没有脚本执行环境时，按格式说明和 [最小工程](assets/minimal.director) 直接生成 JSON 文件，并说明尚未自动验证。交付文件后告知用户在网页版「打开」导入；若能操作浏览器，再验证真实播放与机位。

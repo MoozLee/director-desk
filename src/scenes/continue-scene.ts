@@ -1,3 +1,5 @@
+import {freezeVisualState,receivesRootField} from '../visuals/continuity.ts';
+import {entityPosition} from '../timeline.ts';
 import type { Engine } from '../engine.ts';
 import { assertProject, clone, getFrameCount } from '../model.ts';
 import { activeCameraId } from '../timeline.ts';
@@ -30,7 +32,7 @@ export async function continueScene(engine: Engine, document: SceneDocument, nam
             position: o.origin, forward: o.forward, action: o.action, enabled: o.enabled, bounds: o.bounds ? { min: o.bounds.min, max: o.bounds.max } : null }));
         for (const entity of project.entities) {
             const root = engine.models.get(entity.id)!;
-            entity.position = root.position.toArray(); entity.rotation = [root.rotation.x, root.rotation.y, root.rotation.z];
+            entity.position = receivesRootField(entity,project,time)?entityPosition(entity,time).toArray():root.position.toArray(); entity.rotation = [root.rotation.x, root.rotation.y, root.rotation.z];
             entity.path = null; entity.face = 'fixed'; entity.faceTarget = ''; entity.clips = []; entity.pose = {}; entity.poseKeys = [];
             if (entity.kind === 'actor' || entity.kind === 'crowd' || entity.external) entity.initialPose = captureInitialPose(root, entity);
             if (entity.light) {
@@ -49,6 +51,7 @@ export async function continueScene(engine: Engine, document: SceneDocument, nam
                 freezeEndingCamera(entity, camera, time, engine.models.get(entity.camera.targetId));
             }
         }
+        for(const e of project.entities)freezeVisualState(e,project,time);
         project.cuts = [{ time: 0, cameraId }];
         if (project.lighting) {
             for (const key of ['ambient', 'exposure', 'sunIntensity'] as const) if (project.lighting[key] !== undefined) project.lighting[key] = numberAt(project.lighting[key], time);

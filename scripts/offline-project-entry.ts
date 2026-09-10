@@ -1,3 +1,8 @@
+import {mediaFromBytes} from '../src/media/offline-source.ts';
+import {defaultSurfaceLayer} from '../src/media/model.ts';
+export {mediaFromBytes} from '../src/media/offline-source.ts';
+export {defaultSurfaceLayer,assertMediaResources,assertSurface,mediaTime} from '../src/media/model.ts';
+export {defaultVisual,VISUAL_PRESETS,FIELD_TYPES,DEFORM_TYPES} from '../src/visuals/model.ts';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -47,6 +52,15 @@ async function write(file: string, data: unknown) {
 }
 async function main(args: string[]) {
     const [command, file, ...rest] = args;
+    if(command==='import-media'){
+        if(!file||rest.length<2||rest.length>3)throw Error('import-media 需要 输入.director 媒体文件 输出.director [承载对象ID]');
+        const input=await read(file),doc=readSceneDocument(input),p=projectForScene(doc),source=rest[0];
+        const mime=({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.mp4':'video/mp4','.webm':'video/webm'} as Record<string,string>)[path.extname(source).toLowerCase()];
+        if(!mime)throw Error('媒体扩展名不支持');const stat=await fs.stat(source);if(!stat.isFile()||stat.size>512*1024*1024)throw Error('媒体必须是 512 MB 内的文件');
+        const resource=await mediaFromBytes(path.basename(source),mime,await fs.readFile(source));p.media??=[];if(!p.media.some(r=>r.id===resource.id))p.media.push(resource);
+        if(rest[2]){const target=p.entities.find(e=>e.id===rest[2]);if(!target||target.locked)throw Error('承载对象不存在或已锁定');(target.surface??={layers:[]}).layers.push(defaultSurfaceLayer(resource.id));}
+        await write(rest[1],input.version===3?updateDocumentScene(doc,doc.activeSceneId,p):p);return;
+    }
     if (command === 'assets') {
         if (rest.length) throw new Error('assets 仅接受可选的查询.json 文件');
         const query = file ? await read(file) : {};

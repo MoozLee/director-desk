@@ -1,3 +1,6 @@
+import {SURFACE_VISUALS} from '../visuals/model.ts';
+import { createVisualPanel } from './visual-panel.ts';
+import { createSurfacePanel } from './surface-panel.ts';
 import { inheritedPoseAt, poseLayout } from '../scenes/initial-pose.ts';
 import { parameterDefaults } from '../parametric-props.ts';
 import { structurePorts } from '../building/structure-ports.ts';
@@ -25,6 +28,7 @@ import { createCameraEffectsPanel } from './camera-effects-panel.ts';
 import { createCurveEditor } from './curve-editor.ts';
 import { createAIEditLocations } from './ai-edit-locations.ts';
 export function createInspector(ctx: AppContext) {
+    const surfaces=createSurfacePanel(ctx),visuals=createVisualPanel(ctx);
     const lightingEditor = createLightingPanel(ctx), cameraEffects = createCameraEffectsPanel(ctx);
     const curveEditor = createCurveEditor(ctx), editLocations = createAIEditLocations(ctx);
     const navigation = createInspectorNavigation(renderInspector);
@@ -93,9 +97,12 @@ export function createInspector(ctx: AppContext) {
         if (e.locked) $('#inspector-header .inspect-title').insertAdjacentHTML('beforeend', button('unlock-selected', '解锁', '', 'inspector-unlock subtle', 'title="当前对象已锁定，仅可查看；点击解锁"'));
         const tabs = external ? [['base', '基础'], ['structure', '模型'], ...(hasBones ? [['rig', '骨架']] : []), ...(hasAnimations ? [['actions', '动画']] : []), ['path', '路径']] : e.kind === 'camera' ? [['base', '基础'], ['camera', '摄影机'], ['path', '路径']] : e.kind === 'prop' ? [['base', '基础'], ...(parameterDefaults[e.asset] || definition?.parameters ? [['structure','结构']] : []), ['path', '路径']] : [['base', '基础'], ...(definition?.parameters ? [['structure', '外形']] : []), ['actions', '动作'], ['path', '路径'], ['pose', '姿态']];
         if (!animal && ((external && e.kind === 'actor' && hasBones) || (!external && ['actor', 'crowd'].includes(e.kind)))) tabs.splice(tabs.findIndex(([key]) => key === 'path'), 0, ['retarget', '素材']);
-        if (e.kind === 'prop' && !e.light) tabs.splice(tabs.findIndex(([key]) => key === 'path'), 0, ['hand', '手持'], ['contacts', '接触']);
+        if (e.kind === 'prop' && !e.light && !e.visual && !e.field && !e.warp) tabs.splice(tabs.findIndex(([key]) => key === 'path'), 0, ['hand', '手持'], ['contacts', '接触']);
         if (e.light) tabs.splice(0, tabs.length, ['light', '灯光'], ['base', '变换'], ['path', '路径']);
         if (e.camera) tabs.splice(2, 0, ['effects', '运镜效果']);
+        if(e.asset==='light-spot')tabs.push(['surface','投影']);
+        if(e.kind!=='camera'&&!e.light&&!e.field&&!e.warp&&(!e.visual||SURFACE_VISUALS.has(e.visual.preset)))tabs.push(['surface','材质'],['deform','形变']);
+        if(e.visual||e.field||e.warp)tabs.push(['visual',e.field?'影响':e.warp?'扭曲':'元素']);
         tabs.push(['curves', '曲线']);
         if (!tabs.some(([k]) => k === ctx.inspectorTab))
             ctx.inspectorTab = tabs[0][0];
@@ -138,6 +145,8 @@ export function createInspector(ctx: AppContext) {
         else if (ctx.inspectorTab === 'camera') html = cameraInspector(ctx, e, navigation);
         else if (ctx.inspectorTab === 'light') html = lightingEditor.render(e);
         else if (ctx.inspectorTab === 'effects' && e.camera) html = cameraEffects.render(e);
+        else if (ctx.inspectorTab === 'visual'||ctx.inspectorTab==='deform') html=visuals.render(e);
+        else if (ctx.inspectorTab === 'surface') html = surfaces.render(e);
         else if (ctx.inspectorTab === 'curves') html = curveEditor.render();
         $('#inspector-content').innerHTML = html;
         if (ctx.inspectorTab === 'light') lightingEditor.bind();

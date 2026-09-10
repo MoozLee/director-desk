@@ -47,6 +47,7 @@ export function mergeScene(destination: Project, source: Project, options: Merge
         const id = existing?.id ?? fresh(); referenceMap.set(r.id, id);
         if (!existing) p.references.push({ ...r, id });
     }
+    for(const r of incoming.media??[]){p.media??=[];const previous=p.media.find(x=>x.id===r.id);if(previous&&previous.data!==r.data)throw Error('媒体源标识冲突');if(!previous)p.media.push(r);}
     let addedResources = 0, reusedResources = 0;
     for (const r of incoming.resources ?? []) {
         p.resources ??= []; const existing = p.resources.find(other => other.id === r.id);
@@ -64,6 +65,13 @@ export function mergeScene(destination: Project, source: Project, options: Merge
         ...(z.connectsTo ? { connectsTo: z.connectsTo.map(id => zoneMap.get(id)!) } : {}) }))];
     for (const e of incoming.entities) {
         const originalId = e.id;
+        if(e.visual?.cameraId)e.visual.cameraId=entityMap.get(e.visual.cameraId)!;
+        if(e.field)e.field.targets=e.field.targets.map(id=>entityMap.get(id)!);
+        const shift=(v:import('../animation/channels.ts').AnimatedNumber)=>typeof v==='number'?v:scheduling==='reset'?numberAt(v,0):{keys:v.keys.map(k=>({...k,time:k.time+timeOffset}))};
+        for(const config of [e.visual,e.field,e.warp,e.deform,e.surface])if(config)for(const [key,value]of Object.entries(config)){if(value&&typeof value==='object'&&!Array.isArray(value)&&'keys' in value)Object.assign(config,{[key]:shift(value as import('../animation/channels.ts').AnimatedNumber)});}
+        for(const config of [e.visual,e.field])if(config){config.start=scheduling==='reset'?0:config.start+timeOffset;if(config.end)config.end=scheduling==='reset'?0:config.end+timeOffset;}
+        for(const l of e.surface?.layers??[]){l.start=scheduling==='reset'?0:l.start+timeOffset;l.opacity=shift(l.opacity);}
+
         if (scheduling === 'reset') {
             e.position = initial!.get(e.id)!.position;
             if ((e.kind === 'actor' || e.kind === 'crowd') && !e.faceTarget) { e.rotation[1] = initial!.get(e.id)!.yaw; e.face = 'fixed'; }

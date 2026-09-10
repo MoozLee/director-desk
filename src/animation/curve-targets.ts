@@ -12,6 +12,8 @@ export function curveTargets(entity: Entity): CurveTarget[] {
     for (const [id, spec] of Object.entries(CAMERA_CHANNELS)) add('camera:' + id, spec.label, entity.camera?.effects?.channels?.[id as keyof typeof CAMERA_CHANNELS]);
     add('light:intensity', '灯光强度', entity.light?.intensity); add('light:temperature', '灯光色温', entity.light?.temperature);
     if (entity.light?.colorKeys && entity.light.colorKeys.length > 1) targets.push({ id: 'light:color', label: '灯光颜色', keys: entity.light.colorKeys });
+    for(const [group,data]of Object.entries({visual:entity.visual,field:entity.field,warp:entity.warp,deform:entity.deform,surface:entity.surface}))if(data)for(const [key,value]of Object.entries(data))if(value&&typeof value==='object'&&!Array.isArray(value)&&'keys' in value)add(group+':'+key,group+' · '+key,value as AnimatedNumber);
+    for(const layer of entity.surface?.layers??[])add('surface:'+layer.id,'贴图透明度 · '+layer.id,layer.opacity);
     return targets;
 }
 export function insertCurvePause(entity: Entity, channel: string, endIndex: number, seconds = 1) {

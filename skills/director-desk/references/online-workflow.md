@@ -94,3 +94,9 @@ cut1:
 - 在线保存复用 `notes` 操作：`{operation:"notes",value:{fixedPrompt:"原固定头",sceneReferenceIds:[],notes:[],promptText:"本段完整提示词"}}`。value 整体替换，必须带回该段已有固定头、图片引用及全部备注，可与最后一批编排同时提交。保存成功后简短告知具体戏段及“提示词”按钮入口，默认不在对话中铺开全文；用户明确要正文时再输出。纯讨论可只输出文案；离线写入相同字段并交付每场 TXT，不需要安装 shortdrama skill。
 
 `promptText` 是保存的成稿，不会因程序修改场景而自动重写。左侧戏段选择旁的“提示词”、助手的“本场提示词”或制作备注中的“视频提示词”按钮可展开当前段全文、编辑、复制或导出 TXT；素材包附带全部戏段已保存的提示词，未写的段不伪造完成。shortdrama-shot-director 的对白、表演和连续性方法可用于创作；此参考视频流程不套用其先分析等待确认、逐 cut 重述景别或统一整数时长的默认步骤。
+
+## 媒体与抽象元素
+
+用户需要时定向查询视觉元素、影响区域或空间扭曲，不扫描全库。`director_media(action:"list")` 查工程已导入的媒体；`action:"surfaces",entityId` 查网格／材质槽。桌面导入用 `action:"import",path,revision,requestId`，可带 entityId 直接承载；不要让模型输出大段 base64。详细 surface、visual、field、deform、warp 数据按需查 `director_help(names:["director_media"])`。普通修改仍用 director_apply，复用现有关键帧曲线和撤销。
+
+surface 是物体实际显示的材质／媒体，旧 references 是历史参考素材，两者不混用。发光材质不会照亮周围，需要真实灯光；聚光灯可携带一层媒体用于投影。烟火／流体使用确定性视觉近似；屏幕扭曲不改变空间射线报告。镜面、传送门内部不递归绘制彼此。视频画面随工程时间定位，声音忽略。`director_read(details:true)` 含资源与媒体运行状态；按实际需要查询，不增加固定验收轮次。

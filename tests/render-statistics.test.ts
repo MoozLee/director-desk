@@ -10,10 +10,17 @@ test('resource statistics deduplicate shared geometry, buffers, textures and ove
     const texture = new T.DataTexture(new Uint8Array(4 * 8 * 4), 4, 8), material = new T.MeshStandardMaterial({ map: texture });
     const a = new T.Mesh(geometry, material), b = new T.InstancedMesh(geometry, material.clone(), 5), root = new T.Group();
     b.visible = false; root.add(a, b); const result = collectRenderStatistics([root, a]);
-    assert.deepEqual(result, { meshes: 2, instances: 6, triangles: 6, uniqueGeometries: 1, geometryBufferBytes: data.byteLength + 6 + 36,
+    assert.deepEqual(result, { meshes: 2, instances: 6, triangles: 6, points:0, lines:0, uniqueGeometries: 1, geometryBufferBytes: data.byteLength + 6 + 36,
         materials: 2, textures: 1, baseLevelTexels: 32, unknownTextureSizes: 0 });
     assert.equal(b.visible, false); assert.equal(material.map, texture);
     geometry.dispose(); material.dispose(); b.material.dispose(); b.dispose(); texture.dispose();
+});
+
+test('particle and line buffers are counted without pretending they are triangles',()=>{
+    const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute([0,0,0,1,0,0,1,1,0,0,1,0],3));
+    const points=new T.Points(geometry,new T.PointsMaterial()),lines=new T.LineSegments(geometry,new T.LineBasicMaterial());
+    const result=collectRenderStatistics([points,lines]);assert.equal(result.points,4);assert.equal(result.lines,2);assert.equal(result.triangles,0);assert.equal(result.uniqueGeometries,1);assert.equal(result.geometryBufferBytes,48);
+    geometry.dispose();points.material.dispose();lines.material.dispose();
 });
 
 test('cube faces, unavailable image sizes, and geometry buffers aliased by separate attributes remain explicit', () => {

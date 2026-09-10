@@ -1,3 +1,4 @@
+const { prepareMediaImport } = require('./media-import.cjs');
 const { ipcMain, app, safeStorage, clipboard } = require('electron');
 const { randomUUID } = require('node:crypto');
 const { createAIHost } = require('./ai-host.cjs');
@@ -10,13 +11,16 @@ function attachIntegration(window) {
     const skills = createSkillStore({ directory: app.getPath('userData'), builtin: BUILTIN_SKILL });
     void skills.ready.catch(() => {});
     const trusted = event => event.sender === window.webContents && event.senderFrame?.url === 'director://app/';
-    const callTool = (name, args) => name === 'director_skill'
+    const callTool = async (name, args) => {
+        if(name==='director_media'&&args?.action==='import'){try{args=await prepareMediaImport(args);}catch(error){return {ok:false,error:error.message};}}
+        return name === 'director_skill'
         ? skills.tool(args).then(data => ({ ok: true, data }), error => ({ ok: false, error: error.message }))
         : new Promise(resolve => {
         if (!ready || window.isDestroyed()) return resolve({ ok: false, error: '导演台尚未连接或正在重新载入' });
         const id = randomUUID(), timer = setTimeout(() => { pending.delete(id); resolve({ ok: false, execution: 'unknown', error: '工具响应超时，请先查询状态，不要直接重复写入' }); }, 60000);
         pending.set(id, { resolve, timer }); window.webContents.send('director-tool-call', { id, name, args });
     });
+    };
     const mcp = createMcpHost({ directory: app.getPath('userData'), safeStorage, definitions: MCP_TOOL_DEFINITIONS, call: callTool, version: app.getVersion() });
     const host = createAIHost({ directory: app.getPath('userData'), safeStorage, definitions: TOOL_DEFINITIONS, discussionTools: DISCUSSION_TOOLS, isDiscussionToolCall, callTool,
         skill: BUILTIN_SKILL, skills,

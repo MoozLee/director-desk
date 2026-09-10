@@ -28,5 +28,5 @@ export function validateToolInput(name: string, input: unknown) {
             if (typeof args.previewId !== 'string' || !args.previewId || args.operations !== undefined || args.preview === true) throw Error('previewId 仅用于提交已有预检，不可同时提供 operations 或 preview:true');
         } else if (args.operations === undefined) throw Error('缺少工具参数：director_apply.operations 或 previewId');
     }
-    if (JSON.stringify(input).length > 2_000_000) throw new Error('工具参数过大');
+    if (JSON.stringify(input).length > (name==='director_media'?720_010_000:2_000_000)) throw new Error('工具参数过大');
 }

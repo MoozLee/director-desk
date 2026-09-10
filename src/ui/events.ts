@@ -2,8 +2,8 @@ import { prepareDocumentModels } from '../scenes/document-models.ts';
 import { bindTimelineInput } from './timeline-input.ts';
 import * as T from 'three';
 import type { AppContext } from '../app-context.ts';
-import type { Action, Joint, Project, Vec3 } from '../model.ts';
-import { clip, uid } from '../model.ts';
+import type { Action, Joint, Vec3 } from '../model.ts';
+import { clip } from '../model.ts';
 import { readRecoverableDocument } from './resource-recovery-panel.ts';
 import { samplePose } from '../timeline.ts';
 import { $ } from '../ui/common.ts';
@@ -28,7 +28,7 @@ export function bindEvents(ctx: AppContext) {
             ctx.sidebarTab = side.dataset.side!;
             ctx.query = '';
             $<HTMLInputElement>('#search').value = '';
-            $<HTMLInputElement>('#search').placeholder = ctx.sidebarTab === 'assets' ? '搜索白模资产' : ctx.sidebarTab === 'refs' ? '搜索参考图' : '搜索场景对象';
+            $<HTMLInputElement>('#search').placeholder = ctx.sidebarTab === 'assets' ? '搜索白模资产' : '搜索场景对象';
             ctx.renderSidebar();
             return;
         }
@@ -201,24 +201,7 @@ export function bindEvents(ctx: AppContext) {
             target.value = '';
             return;
         }
-        if (target.id === 'reference-file' && target.files) {
-            try {
-                const original = ctx.project;
-                const images: Project['references'] = [];
-                for (const file of Array.from(target.files)) {
-                    if (file.size > 15000000)
-                        throw new Error('单张参考图请小于 15 MB');
-                    const data = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(file); });
-                    images.push({ id: uid(), name: file.name, data });
-                }
-                if (ctx.busy || ctx.project !== original) throw new Error('读取期间已切换工程或开始其他任务，请重新添加参考图');
-                ctx.change(() => ctx.project.references.push(...images), false);
-            }
-            catch (error) {
-                ctx.toast((error as Error).message, true);
-            }
-            target.value = '';
-        }
+
     });
     document.addEventListener('input', event => {
         const target = event.target as HTMLInputElement;

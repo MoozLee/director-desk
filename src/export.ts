@@ -35,6 +35,7 @@ export async function exportVideo(engine: Engine, options: ExportOptions, signal
         if (!await canEncodeVideo(codec, { width: options.width, height: options.height, quality, latencyMode: 'quality' }))
             throw new Error(`当前浏览器不能编码此 ${options.format.toUpperCase()} 规格。请明确选择其他格式或较小分辨率后重试。`);
         signal.throwIfAborted();
+        await engine.prepareOutput(options.start,signal);
         const canvas = engine.renderOutput(options.start, options.width, options.height, options.cameraId);
         writable = handle ? await handle.createWritable() : undefined;
         const target = writable ? new StreamTarget(writable) : new BufferTarget();
@@ -46,6 +47,7 @@ export async function exportVideo(engine: Engine, options: ExportOptions, signal
         for (let i = 0; i < total; i++) {
             if (signal.aborted)
                 throw new DOMException('已取消导出', 'AbortError');
+            await engine.prepareOutput(options.start+i/options.fps,signal);
             engine.renderOutput(options.start + i / options.fps, options.width, options.height, options.cameraId);
             await source.add(i / options.fps, 1 / options.fps);
             if (i % 3 === 0 || i === total - 1) {

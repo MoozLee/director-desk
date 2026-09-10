@@ -68,7 +68,7 @@ try {
     assert.equal((await fetch(config.url, { method: 'POST', headers: { ...config.headers, Origin: 'https://example.com' }, body: '{}' })).status, 403);
     await client.connect(new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: config.headers } }));
     const listedTools = (await client.listTools()).tools;
-    assert.ok(listedTools.find(t => t.name === 'director_apply').description.includes('retarget.footPlant'), 'MCP retains full discovery documentation');
+    assert.ok(listedTools.find(t => t.name === 'director_apply').description.includes('director_help'), 'MCP exposes concise discovery with on-demand advanced documentation');
     const listed = listedTools.map(t => t.name).sort();
     const expectedTools = createRequire(import.meta.url)(path.resolve('.audit/desktop-app/desktop/tools-contract.cjs')).TOOL_DEFINITIONS.map(t => t.name).sort();
     assert.deepEqual(listed, expectedTools);
@@ -85,9 +85,18 @@ try {
     const embeddedSkill = (await tool('director_skill')).data;
     assert.ok(embeddedSkill.instructions); assert.equal(embeddedSkill.unchanged, false);
     assert.equal(scene.skill.version, embeddedSkill.version);
-    assert.deepEqual((await tool('director_skill', { knownVersion: embeddedSkill.version })).data, { name: embeddedSkill.name, version: embeddedSkill.version, unchanged: true });
+    const learned=(await tool('director_skill', { knownVersion: embeddedSkill.version })).data;assert.equal(learned.unchanged,true);assert.equal(learned.version,embeddedSkill.version);assert.equal(learned.instructions,undefined);
     assert.equal((await tool('director_skill', { knownVersion: 'previous-version' })).data.instructions, embeddedSkill.instructions);
     const target = scene.entities.find(e => e.kind === 'actor').id;
+    // Local media crosses real MCP -> desktop filesystem -> renderer -> shared transaction.
+    const png=await page.evaluate(async()=>{const c=document.createElement('canvas');c.width=c.height=16;const x=c.getContext('2d');x.fillStyle='#ff0000';x.fillRect(0,0,16,16);return c.toDataURL();});
+    const mediaFile=path.join(directory,'mcp-media.png');await fs.writeFile(mediaFile,Buffer.from(png.split(',')[1],'base64'));
+    const mediaArgs={action:'import',path:mediaFile,entityId:target,revision:scene.revision,requestId:'mcp-media-import'};
+    const importedMedia=(await tool('director_media',mediaArgs)).data;
+    assert.equal((await tool('director_media',mediaArgs)).data.revision,importedMedia.revision);
+    const listedMedia=(await tool('director_media',{action:'list'})).data;assert.equal(listedMedia.media.length,1);assert.equal(listedMedia.media[0].data,undefined);
+    assert.ok((await tool('director_media',{action:'surfaces',entityId:target})).data.surfaces.length>0);
+    await tool('director_history',{revision:importedMedia.revision,action:'undo'});scene=(await tool('director_read',{details:true})).data;
     const spatialArgs = { time: 2, cameraId: 'program', occlusionKeys: ['entity:' + target] };
     const allSpatial = (await tool('director_spatial', spatialArgs)).data;
     const selectedSpatial = (await tool('director_spatial', { ...spatialArgs, ids: [target] })).data;

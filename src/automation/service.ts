@@ -1,3 +1,5 @@
+import {importMedia} from '../media/source.ts';
+import {defaultSurfaceLayer} from '../media/model.ts';
 import type { AppContext } from '../app-context.ts';
 import { GEOMETRY_ASSET_IDS, geometryCreationGuide } from '../assets/creation-mode.ts';
 import { resourceUsage } from '../resources/resource-usage.ts';
@@ -49,6 +51,21 @@ export function createToolService(ctx: AppContext) {
             if (args.id && args.id !== 'builtin' || args.path && args.path !== 'SKILL.md') throw Error('网页版仅提供内置操作说明；自定义技能请在桌面版管理');
             return readBuiltinSkill(args.knownVersion as string | undefined);
         }
+        if(name==='director_media'){
+            if(args.action==='list')return {revision:currentRevision(),media:(ctx.project.media??[]).map(({data:_data,...r})=>r),runtime:ctx.engine.surfaces.textures.statistics()};
+            if(args.action==='surfaces'){const root=ctx.engine.models.get(String(args.entityId));if(!root)throw Error('对象不存在');return {revision:currentRevision(),entityId:args.entityId,surfaces:ctx.engine.surfaces.describe(root)};}
+            idle();if(typeof args.requestId!=='string'||!args.requestId||args.requestId.length>200)throw Error('需要唯一 requestId');
+            if(args.path!==undefined)throw Error('本机路径导入需要桌面版；网页版请用材质面板导入');
+            if(typeof args.data!=='string'||typeof args.name!=='string'||typeof args.mime!=='string'||!args.data.startsWith('data:'+args.mime+';base64,'))throw Error('媒体内容无效');
+            ctx.busy=true;ctx.playing=false;ctx.updateTimeUI();
+            try{const response=await fetch(args.data);const blob=await response.blob();const resource=await importMedia(new File([blob],args.name,{type:args.mime}));
+                const encoded=JSON.stringify({tool:name,resource:resource.id,entityId:args.entityId,name:resource.name,revision:args.revision}),receipt=receipts.get(args.requestId);
+                if(receipt){if(receipt.args!==encoded)throw Error('requestId 已用于不同操作');return receipt.result;}checkRevision(args.revision);
+                const target=args.entityId===undefined?undefined:ctx.project.entities.find(e=>e.id===args.entityId);if(args.entityId!==undefined&&(!target||target.locked||target.camera))throw Error('承载对象不存在、被锁定或为摄影机');
+                ctx.busy=false;const committed=ctx.change(()=>{ctx.project.media??=[];if(!ctx.project.media.some(r=>r.id===resource.id))ctx.project.media.push(resource);if(target)(target.surface??={layers:[]}).layers.push(defaultSurfaceLayer(resource.id));},false);if(!committed)throw Error('媒体导入未提交，请检查当前对象及参数');
+                const result={revision:currentRevision(),resourceId:resource.id,name:resource.name,width:resource.width,height:resource.height,duration:resource.duration,entityId:target?.id};receipts.set(args.requestId,{args:encoded,result});if(receipts.size>200)receipts.delete(receipts.keys().next().value!);return result;
+            }finally{ctx.busy=false;ctx.updateTimeUI();}
+        }
         if (name === 'director_help') return toolHelp(args.names as string[]);
         if (name === 'director_scene') {
             if (args.action === 'list') return { revision: currentRevision(), sceneContext: ctx.scenes.context, scenes: ctx.scenes.list() };
@@ -97,10 +114,11 @@ export function createToolService(ctx: AppContext) {
                 ...(resource ? { model: ctx.engine.externalModels.inspection(resource) } : {}),
                 skill: { name: BUILTIN_SKILL.name, version: BUILTIN_SKILL.version },
                 time: ctx.time, cameraId: ctx.preview, selectedId: ctx.selected, room: ctx.project.room, lighting: ctx.project.lighting, floors: ctx.project.floors ?? [], zones: ctx.project.zones ?? [], editorView: ctx.project.editorView, cuts: ctx.project.cuts,
+                media:(ctx.project.media??[]).map(({data:_data,...metadata})=>metadata),
                 references: ctx.project.references.map(({ id, name }) => ({ id, name })), production: productionData(ctx.project),
                 resources: (ctx.project.resources ?? []).map(({ package: _package, ...metadata }) => metadata),
                 ...(args.details || resource ? { resourceUsage: resourceUsage(ctx.project).filter(r => !resource || r.id === resource.id).map(r => ({ ...r, sceneReferences: ctx.scenes?.resourceScenes(r.id) ?? [], used: ctx.scenes ? ctx.scenes.resourceScenes(r.id).length > 0 : r.used })) } : {}),
-                ...(args.details ? { resourceStatistics: sceneResourceReport(ctx.engine) } : {}),
+                ...(args.details ? { resourceStatistics: sceneResourceReport(ctx.engine),mediaRuntime:ctx.engine.surfaces.textures.statistics() } : {}),
                 entities: ctx.project.entities.filter(e => !ids || ids.includes(e.id)).map(e => args.details ? { ...clone(e), ...(e.initialPose ? { initialPose: { active: inheritedPoseAt(e, ctx.time), nodeCount: e.initialPose.nodes.length, description: '接拍姿态；原始节点数组保存在工程文件中，新动作开始后不再保持' } } : {}) } : { id: e.id, name: e.name, asset: e.asset, kind: e.kind, color: e.color, reference: e.reference, locked: e.locked, visible: e.visible, position: e.position }),
                 ...(args.details ? { structureModules: ctx.project.entities.filter(e => (!ids || ids.includes(e.id)) && structurePorts(e).length).map(e => ({ id: e.id, localPorts: structurePorts(e), worldPorts: !e.path && !e.handBinding && !e.clips.length ? worldStructurePorts(e) : [], link: e.structureLink ?? null })) } : {}),
                 coordinates: '米／秒；工程 rotation 为弧度，世界 +Y 向上，人物 +Z 为前；当前动画位置应查询 spatial。图片字节未发送。' };

@@ -6,7 +6,7 @@ export function readIndependentScene(document: SceneDocument, id = document.acti
     const scene = document.scenes.find(s => s.id === id); if (!scene) throw Error('戏段不存在');
     const project = projectForScene(document, id);
     return { sceneId: id, sceneName: scene.name, active: id === document.activeSceneId,
-        project: { ...project, resources: project.resources?.map(({ package: _package, ...metadata }) => metadata),
+        project: { ...project, media:project.media?.map(({data:_data,...metadata})=>metadata), resources: project.resources?.map(({ package: _package, ...metadata }) => metadata),
             references: project.references.map(({ id, name }) => ({ id, name })),
             entities: project.entities.map(e => ({ ...e, ...(e.initialPose ? { initialPose: { activeAtStart: inheritedPoseAt(e, 0), nodeCount: e.initialPose.nodes.length } } : {}) })) },
         origin: scene.origin ? { sceneId: scene.origin.sceneId, sceneName: scene.origin.sceneName, time: scene.origin.time, frameIndex: scene.origin.frameIndex } : null };
