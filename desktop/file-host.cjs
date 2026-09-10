@@ -35,6 +35,26 @@ function createFileHost({ directory, defaults, chooseDirectory, chooseSave }) {
             const safeName = path.basename(String(name)).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_');
             return path.join(locations[/\.director$/i.test(safeName) ? 'projects' : 'exports'], safeName || '导出文件');
         },
+        async saveExport({ name, bytes } = {}) {
+            await ready;
+            if (typeof name !== 'string' || name.length > 150 || !/\.(mp4|webm)$/i.test(name)
+                || /[<>:"/\\|?*\x00-\x1f]/.test(name) || /^[. ]|[. ]$/.test(name)
+                || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)) throw Error('视频文件名无效');
+            if (!(bytes instanceof ArrayBuffer) && !(bytes instanceof Uint8Array)) throw Error('视频数据无效');
+            if (!bytes.byteLength || bytes.byteLength > 250000000) throw Error('视频大小无效或超过 250 MB，请使用直接保存方式');
+            const content = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
+            await fs.mkdir(locations.exports, { recursive: true });
+            const extension = path.extname(name), stem = name.slice(0, -extension.length);
+            for (let index = 1; ; index++) {
+                const filename = index === 1 ? name : `${stem} (${index})${extension}`;
+                const destination = path.join(locations.exports, filename);
+                let file;
+                try { file = await fs.open(destination, 'wx'); }
+                catch (error) { if (error.code === 'EEXIST') continue; throw error; }
+                try { await file.writeFile(content); await file.close(); return { saved: true, filename }; }
+                catch (error) { await file.close().catch(() => {}); await fs.rm(destination, { force: true }).catch(() => {}); throw error; }
+            }
+        },
         async saveProject({ name, content } = {}) {
             await ready;
             if (saving) throw Error('项目正在保存');

@@ -7,6 +7,9 @@ import { queryAssetCatalog, type AssetQuery } from '../assets/catalog-query.ts';
 import { clone, outputSize, uid } from '../model.ts';
 import { applyOperationsWithResources, changeSummary, type EditOperation } from './edits.ts';
 import { motionPresets } from '../animation/motion-catalog.ts';
+import { getUserMotion, listUserMotions } from '../animation/user-motion-store.ts';
+import { isUserMotion, type UserMotionAsset } from '../animation/user-motion.ts';
+import { rigStatus } from '../resources/rig-definition.ts';
 import { checkPathSurfaces, pathSurfaceModels } from '../spatial/path-surfaces.ts';
 import { scanSpatialRange, type SpatialRangeOptions } from '../spatial/range.ts';
 import { download } from '../storage.ts';
@@ -25,9 +28,9 @@ export function createToolService(ctx: AppContext) {
     // A new renderer must not accept a revision captured before a reload/reconnect.
     let revision = Date.now() * 1000 + Math.floor(Math.random() * 1000), fingerprint = '', sequence = Promise.resolve<unknown>(null);
     const receipts = new Map<string, { args: string; result: unknown }>();
-    const previews = new Map<string, { revision: number; operations: EditOperation[] }>();
+    const previews = new Map<string, { revision: number; operations: EditOperation[]; userMotions: Map<string, UserMotionAsset> }>();
     const jobs = new Map<string, { id: string; status: string; progress: number; result?: unknown; error?: string; aborter: AbortController }>();
-    function currentRevision() { const next = JSON.stringify([ctx.scenes?.context, ctx.project]); if (next !== fingerprint) { fingerprint = next; revision++; } return revision; }
+    function currentRevision() { const next = JSON.stringify([ctx.scenes?.context, ctx.revision]); if (next !== fingerprint) { fingerprint = next; revision++; } return revision; }
     function idle() { if (ctx.busy || ctx.draft || ctx.history.pending || ctx.engine.exporting) throw new Error('当前正在编辑、绘制或执行长任务，请等待或取消'); }
     function checkRevision(value: unknown) { const actual = currentRevision(); if (value !== actual) throw new Error(`REVISION_CONFLICT：请求版本 ${value}，当前版本 ${actual}；请重新读取工程`); }
     function job(run: (signal: AbortSignal, progress: (p: number) => void) => Promise<unknown>) {
@@ -109,7 +112,17 @@ export function createToolService(ctx: AppContext) {
             finally { ctx.engine.sample(previous); }
         }
         if (name === 'director_assets') return queryAssetCatalog(args as AssetQuery, ctx.project.creationMode === 'geometry' ? GEOMETRY_ASSET_IDS : undefined);
-        if (name === 'director_motions') return { presets: motionPresets(String(args.query ?? '')), note: '内置人形动作，通过 director_apply 的 motion 操作加入人物或群演；duration 可指定持续秒数，省略则使用目录的短默认时长，整场坐姿需显式指定全程时长；素材资源随工程保存；basicAction 基础预设复用程序姿态，无需附加素材，导入人物需完整人形骨架。' };
+        if (name === 'director_motions') {
+            if (args.source === 'user') {
+                const offset = Number(args.offset ?? 0), limit = Number(args.limit ?? 20);
+                if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw Error('动作库分页范围无效');
+                const list = await listUserMotions(String(args.query ?? ''));
+                return { source: 'user', total: list.length, offset, nextOffset: offset + limit < list.length ? offset + limit : null,
+                    presets: list.slice(offset, offset + limit).map(m => ({ id: m.id, name: m.name, defaultDuration: m.duration, loop: m.data.loop, ...rigStatus(m.data.rig) })),
+                    note: '本机用户动作；使用相同的 motion 操作和返回的 id，源资源自动嵌入工程。未完整映射的动作需先在用户动作库校正。' };
+            }
+            return { presets: motionPresets(String(args.query ?? '')), note: '内置人形动作，通过 director_apply 的 motion 操作加入人物或群演；duration 可指定持续秒数，省略则使用目录的短默认时长，整场坐姿需显式指定全程时长；素材资源随工程保存；basicAction 基础预设复用程序姿态，无需附加素材，导入人物需完整人形骨架。' };
+        }
         if (name === 'director_job') {
             const task = jobs.get(String(args.id)); if (!task) throw new Error('任务不存在'); if (args.cancel) task.aborter.abort();
             const { aborter: _aborter, ...data } = task; return data;
@@ -130,7 +143,11 @@ export function createToolService(ctx: AppContext) {
             const before = ctx.project;
             ctx.busy = true; ctx.playing = false; ctx.updateTimeUI();
             try {
-                const operations = savedPreview?.operations ?? args.operations as EditOperation[], after = await applyOperationsWithResources(before, operations), summary = changeSummary(before, after);
+                const operations = savedPreview?.operations ?? args.operations as EditOperation[];
+                if (!Array.isArray(operations)) throw Error('请提供 operations');
+                const userMotions = savedPreview?.userMotions ?? new Map<string, UserMotionAsset>();
+                for (const op of operations) if (op?.operation === 'motion' && isUserMotion(op.asset) && !userMotions.has(op.asset!)) userMotions.set(op.asset!, await getUserMotion(op.asset!));
+                const after = await applyOperationsWithResources(before, operations, userMotions), summary = changeSummary(before, after);
                 if (operations.some(op => op.operation === 'motion')) await ctx.engine.externalModels.prepare(after);
                 else if (after.resources?.length) ctx.engine.externalModels.assertReady(after);
                 checkRevision(args.revision);
@@ -138,7 +155,7 @@ export function createToolService(ctx: AppContext) {
                 ctx.busy = false;
                 if (!args.preview && !ctx.change(() => { ctx.project = after; })) throw new Error('修改提交失败');
                 const previewId = args.preview ? uid() : undefined;
-                if (previewId) { previews.set(previewId, { revision: currentRevision(), operations: clone(operations) }); if (previews.size > 20) previews.delete(previews.keys().next().value!); }
+                if (previewId) { previews.set(previewId, { revision: currentRevision(), operations: clone(operations), userMotions }); if (previews.size > 20) previews.delete(previews.keys().next().value!); }
                 const changeId = !args.preview && summary.hasChanges ? uid() : undefined;
                 if (changeId && ctx.scenes) recordEdits({ id: changeId, sceneId: ctx.scenes.context.sceneId,
                     sceneName: ctx.scenes.list().find(s => s.id === ctx.scenes.context.sceneId)?.name ?? ctx.project.name,

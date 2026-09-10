@@ -89,7 +89,7 @@ test('catalog add examples really validate and expose unambiguous patch destinat
 
 test('preview add plus motion is atomic, does not create live IDs, and commit reports persistence', async () => {
     let commits = 0;
-    const ctx = { project: demoProject(), playing: false, busy: false, draft: null,
+    const ctx = { project: demoProject(), get revision(){return commits;}, playing: false, busy: false, draft: null,
         history: { pending: false, undoStack: [], redoStack: [] },
         engine: { exporting: false, externalModels: { prepare: async () => {}, assertReady() {}, retain() {} } },
         updateTimeUI() {}, change(fn: () => void) { fn(); commits++; return true; },

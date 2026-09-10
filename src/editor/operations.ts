@@ -152,121 +152,123 @@ export function createEditingTools(ctx: AppContext) {
         }
         ctx.extendDuration();
     }
-    function applyField(key: string, value: string) {
+    function mutateField(key: string, value: string) {
         const e = ctx.current();
         if (!e || e.locked && key !== 'locked')
             return;
         const n = Number(value);
-        ctx.change(() => {
-            if (key === 'name')
-                e.name = value;
-            else if (key === 'color')
-                setEntityColor(e, value);
-            else if (key === 'external.appearance' && e.external) e.external.appearance = value as 'original' | 'white' | 'color';
-            else if (key === 'external.unitScale' && e.external) {
-                if (e.kind === 'actor') e.height *= n / e.external.unitScale;
-                e.external.unitScale = n;
+        if (key === 'name')
+            e.name = value;
+        else if (key === 'color')
+            setEntityColor(e, value);
+        else if (key === 'external.appearance' && e.external) e.external.appearance = value as 'original' | 'white' | 'color';
+        else if (key === 'external.unitScale' && e.external) {
+            if (e.kind === 'actor') e.height *= n / e.external.unitScale;
+            e.external.unitScale = n;
+        }
+        else if (key.startsWith('external.orientation.') && e.external) e.external.orientation[Number(key.split('.')[2])] = T.MathUtils.degToRad(n);
+        else if (key.startsWith('assetParameters.')) {
+            e.assetParameters ??= {};
+            e.assetParameters[key.slice('assetParameters.'.length)] = n;
+        }
+        else if (key.startsWith('parameters.')) {
+            e.parameters ??= propParameters(e);
+            const name=key.slice(11) as keyof NonNullable<Entity['parameters']>;
+            Object.assign(e.parameters,{[name]:name==='layout'?value:n});
+        }
+        else if (key === 'footContact') e.footContact=value==='true';
+        else if (key === 'actionBlend') e.actionBlend=n;
+        else if (key.startsWith('handOffset.') && e.handBinding) e.handBinding.offset[Number(key.split('.')[1])] = n;
+        else if (key.startsWith('handRotation.') && e.handBinding) e.handBinding.rotation[Number(key.split('.')[1])] = T.MathUtils.degToRad(n);
+        else if (key === 'height')
+            e.height = n;
+        else if (key === 'build')
+            e.build = value as Entity['build'];
+        else if (key === 'locked')
+            e.locked = value === 'true';
+        else if (key === 'count')
+            e.count = n;
+        else if (key === 'spacing')
+            e.spacing = n;
+        else if (key === 'seed')
+            e.seed = n;
+        else if (key === 'face')
+            e.face = value as Entity['face'];
+        else if (key === 'faceTarget')
+            e.faceTarget = value;
+        else if (key.startsWith('pos.')) {
+            if (e.camera && e.camera.mode !== 'free') freezeCamera(ctx.engine, e);
+            const axis = Number(key.split('.')[1]), d = new T.Vector3();
+            d.setComponent(axis, n - entityPosition(e, ctx.time).getComponent(axis));
+            if(ctx.engine.positionKeying && !e.structureLink) recordPositionKey(e,ctx.time,entityPosition(e,ctx.time).add(d).toArray() as Vec3,ctx.project.fps);
+            else shiftPath(e, d);
+            ctx.extendDuration();
+        }
+        else if (key.startsWith('rot.')) {
+            if (e.camera) {
+                if (e.camera.mode !== 'free') freezeCamera(ctx.engine, e);
+                const r = ctx.engine.cameras.get(e.id)!.rotation;
+                e.rotation = [r.x, r.y, r.z];
+                e.camera.aim = 'manual';
+                e.camera.mode = 'free';
             }
-            else if (key.startsWith('external.orientation.') && e.external) e.external.orientation[Number(key.split('.')[2])] = T.MathUtils.degToRad(n);
-            else if (key.startsWith('assetParameters.')) {
-                e.assetParameters ??= {};
-                e.assetParameters[key.slice('assetParameters.'.length)] = n;
+            e.rotation[Number(key.split('.')[1])] = T.MathUtils.degToRad(n);
+        }
+        else if (key.startsWith('scale.'))
+            e.scale[Number(key.split('.')[1])] = n;
+        else if (key === 'path-start' && e.path)
+            retimePath(e, n, e.path.points.at(-1)!.time);
+        else if (key === 'path-end' && e.path)
+            retimePath(e, e.path.points[0].time, n);
+        else if (key === 'path-smooth' && e.path)
+            e.path.smooth = value === 'true';
+        else if (key.startsWith('target.') && e.camera)
+            e.camera.target[Number(key.split('.')[1])] = n;
+        else if (key.startsWith('offset.') && e.camera)
+            e.camera.offset[Number(key.split('.')[1])] = n;
+        else if (key.startsWith('camera.') && e.camera) {
+            const c = e.camera;
+            switch (key.slice(7)) {
+                case 'aim':
+                    if (value === 'manual') {
+                        const camera = ctx.engine.cameras.get(e.id)!, base = camera.userData.directorBasePose;
+                        const r = base ? new T.Euler().setFromQuaternion(new T.Quaternion().fromArray(base.quaternion)) : camera.rotation;
+                        e.rotation = [r.x, r.y, r.z];
+                    }
+                    c.aim = value as typeof c.aim;
+                    break;
+                case 'focal':
+                    c.focal = n;
+                    if (c.effects) { delete c.effects.channels?.focal; c.effects.dollyZoom = null; }
+                    break;
+                case 'targetHeight':
+                    c.targetHeight = n;
+                    break;
+                case 'targetId':
+                    if (!value && c.mode !== 'free') freezeCamera(ctx.engine, e);
+                    c.targetId = value;
+                    break;
+                case 'mode':
+                    if (value === c.mode) break;
+                    if (value === 'free') { freezeCamera(ctx.engine, e); break; }
+                    if (value !== 'free' && !c.targetId)
+                        c.targetId = ctx.project.entities.find(t => t.kind === 'actor')?.id ?? ctx.project.entities.find(t => t.kind !== 'camera')?.id ?? '';
+                    if (!c.targetId) throw new Error('先添加人物或道具，再设置跟随／POV');
+                    c.mode = value as typeof c.mode;
+                    if (value === 'pov')
+                        c.offset = [0, 1.67, .13];
+                    if (value === 'follow')
+                        c.offset = [0, 1.5, -2];
+                    break;
+                case 'inheritRotation':
+                    c.inheritRotation = value === 'true';
+                    break;
             }
-            else if (key.startsWith('parameters.')) {
-                e.parameters ??= propParameters(e);
-                const name=key.slice(11) as keyof NonNullable<Entity['parameters']>;
-                Object.assign(e.parameters,{[name]:name==='layout'?value:n});
-            }
-            else if (key === 'footContact') e.footContact=value==='true';
-            else if (key === 'actionBlend') e.actionBlend=n;
-            else if (key.startsWith('handOffset.') && e.handBinding) e.handBinding.offset[Number(key.split('.')[1])] = n;
-            else if (key.startsWith('handRotation.') && e.handBinding) e.handBinding.rotation[Number(key.split('.')[1])] = T.MathUtils.degToRad(n);
-            else if (key === 'height')
-                e.height = n;
-            else if (key === 'build')
-                e.build = value as Entity['build'];
-            else if (key === 'locked')
-                e.locked = value === 'true';
-            else if (key === 'count')
-                e.count = n;
-            else if (key === 'spacing')
-                e.spacing = n;
-            else if (key === 'seed')
-                e.seed = n;
-            else if (key === 'face')
-                e.face = value as Entity['face'];
-            else if (key === 'faceTarget')
-                e.faceTarget = value;
-            else if (key.startsWith('pos.')) {
-                if (e.camera && e.camera.mode !== 'free') freezeCamera(ctx.engine, e);
-                const axis = Number(key.split('.')[1]), d = new T.Vector3();
-                d.setComponent(axis, n - entityPosition(e, ctx.time).getComponent(axis));
-                if(ctx.engine.positionKeying && !e.structureLink) recordPositionKey(e,ctx.time,entityPosition(e,ctx.time).add(d).toArray() as Vec3,ctx.project.fps);
-                else shiftPath(e, d);
-                ctx.extendDuration();
-            }
-            else if (key.startsWith('rot.')) {
-                if (e.camera) {
-                    if (e.camera.mode !== 'free') freezeCamera(ctx.engine, e);
-                    const r = ctx.engine.cameras.get(e.id)!.rotation;
-                    e.rotation = [r.x, r.y, r.z];
-                    e.camera.aim = 'manual';
-                    e.camera.mode = 'free';
-                }
-                e.rotation[Number(key.split('.')[1])] = T.MathUtils.degToRad(n);
-            }
-            else if (key.startsWith('scale.'))
-                e.scale[Number(key.split('.')[1])] = n;
-            else if (key === 'path-start' && e.path)
-                retimePath(e, n, e.path.points.at(-1)!.time);
-            else if (key === 'path-end' && e.path)
-                retimePath(e, e.path.points[0].time, n);
-            else if (key === 'path-smooth' && e.path)
-                e.path.smooth = value === 'true';
-            else if (key.startsWith('target.') && e.camera)
-                e.camera.target[Number(key.split('.')[1])] = n;
-            else if (key.startsWith('offset.') && e.camera)
-                e.camera.offset[Number(key.split('.')[1])] = n;
-            else if (key.startsWith('camera.') && e.camera) {
-                const c = e.camera;
-                switch (key.slice(7)) {
-                    case 'aim':
-                        if (value === 'manual') {
-                            const camera = ctx.engine.cameras.get(e.id)!, base = camera.userData.directorBasePose;
-                            const r = base ? new T.Euler().setFromQuaternion(new T.Quaternion().fromArray(base.quaternion)) : camera.rotation;
-                            e.rotation = [r.x, r.y, r.z];
-                        }
-                        c.aim = value as typeof c.aim;
-                        break;
-                    case 'focal':
-                        c.focal = n;
-                        if (c.effects) { delete c.effects.channels?.focal; c.effects.dollyZoom = null; }
-                        break;
-                    case 'targetHeight':
-                        c.targetHeight = n;
-                        break;
-                    case 'targetId':
-                        if (!value && c.mode !== 'free') freezeCamera(ctx.engine, e);
-                        c.targetId = value;
-                        break;
-                    case 'mode':
-                        if (value === c.mode) break;
-                        if (value === 'free') { freezeCamera(ctx.engine, e); break; }
-                        if (value !== 'free' && !c.targetId)
-                            c.targetId = ctx.project.entities.find(t => t.kind === 'actor')?.id ?? ctx.project.entities.find(t => t.kind !== 'camera')?.id ?? '';
-                        if (!c.targetId) throw new Error('先添加人物或道具，再设置跟随／POV');
-                        c.mode = value as typeof c.mode;
-                        if (value === 'pov')
-                            c.offset = [0, 1.67, .13];
-                        if (value === 'follow')
-                            c.offset = [0, 1.5, -2];
-                        break;
-                    case 'inheritRotation':
-                        c.inheritRotation = value === 'true';
-                        break;
-                }
-            }
-        }, key.startsWith('parameters.') || key.startsWith('assetParameters.') || ['color','gender','count','spacing','seed'].includes(key)
+        }
+    }
+    function applyField(key: string, value: string) {
+        const e = ctx.current(); if (!e || e.locked && key !== 'locked') return;
+        ctx.change(() => mutateField(key, value), key.startsWith('parameters.') || key.startsWith('assetParameters.') || ['color','gender','count','spacing','seed'].includes(key)
             || e.kind==='crowd' && ['height','build'].includes(key));
     }
     function deleteEntity(id: string, replacement?: string) {
@@ -334,5 +336,5 @@ export function createEditingTools(ctx: AppContext) {
         ctx.renderCameras();
         ctx.toast('已调整机位与焦距；请检查室内墙体遮挡');
     }
-    return { addAsset, makeCamera, startPath, addGroundPoint, finishPath, cancelPath, replaceAction, retimePath, applyField, deleteEntity, seatApply, applyMotion, applyFraming };
+    return { addAsset, makeCamera, startPath, addGroundPoint, finishPath, cancelPath, replaceAction, retimePath, applyField, mutateField, deleteEntity, seatApply, applyMotion, applyFraming };
 }

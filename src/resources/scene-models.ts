@@ -17,10 +17,12 @@ import { sampleHumanAction, sampleHumanBody } from '../assets/human-animation.ts
 import { usesMaterialTransition } from '../animation/transition-plan.ts';
 import { BasicHumanMotion, hasBasicHumanMotion } from '../animation/basic-human-motion.ts';
 import { assertModelNodeBindings } from './model-node-edits.ts';
+import { sameModelPackage } from './package-validation.ts';
+import type { ModelPackage } from './model-package.ts';
 
 /** Prepared sources survive synchronous scene rebuilds and undo; instances never share mutable bones/materials. */
 export class SceneModels {
-    private sources = new Map<string, { model: LoadedModel; fingerprint: string }>();
+    private sources = new Map<string, { model: LoadedModel; package: ModelPackage }>();
     private instances = new Map<string, { instance: ModelInstance; motion: ModelMotion; root: T.Group; sourceHeight: number; poseKey: string }>();
     private preparation = Promise.resolve();
     private retargets = new RetargetRuntime(id => this.loaded(id));
@@ -40,21 +42,22 @@ export class SceneModels {
         this.preparation = task.catch(() => {}); return task;
     }
     private async prepareSources(project: Project, signal?: AbortSignal) {
-        const staged = new Map<string, { model: LoadedModel; fingerprint: string }>();
+        const staged = new Map<string, { model: LoadedModel; package: ModelPackage }>();
         try {
             for (const resource of project.resources ?? []) {
-                signal?.throwIfAborted(); const fingerprint = JSON.stringify(resource.package), old = this.sources.get(resource.id);
-                if (old?.fingerprint === fingerprint) continue;
+                signal?.throwIfAborted(); const old = this.sources.get(resource.id);
+                if (old && sameModelPackage(old.package, resource.package)) continue;
                 if (old) throw Error('相同模型资源 ID 对应了不同内容');
                 if (await modelResourceId(resource.package) !== resource.id) throw Error('模型资源内容与标识不匹配');
                 const { loadModelPackage } = await import('./model-loader.ts');
-                const model = await loadModelPackage(resource.package, signal); staged.set(resource.id, { model, fingerprint });
+                const model = await loadModelPackage(resource.package, signal); staged.set(resource.id, { model, package: structuredClone(resource.package) });
             }
             signal?.throwIfAborted();
             for (const entity of project.entities) if (entity.external) {
                 const source = staged.get(entity.external.resourceId) ?? this.sources.get(entity.external.resourceId);
                 if (source) {
                     const info = source.model.inspection;
+                    if (!info.meshes) throw Error('独立动作资源不能作为场景模型放置，请应用到已有的人物');
                     assertRigBindings(entity.external.rig, entity.external.defaultPose, info.bones);
                     assertNativeBindings(entity, info.animations, info.nodes);
                     assertModelNodeBindings(entity.external.nodeEdits, info.nodes);
@@ -67,9 +70,10 @@ export class SceneModels {
         } catch (error) { staged.forEach(value => value.model.dispose()); throw error; }
     }
     assertReady(project: Project) {
-        for (const resource of project.resources ?? []) if (this.sources.get(resource.id)?.fingerprint !== JSON.stringify(resource.package)) throw Error('请先完成工程模型资源加载');
+        for (const resource of project.resources ?? []) { const source = this.sources.get(resource.id); if (!source || !sameModelPackage(source.package, resource.package)) throw Error('请先完成工程模型资源加载'); }
         for (const entity of project.entities) if (entity.external) {
             const info = this.sources.get(entity.external.resourceId)!.model.inspection;
+            if (!info.meshes) throw Error('独立动作资源不能作为场景模型放置，请应用到已有的人物');
             assertRigBindings(entity.external.rig, entity.external.defaultPose, info.bones);
             assertNativeBindings(entity, info.animations, info.nodes);
             assertModelNodeBindings(entity.external.nodeEdits, info.nodes);

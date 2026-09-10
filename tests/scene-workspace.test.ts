@@ -8,6 +8,31 @@ import { ResourceRecovery } from '../src/resources/resource-recovery.ts';
 import { packModelFiles } from '../src/resources/model-package.ts';
 import { modelResourceId } from '../src/resources/project-resources.ts';
 
+test('editor history restores selection on undo, redo and rollback', () => {
+    let project=demoProject(),selected=project.entities[0].id;
+    const history=new SceneWorkspace(project,()=>({time:0,preview:'program',selected}));
+    history.begin(project);project.name='Changed';selected=project.entities[1].id;history.commit(project);
+    project=history.undo(project)!;assert.equal(history.restoredSelection,project.entities[0].id);selected=history.restoredSelection!;
+    project=history.redo(project)!;assert.equal(history.restoredSelection,project.entities[1].id);selected=history.restoredSelection!;
+    history.begin(project);selected=project.entities[2].id;history.rollback();assert.equal(history.restoredSelection,project.entities[1].id);
+});
+
+test('transaction snapshot isolates working edits and preserves the exact starting state on rollback', t => {
+    const project=demoProject(),history=new SceneWorkspace(project,()=>({time:0,preview:'program',selected:project.entities[0].id}));
+    const committed=history.document();project.name='Working state';
+    project.references=[{id:'test-ref',name:'Reference',data:'data:image/png;base64,AAAA'}];
+    const before=clone(project),nativeClone=globalThis.structuredClone;let projectCopies=0;
+    t.mock.method(globalThis,'structuredClone',(value:unknown)=>{if((value as {format?:string})?.format==='director-desk')projectCopies++;return nativeClone(value);});
+    history.begin(project);assert.equal(projectCopies,1,'begin copies the full project once, including resource packages');
+    project.entities[0].position[0]+=10;project.references[0].name='Edited';
+    assert.deepEqual(history.pending,before);assert.notEqual(history.pending,project);
+    assert.deepEqual(history.rollback(),before);assert.deepEqual(history.document(),committed);
+    const working=history.project();history.begin(working);const replacement=clone(working);replacement.name='Replaced';history.commit(replacement);
+    replacement.entities[0].position[0]+=20;assert.notDeepEqual(history.project(),replacement,'committed snapshots are isolated from replacement objects');
+    assert.deepEqual(history.undo(replacement),working);
+    assert.equal(history.redo(working)!.name,'Replaced');
+});
+
 test('editor adapter preserves scene names, project title, selection/time and document history across independent edits', () => {
     let project = demoProject(), view = { time: 3, preview: 'program', selected: project.entities[0].id };
     const workspace = new SceneWorkspace(project, () => view), initial = workspace.document();

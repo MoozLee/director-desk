@@ -21,8 +21,8 @@ try {
     const page = await app.firstWindow();
     // Electron's native will-prevent-unload handler owns this dialog, not CDP.
     page.on('dialog', () => {});
-    await page.waitForSelector('#file-locations-open');
-    await page.locator('#file-locations-open').click();
+    await page.waitForSelector('#settings-toggle');
+    await page.locator('#settings-toggle').click(); await page.locator('[data-setting="files"]').click();
     assert.equal(await page.locator('#location-projects').inputValue(), projects);
     assert.equal(await page.locator('#location-exports').inputValue(), exports);
     await page.locator('[data-location="projects"]').click();
@@ -30,6 +30,23 @@ try {
     assert.equal(JSON.parse(await fs.readFile(path.join(profile, 'file-locations.json'))).projects, chosen);
     await page.screenshot({ path: path.join(root, 'locations.png') });
     await page.locator('.modal-footer [data-act="close-modal"]').click();
+    // Exercise real renderer -> preload -> IPC -> filesystem delivery, with no save dialog.
+    await page.locator('[data-act="export"]').click();
+    await page.locator('#export-name').fill('renamed-export');
+    await page.locator('#export-end').fill('.25');
+    await page.locator('#export-size').selectOption('640');
+    assert.equal(await page.locator('#export-save').inputValue(), 'default');
+    await page.locator('[data-act="export-start"]').click();
+    await page.waitForSelector('.export-modal', { state: 'detached', timeout: 60000 });
+    assert.ok((await fs.stat(path.join(exports, 'renamed-export.mp4'))).size > 1000);
+    const duplicate = await page.evaluate(async () => window.directorDesktop.files('save-export', {
+        name: 'renamed-export.mp4', bytes: new Uint8Array([1,2,3]).buffer,
+    }));
+    assert.deepEqual(duplicate, { ok: true, data: { saved: true, filename: 'renamed-export (2).mp4' } });
+    const badName = await page.evaluate(async () => window.directorDesktop.files('save-export', {
+        name: '../escape.mp4', bytes: new Uint8Array([1,2,3]).buffer,
+    }));
+    assert.equal(badName.ok, false);
     await page.locator('#duration').fill('36'); await page.locator('#duration').press('Tab');
     const attemptClose = async () => {
         await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].close(); });
@@ -62,7 +79,7 @@ try {
     try {
         await second.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 1; });
         const reopened = await second.firstWindow(); reopened.on('dialog', () => {});
-        await reopened.waitForSelector('#file-locations-open');
+        await reopened.waitForSelector('#settings-toggle');
         const locations = await reopened.evaluate(() => window.directorDesktop.files('locations'));
         assert.equal(locations.data.projects, chosen); assert.equal(locations.data.exports, exports);
         await reopened.locator('#duration').fill('37'); await reopened.locator('#duration').press('Tab');
@@ -71,5 +88,5 @@ try {
         await discarded;
         assert.equal(JSON.parse(await fs.readFile(path.join(root, 'saved.director'))).scenes[0].state.duration, 36);
     } finally { await second.close().catch(() => {}); }
-    console.log(JSON.stringify({ ok: true, checks: ['native directory settings', 'restart preserves folders', 'cancel exit', 'cancel save stays open', 'write failure stays open', 'export default directory', 'save finishes before exit', 'discard leaves saved file unchanged'] }));
+    console.log(JSON.stringify({ ok: true, checks: ['native directory settings', 'restart preserves folders', 'cancel exit', 'cancel save stays open', 'write failure stays open', 'actual named video export to default directory', 'IPC preserves existing files and rejects paths', 'save finishes before exit', 'discard leaves saved file unchanged'] }));
 } finally { if (!closed) await app.close().catch(() => {}); }

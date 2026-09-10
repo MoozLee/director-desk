@@ -24,15 +24,15 @@ try {
     await page.locator('#update-panel summary').click();
     assert.equal(await page.locator('#update-source').inputValue(), 'auto');
     await page.locator('#update-source').selectOption('github');
-    await page.locator('#update-auto').uncheck(); await page.locator('#update-save').click();
+    await page.locator('#update-save').click();
     await page.waitForFunction(() => document.querySelector('#update-message').value.includes('已保存'));
-    const result = await page.evaluate(() => window.directorDesktop.update('state')); assert.equal(result.data.config.automatic, false); assert.equal(result.data.config.source, 'github');
+    const result = await page.evaluate(() => window.directorDesktop.update('state')); assert.equal(result.data.config.automatic, true); assert.equal(result.data.config.source, 'github');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 720));
     const overflow = await page.locator('#update-panel').evaluate(p => {
         const b = p.getBoundingClientRect(); return { panel: p.scrollHeight > p.clientHeight + 1, controls: [...p.querySelectorAll('button,input,textarea,select')].filter(e => e.getClientRects().length).some(e => { const r = e.getBoundingClientRect(); return r.bottom > b.bottom || r.right > b.right; }) };
     }); assert.deepEqual(overflow, { panel: false, controls: false });
     await page.screenshot({ path: 'tmp/update-desktop.png' }); await page.reload(); await page.waitForSelector('#update-toggle');
-    const again = await page.evaluate(() => window.directorDesktop.update('state')); assert.equal(again.data.config.automatic, false); assert.equal(again.data.config.source, 'github');
+    const again = await page.evaluate(() => window.directorDesktop.update('state')); assert.equal(again.data.config.automatic, true); assert.equal(again.data.config.source, 'github');
     const download = async cache => app.evaluate(async (_electron, { repo, directory, url, cache }) => {
         const req = process.getBuiltinModule('module').createRequire(repo + '/package.json');
         const { NsisUpdater } = req('electron-updater/out/NsisUpdater');

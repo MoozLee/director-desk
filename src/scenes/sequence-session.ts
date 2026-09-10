@@ -24,7 +24,7 @@ export class SceneSession {
     get redoLabel(): SceneHistoryLabel | null { return clone(this.#redo.at(-1)?.action ?? null); }
     get undoCount() { return this.#undo.length; }
     get redoCount() { return this.#redo.length; }
-    sceneList() { return this.#document.scenes.map(({ id, name, state, origin }) => ({ id, name, duration: state.duration, fps: state.fps, entityCount: state.entities.length, hasOrigin: !!origin })); }
+    sceneList() { return this.#document.scenes.map(({ id, name, state, origin }) => ({ id, name, duration: state.duration, fps: state.fps, aspect: state.aspect, entityCount: state.entities.length, hasOrigin: !!origin })); }
     exportDocument(): SceneDocument { return clone(this.#document); }
     project(id = this.#document.activeSceneId): Project {
         // The session owns already-validated snapshots. Only the requested scene escapes, as a copy.
@@ -75,9 +75,10 @@ export class SceneSession {
             if (view.preview !== 'program' && !scene.state.entities.some(e => e.id === view.preview && e.kind === 'camera')) view.preview = 'program';
         }
     }
-    begin(context: SceneContext = this.context): SceneTransaction {
+    begin(context: SceneContext = this.context, source?: Project): SceneTransaction {
         this.#idle(); this.#check(context);
-        const token = Object.freeze({ ...context, project: this.project(context.sceneId) });
+        // The editor can supply its working state; one isolated copy also serves its rollback.
+        const token = Object.freeze({ ...context, project: source ? clone(source) : this.project(context.sceneId) });
         this.#pending = { token, before: this.#snapshot() }; return token;
     }
     #transaction(token: SceneTransaction) {

@@ -38,6 +38,7 @@ export interface MotionPath {
 }
 export interface Clip {
     id: string;
+    name?: string;
     start: number;
     end: number;
     action: Action | 'native' | 'retarget';
@@ -143,7 +144,7 @@ export interface Project {
 export const ASPECTS = ['9:16', '16:9', '21:9', '3:4', '4:3', '1:1'];
 export const FRAME_RATES = [24, 30, 50, 59, 60, 90, 120];
 export const ACTIONS: Record<Action, string> = { idle: '站立 / 待机', walk: '走路', run: '跑步', sit: '坐姿', standup: '起身', crouch: '蹲下', crawl: '爬行', jump: '跳跃', lie: '躺下', fall: '倒地', wave: '挥手', point: '指向', turn: '转身' };
-export const clipLabel = (c: Clip) => c.action === 'retarget' ? builtinMotionName(c) ?? `适配动作 ${c.retarget!.index + 1}` : c.action === 'native' ? `原生动画 ${c.native!.index + 1}` : ACTIONS[c.action];
+export const clipLabel = (c: Clip) => c.name ?? (c.action === 'retarget' ? builtinMotionName(c) ?? `适配动作 ${c.retarget!.index + 1}` : c.action === 'native' ? `原生动画 ${c.native!.index + 1}` : ACTIONS[c.action]);
 export const JOINTS = JOINT_LABELS;
 export const COLORS = ['#a7bdd7', '#b8c7b3', '#d1bfa0', '#c5b3c9', '#d0d2d0', '#bdaca4'];
 export const uid = () => crypto.randomUUID();
@@ -263,6 +264,7 @@ export function assertProject(input: unknown): asserts input is Project {
             assertNativeClip(c, !!e.external);
             assertRetargetClip(c, e, p);
             if ([c.offset,c.progressOffset,c.sourceDuration,c.turnAmount].some(v=>v!==undefined && (!n(v)||v<0)) || (c.sourceDuration!==undefined && c.sourceDuration<=0)) fail('动作分割参数错误');
+            if (c.name !== undefined && (typeof c.name !== 'string' || !c.name.trim() || c.name.length > 100)) fail('动作片段名称无效');
             if (!safeId(c.id) || (!['native', 'retarget'].includes(c.action) && !Object.hasOwn(ACTIONS,c.action)) || ![c.start, c.end, c.speed].every(n) || c.start < 0 || c.end <= c.start || c.speed <= 0 || (i > 0 && c.start < clips[i - 1].end))
                 fail('动作时间重叠或范围错误');
         }

@@ -24,6 +24,7 @@ function attachFiles(window) {
             if (input?.action === 'locations') return { ok: true, data: host.read() };
             if (input?.action === 'choose') return { ok: true, data: await host.choose(input.data) };
             if (input?.action === 'save-project') return { ok: true, data: await host.saveProject(input.data) };
+            if (input?.action === 'save-export') return { ok: true, data: await host.saveExport(input.data) };
             throw Error('未知文件操作');
         } catch (e) { return { ok: false, error: e.code ? '文件操作失败，请检查目录权限、磁盘空间或文件占用。工程仍保留在编辑器中。' : e.message }; }
     });

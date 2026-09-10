@@ -1,4 +1,4 @@
-import { clone, type Project } from '../model.ts';
+import type { Project } from '../model.ts';
 import type { EditorHistory, ResourceOwner } from '../storage.ts';
 import { SceneSession, type SceneContext, type SceneTransaction, type SceneView } from './sequence-session.ts';
 import { readSceneDocument, type SceneDocument } from './sequence-project.ts';
@@ -34,7 +34,7 @@ export class SceneWorkspace implements EditorHistory {
     rememberView() { this.#session.setView(this.#view()); }
     begin(project: Project) {
         if (this.pending) return;
-        this.rememberView(); this.#transaction = this.#session.begin(); this.#before = clone(project); this.restoredView = undefined;
+        this.rememberView(); this.#transaction = this.#session.begin(this.context, project); this.#before = this.#transaction.project; this.restoredView = undefined;
     }
     commit(project: Project) {
         if (!this.#transaction) return;

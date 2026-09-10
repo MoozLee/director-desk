@@ -3,6 +3,7 @@ import { assertProject, clone, entity, type Entity, type Project, type Vec3 } fr
 import { assertLockedEntitiesUnchanged } from '../editor/invariants.ts';
 import { includeMotionResources, insertBuiltinMotion } from '../animation/motion-presets.ts';
 import { motionPreset } from '../animation/motion-catalog.ts';
+import { includeUserMotionResource, insertUserMotion, isUserMotion, type UserMotionAsset } from '../animation/user-motion.ts';
 import { syncStructureLinks } from '../building/structure-links.ts';
 import { syncFloorElevations } from '../building/floors.ts';
 import { removeCameraVisibilityReference } from '../scenes/camera-visibility.ts';
@@ -35,7 +36,7 @@ function patchEntity(target: Entity, value: Record<string, unknown> | undefined)
             : `资产 ${target.asset} 没有可编辑的 assetParameters；请查询资产详情或使用 patch.scale。`);
     patch(target, value, editable);
 }
-export function applyOperations(original: Project, operations: EditOperation[]): Project {
+export function applyOperations(original: Project, operations: EditOperation[], userMotions: ReadonlyMap<string, UserMotionAsset> = new Map()): Project {
     if (!Array.isArray(operations) || !operations.length || operations.length > 100) throw new Error('每批需要 1—100 个操作');
     const project = clone(original);
     for (const [index, op] of operations.entries()) {
@@ -68,7 +69,12 @@ export function applyOperations(original: Project, operations: EditOperation[]):
         } else if (op.operation === 'replace-prop') replaceProp(project, op.id ?? '', op.asset ?? '', op.patch as ReplacePropOptions | undefined);
         else if (op.operation === 'resource') editResourceMetadata(project, op.id ?? '', op.patch);
         else if (op.operation === 'resource-remove') removeUnusedResource(project, op.id ?? '');
-        else if (op.operation === 'motion') insertBuiltinMotion(project, op.id ?? '', op.asset ?? '', op.time ?? 0, op.duration);
+        else if (op.operation === 'motion') {
+            if (isUserMotion(op.asset)) {
+                const asset = userMotions.get(op.asset!); if (!asset) throw Error('用户动作不可用；在线请查询用户动作库，离线请使用嵌入资源和 retarget 片段');
+                insertUserMotion(project, op.id ?? '', asset.motion, op.time ?? 0, op.duration);
+            } else insertBuiltinMotion(project, op.id ?? '', op.asset ?? '', op.time ?? 0, op.duration);
+        }
         else if (op.operation === 'camera-motion') applyCameraMotion(project, op.id ?? '', op.asset ?? '', op.time ?? 0, op.duration ?? 5, op.patch as CameraMotionOptions | undefined);
         else if (op.operation === 'lighting-preset') project.lighting = lightingPreset(op.asset ?? '');
         else if (op.operation === 'project') patch(project, op.patch, new Set(['name', 'duration', 'fps', 'aspect', 'room', 'floors', 'zones', 'editorView', 'creationMode', 'referenceLabels', 'lighting']));
@@ -80,10 +86,17 @@ export function applyOperations(original: Project, operations: EditOperation[]):
     syncFloorElevations(project, original); syncStructureLinks(project, original);
     assertLockedEntitiesUnchanged(original, project); assertProject(project); return project;
 }
-export async function applyOperationsWithResources(original: Project, operations: EditOperation[]) {
+export async function applyOperationsWithResources(original: Project, operations: EditOperation[], userMotions: ReadonlyMap<string, UserMotionAsset> = new Map()) {
     if (!Array.isArray(operations) || !operations.length || operations.length > 100) throw Error('每批需要 1—100 个操作');
-    const prepared = operations.some(op => op?.operation === 'motion' && !motionPreset(op.asset ?? '').basicAction) ? await includeMotionResources(original) : original;
-    return applyOperations(prepared, operations);
+    let prepared = operations.some(op => op?.operation === 'motion' && !isUserMotion(op.asset) && !motionPreset(op.asset ?? '').basicAction) ? await includeMotionResources(original) : original;
+    if (operations.some(op => op?.operation === 'motion' && isUserMotion(op.asset))) {
+        prepared = clone(prepared);
+        for (const op of operations) if (op.operation === 'motion' && isUserMotion(op.asset)) {
+            const asset = userMotions.get(op.asset!); if (!asset) throw Error('用户动作不可用，请重新查询用户动作库');
+            includeUserMotionResource(prepared, asset);
+        }
+    }
+    return applyOperations(prepared, operations, userMotions);
 }
 export function changeSummary(before: Project, after: Project) {
     const old = new Map(before.entities.map(e => [e.id, e])), fresh = new Map(after.entities.map(e => [e.id, e]));

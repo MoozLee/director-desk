@@ -1,17 +1,21 @@
+import { finishStarterScene, type StarterScene } from './scenes/starter-details.ts';
 import { demoProject, entity, type Project, type Vec3 } from './model.ts';
+import { createFeatureScene, FEATURE_SCENES, type FeatureScene } from './scenes/feature-showcases.ts';
 
 export const SCENE_TEMPLATES = [
-    { id: 'bedroom', name: '卧室 · 四人调度', type: '室内', detail: '家具、四个人物、三机位和示例时间轴' },
-    { id: 'room', name: '空房间', type: '室内', detail: '8 × 6 米房间，从零布置家具和人物' },
-    { id: 'park', name: '林地空地', type: '室外', detail: '40 × 40 米地面，树木、岩石和长椅' },
-    { id: 'street', name: '街道', type: '室外', detail: '道路、独立楼体、路灯和车辆简模' },
-    { id: 'courtyard', name: '庭院', type: '室外', detail: '围墙、出入口、台阶、树木和桌椅' },
+    ...FEATURE_SCENES,
+    { id: 'bedroom', name: '卧室 · 四人调度', type: '室内', detail: '窗光与床头暖灯、家具配色、四人调度' },
+    { id: 'room', name: '空房间', type: '室内', detail: '8 × 6 米，窗光、墙裙和木地板，留空布置' },
+    { id: 'park', name: '林地空地', type: '室外', detail: '前后景树群、林间步道、长椅与双人调度' },
+    { id: 'street', name: '街道', type: '室外', detail: '黄昏商铺、雨棚与花盆、人行道和路灯' },
+    { id: 'courtyard', name: '庭院', type: '室外', detail: '入口门架、格栅凉棚、花坛与台阶平台' },
     { id: 'blank', name: '空白场地', type: '自由搭建', detail: '仅地面和摄影机，所有内容由你摆放' },
 ] as const;
 export type SceneTemplate = typeof SCENE_TEMPLATES[number]['id'];
 
 export function createScene(template: SceneTemplate): Project {
-    if (template === 'bedroom') return demoProject();
+    if (FEATURE_SCENES.some(t => t.id === template)) return createFeatureScene(template as FeatureScene);
+    if (template === 'bedroom') return finishStarterScene(demoProject(), 'bedroom');
     const p = demoProject();
     p.name = SCENE_TEMPLATES.find(t => t.id === template)?.name ?? '空白场地';
     p.entities = []; p.references = [];
@@ -51,5 +55,5 @@ export function createScene(template: SceneTemplate): Project {
     if (template === 'street') { camera.position = [0, 1.7, 12]; camera.camera!.target = [0, 1.3, -4]; }
     if (template === 'courtyard') camera.position = [0, 1.7, 5];
     p.entities.push(camera); p.cuts = [{ time: 0, cameraId: camera.id }];
-    return p;
+    return template === 'blank' ? p : finishStarterScene(p, template as StarterScene);
 }

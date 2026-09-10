@@ -1,4 +1,5 @@
-import { unpackModelFiles, type ModelPackage } from './model-package.ts';
+import type { ModelPackage } from './model-package.ts';
+import { assertResourcePackage } from './package-validation.ts';
 import type { Entity, Project, Vec3 } from '../model.ts';
 import { assertRigDefinition, rigStatus, type HumanoidRig, type ModelRestPose } from './rig-definition.ts';
 import { assertModelNodeEdits, type ModelNodeEdits } from './model-node-edits.ts';
@@ -37,7 +38,7 @@ export function assertModelResources(project: Project) {
     for (const resource of project.resources) {
         assertResourceHeader(resource);
         if (ids.has(resource.id)) throw Error('模型资源标识重复');
-        unpackModelFiles(resource.package); ids.add(resource.id);
+        assertResourcePackage(resource.id, resource.package); ids.add(resource.id);
     }
 }
 export function assertExternalModel(entity: Entity, project: Project) {

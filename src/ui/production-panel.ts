@@ -50,7 +50,7 @@ export function createProductionPanel(ctx: AppContext) {
     }
     function openReferences() {
         const actors = ctx.project.entities.filter(e => e.kind === 'actor'), refs = ctx.project.references.map(r => [r.id, r.name] as [string, string]);
-        ctx.showModal('角色与参考图', `<div class="production-reference-controls"><label>角色<select id="production-actor">${options(actors.map(e => [e.id, e.name]), actors.some(e => e.id === ctx.selected) ? ctx.selected : actors[0]?.id ?? '')}</select></label><label>角色参考图<select id="production-reference">${options([['', '未关联'], ...refs], '')}</select></label></div><div id="production-reference-preview"></div><label>场景参考图<select id="production-scene-reference">${options([['', '选择场景参考图'], ...refs], '')}</select></label><div class="spatial-toolbar">${button('production-add-scene-reference', '加入场景参考', 'plus', 'subtle')}${button('production-remove-scene-reference', '移出场景参考', '', 'subtle')}</div><textarea id="production-scene-list" readonly aria-label="场景参考列表"></textarea><p>图片从左侧“参考”页添加。角色沿用现有对象参考图关联，场景可关联多张。</p>`, button('production-notes', '返回备注', '', 'subtle') + button('production-delivery', '素材包导出', 'download', 'subtle'));
+        ctx.showModal('角色与参考图', `<div class="production-reference-controls"><label>角色<select id="production-actor">${options(actors.map(e => [e.id, e.name]), actors.some(e => e.id === ctx.selected) ? ctx.selected : actors[0]?.id ?? '')}</select></label><label>角色参考图<select id="production-reference">${options([['', '未关联'], ...refs], '')}</select></label></div><div id="production-reference-preview"></div><label>场景参考图<select id="production-scene-reference">${options([['', '选择场景参考图'], ...refs], '')}</select></label><div class="spatial-toolbar">${button('production-add-scene-reference', '加入场景参考', 'plus', 'subtle')}${button('production-remove-scene-reference', '移出场景参考', '', 'subtle')}</div><textarea id="production-scene-list" readonly aria-label="场景参考列表"></textarea><p>图片从左侧“参考”页添加。角色沿用现有对象参考图关联，场景可关联多张。</p>`, button('production-delivery', '素材包导出', 'download', 'subtle'));
         $('.modal').classList.add('production-modal');
         const update = () => {
             const actor = ctx.project.entities.find(e => e.id === $('#production-actor').value), reference = ctx.project.references.find(r => r.id === actor?.reference);
@@ -64,7 +64,7 @@ export function createProductionPanel(ctx: AppContext) {
     }
     function openDelivery() {
         ctx.showModal('导出制作素材包', `<label>固定提示词头<textarea id="production-fixed-prompt" maxlength="50000" placeholder="粘贴项目已确认的风格、声音与表演要求"></textarea></label><label class="range-occlusion"><input id="production-with-video" type="checkbox" checked/>包含按切镜输出的整场 MP4（无声参考）</label><label>视频分辨率<select id="production-video-size">${options([['1920', '1080p 级'], ['1280', '720p 级'], ['640', '360p 级']], '1920')}</select></label><p>ZIP 内的工程包含全部独立戏段；逐场提示词包含各戏段已保存的文稿；视频、参考图、角色对应关系、切镜及剧情备注只导出当前戏段。备注不自动烧录为字幕或配音。</p><p id="production-progress" role="status">固定头编辑后离开输入框会保存到工程。导出过程中可以取消。</p>`,
-            button('production-export-bundle', '导出 ZIP', 'download', 'primary') + button('production-cancel', '取消导出', '', 'subtle', 'disabled') + button('production-prompt', '视频提示词', '', 'subtle') + button('production-notes', '返回备注', '', 'subtle'));
+            button('production-export-bundle', '导出 ZIP', 'download', 'primary') + button('production-cancel', '取消导出', '', 'subtle', 'disabled') + button('production-prompt', '视频提示词', '', 'subtle'));
         $('.modal').classList.add('production-modal'); $('#production-fixed-prompt').value = productionData(ctx.project).fixedPrompt;
         $('#production-fixed-prompt').addEventListener('change', () => ctx.change(() => { ctx.project.production ??= productionData(ctx.project); ctx.project.production.fixedPrompt = $('#production-fixed-prompt').value; }, false));
     }
@@ -83,7 +83,7 @@ export function createProductionPanel(ctx: AppContext) {
         promptSceneName = ctx.scenes.list().find(scene => scene.id === promptSceneId)!.name;
         promptOriginal = productionData(ctx.project).promptText ?? '';
         ctx.showModal(`${escape(promptSceneName)} · 视频提示词`, `<label class="production-prompt-field">完整提示词<textarea id="production-prompt-text" maxlength="100000" placeholder="本场还没有保存提示词。可让 AI 为本场生成，也可手动粘贴。"></textarea></label><p>各戏段分别保存，可撤销。修改剧情、画幅或切镜后，请同步更新这份文稿；导出素材包会附带各戏段已保存的提示词。</p>`,
-            button('production-download-prompt', '导出 TXT', 'download', 'primary') + button('production-copy-prompt', '复制全文', '', 'subtle') + button('production-delivery', '素材包导出', '', 'subtle') + button('production-notes', '返回备注', '', 'subtle'));
+            button('production-download-prompt', '导出 TXT', 'download', 'primary') + button('production-copy-prompt', '复制全文', '', 'subtle') + button('production-delivery', '素材包导出', '', 'subtle'));
         $('.modal').classList.add('production-modal'); $('#production-prompt-text').value = productionData(ctx.project).promptText ?? '';
         $('#production-prompt-text').focus();
         $('#production-prompt-text').addEventListener('change', savePrompt);

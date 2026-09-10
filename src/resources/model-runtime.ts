@@ -59,8 +59,7 @@ export function adoptModel(source: ModelSource, copyright: string, warnings: str
 
 function inspect(source: ModelSource, copyright: string, initialWarnings: string[]): ModelInspection {
     const root = source.scene; root.updateMatrixWorld(true);
-    const bounds = geometryBounds(root);
-    if (!bounds || bounds.isEmpty() || ![...bounds.min.toArray(), ...bounds.max.toArray()].every(Number.isFinite) || bounds.getSize(new T.Vector3()).length() < 1e-8) throw Error('模型没有可用的有限尺寸网格');
+    let bounds = geometryBounds(root);
     const paths = new Map<T.Object3D, string>();
     const visit = (node: T.Object3D, path: string) => { paths.set(node, path); node.children.forEach((child, i) => visit(child, path + '/' + i)); }; visit(root, '0');
     const movingNodes = new Set<T.Object3D>();
@@ -87,9 +86,15 @@ function inspect(source: ModelSource, copyright: string, initialWarnings: string
         if (node instanceof T.SkinnedMesh) skins++;
         if (node instanceof T.Bone) bones.push({ path: paths.get(node)!, name: node.name, parent: node.parent instanceof T.Bone ? paths.get(node.parent)! : null, position: node.getWorldPosition(new T.Vector3()).toArray(), quaternion: node.quaternion.toArray() });
     });
-    if (!meshes) throw Error('模型没有可用网格');
+    if (!meshes) {
+        if (!bones.length || !source.animations.some(a => Number.isFinite(a.duration) && a.duration > 0 && a.tracks.length))
+            throw Error('文件需要可用网格，或带动画的骨架');
+        bounds = new T.Box3().setFromPoints(bones.map(bone => new T.Vector3(...bone.position)));
+    }
+    if (!bounds || bounds.isEmpty() || ![...bounds.min.toArray(), ...bounds.max.toArray()].every(Number.isFinite) || bounds.getSize(new T.Vector3()).length() < 1e-8) throw Error('模型或动作骨架没有可用的有限尺寸');
     const warnings = [...initialWarnings];
-    if (!skins) warnings.push('未发现蒙皮骨架；可作为静态模型，不能直接使用人形动作。');
+    if (!meshes) warnings.push('独立骨架动作资源；用于动作适配，不作为场景模型放置。');
+    else if (!skins) warnings.push('未发现蒙皮骨架；可作为静态模型，不能直接使用人形动作。');
     else warnings.push('已保留蒙皮骨架；配置映射后仍需动作适配，不能仅凭骨骼存在判断动作兼容性。');
     if (source.scenes.length > 1) warnings.push('文件包含多个场景，当前使用其默认场景，原文件仍完整保留。');
     if (source.cameras.length) warnings.push('文件内摄影机仅保留在源资源中；导入实例使用导演台摄影机取景。');
@@ -117,7 +122,7 @@ function createInstance(source: ModelSource, descriptors: readonly ModelNodeDesc
         }
     });
     const override = new T.MeshStandardMaterial({ color: '#d9dcd7', roughness: .85 }); materials.add(override);
-    const mixer = new T.AnimationMixer(content); let disposed = false;
+    const mixer = new T.AnimationMixer(content); let disposed = false, appearanceKey = '';
     const reset = () => {
         nodeEdits.restore();
         mixer.stopAllAction(); mixer.setTime(0);
@@ -177,8 +182,11 @@ function createInstance(source: ModelSource, descriptors: readonly ModelNodeDesc
         setAppearance(mode, color = '#d9dcd7') {
             if (disposed) throw Error('模型实例已释放');
             if (!['original', 'white', 'color'].includes(mode) || !/^#[0-9a-f]{6}$/i.test(color)) throw Error('模型显示方式或颜色无效');
+            const key = mode + (mode === 'color' ? color.toLowerCase() : '');
+            if (appearanceKey === key) return;
             override.color.set(mode === 'white' ? '#d9dcd7' : color);
             for (const [mesh, material] of originals) mesh.material = mode === 'original' ? material : override;
+            appearanceKey = key;
         },
         dispose() {
             if (disposed) return; disposed = true; mixer.stopAllAction(); mixer.uncacheRoot(content);

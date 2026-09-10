@@ -8,7 +8,7 @@ export interface AgentEvent { type: string; text?: string; name?: string; status
 declare global {
     interface Window { directorDesktop?: {
         skills?(data: SkillRequest): Promise<DesktopResult<SkillResult>>;
-        files?(action: 'locations' | 'choose' | 'save-project', data?: unknown): Promise<DesktopResult<{ projects?: string; exports?: string; saved?: boolean }>>;
+        files?(action: 'locations' | 'choose' | 'save-project' | 'save-export', data?: unknown): Promise<DesktopResult<{ projects?: string; exports?: string; saved?: boolean; filename?: string }>>;
         onSaveBeforeClose?(callback: () => Promise<boolean>): () => void;
         update(action: 'state' | 'save' | 'check' | 'download' | 'install' | 'page', data?: unknown): Promise<DesktopResult<import('../updates/types.ts').UpdateState>>;
         onUpdate(callback: (state: import('../updates/types.ts').UpdateState) => void): () => void;

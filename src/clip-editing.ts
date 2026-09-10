@@ -39,6 +39,50 @@ export function setClipRange(p:Project,s:TimelineSelection,start:number,end:numb
         p.duration=Math.max(p.duration,end);
     }
 }
+/** Interactive dragging keeps a track valid without moving unrelated clips. */
+export function dragClipRange(p:Project,s:TimelineSelection,delta:number,resize=false):TimelineSelection {
+    const {start:a,end:b}=clipRange(p,s),frame=1/p.fps;
+    if(!Number.isFinite(delta))throw Error('拖动时间无效');
+    if(s.kind==='cut') {
+        if(resize) {
+            const shift=Math.max(a+frame,b+delta)-b;
+            p.cuts.slice(s.index+1).forEach(c=>c.time+=shift);
+            p.duration+=shift;
+        } else {
+            // Cuts form a continuous sequence: moving a shot inserts it elsewhere,
+            // retaining every shot's duration instead of sliding its left boundary.
+            const shots=p.cuts.map((cut,index)=>({cut,duration:(p.cuts[index+1]?.time??p.duration)-cut.time}));
+            let index=s.index;
+            if(delta>0)while(index<shots.length-1 && b+delta>(shots[index+1].cut.time+shots[index+1].duration/2))index++;
+            else if(delta<0)while(index>0 && a+delta<(shots[index-1].cut.time+shots[index-1].duration/2))index--;
+            if(index!==s.index) {
+                const [shot]=shots.splice(s.index,1);shots.splice(index,0,shot);
+                let time=0;
+                p.cuts=shots.map(({cut,duration})=>{const next={...cut,time};time+=duration;return next;});
+            }
+            return {kind:'cut',index};
+        }
+        return s;
+    }
+    const e=p.entities.find(e=>e.id===s.entityId)!;
+    const others=(s.kind==='action' ? e.clips.filter(c=>c.id!==s.id) : pathSections(e.path!).filter((_,i)=>i!==s.index))
+        .slice().sort((x,y)=>x.start-y.start);
+    if(resize) {
+        // The right handle stops at the next clip; shifting other performances is a separate edit.
+        const next=others.find(c=>c.start>=b-1e-8);
+        setClipRange(p,s,a,Math.min(next?.start??Infinity,Math.max(a+frame,b+delta)));
+    } else {
+        let start=Math.max(0,a+delta); const duration=b-a;
+        let end=start+duration;
+        for(const c of others) {
+            if(start>=c.end-1e-8){start=Math.max(start,c.end);end=start+duration;continue;}
+            if(end<=c.start+1e-8){end=Math.min(end,c.start);break;}
+            start=c.end;end=start+duration;
+        }
+        setClipRange(p,s,start,end);
+    }
+    return s;
+}
 /** Preserve the retained source interval when cutting or replacing part of an action. */
 export function sliceAction(c:Clip,start:number,end:number,newId=true):Clip {
     if(start<c.start || end>c.end || end<=start)throw Error('动作保留区间无效');

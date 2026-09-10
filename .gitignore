@@ -76,3 +76,12 @@ file-locations.json
 *.exe
 
 !/scripts/verify-curves-and-ai-changes.mjs
+!/scripts/verify-batch-export.mjs
+!/scripts/verify-user-motions.mjs
+
+!/scripts/verify-workspace-controls.mjs
+
+!/scripts/verify-timeline-performance.mjs
+!/scripts/verify-editor-maintenance.mjs
+!/scripts/verify-feature-scenes.mjs
+!/scripts/verify-inspector-layout.mjs

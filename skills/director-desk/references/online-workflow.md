@@ -22,6 +22,7 @@
 - add 使用真实 asset ID 并省略 kind；kind 只用于已有导入资源的 actor/prop。显式指定新 ID，可被同批后续动作、机位和切镜引用。目录的 parameters 是定义，尺寸值写入 parameterPatchField，通常为 assetParameters，旧 stairs/road/wall/ground 为 parameters。
 - `patch.camera` 合并提供的顶层字段，例如 `{focal:50,target:[0,1.2,0]}`；内部数组和其他嵌套对象整体替换，修改前读取原值。targetId:"" 解除跟随目标。
 - 坐姿、走路等粗略动作优先查询 basic 预设。`motion` 操作用 time/duration 安排，省略 duration 会使用短默认时长；整场坐姿覆盖实际导出区间。插入会寻找空闲区间。无需手 K 面部、手指，也不用默认安排脚部校正。
+- 用户已导入的动作按需用 `director_motions({source:"user",query:"所需动作",limit:20})` 查询；只返回本机收藏摘要，无素材字节。`complete:true` 的结果可把 id 原样用作 `motion.asset`，仍复用当前工程事务、预检与撤销。应用时源资源自动嵌入工程，之后不依赖本机收藏；无需同时扫描内置和用户全库。未完成映射的素材先由用户在动作库校正。
 - 米/秒，世界 +Y 向上、人物 +Z 向前；rotation 为弧度、pose 为度。路径用 `{smooth:false,points:[{time,position:[x,y,z]}]}`。颜色为 #RRGGBB。duration 支持小数，不把 24.5 秒无故延长至 25 秒。
 - `project.patch.referenceLabels:true/false` 开关参考视频中的名称标签，默认关闭；随戏段保存，摄影机预览、截图与视频共用。覆盖人物、群演组和胶囊占位，名称取实体 name；POV 不显示自身标签。标签仅作角色识别，配套生成提示词注明不要把标签变成成片字幕／文字。
 - cuts 的 value 为完整 `[{time:0,cameraId},...]`；notes 的 value 为完整 `{fixedPrompt:"",sceneReferenceIds:[],notes:[{id,start,end,actorId:"",story:"",emotion:"",dialogue:"",action:""}]}`。所有文字字段齐全，未写内容用空串。可附 promptText 保存本段完整提示词。保留原有备注、引用及未改的 promptText，不用 patch 替代 value。

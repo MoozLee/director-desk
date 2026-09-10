@@ -15,9 +15,11 @@ let window;
 const csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:; media-src 'self' data: blob:; worker-src 'self' blob:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 async function createWindow() {
+    const windowTitle = app.isPackaged ? '导演台' : '导演台 · 开发测试版';
     window = new BrowserWindow({ width: 1600, height: 1000, minWidth: 1000, minHeight: 720, show: false,
-        title: '导演台', backgroundColor: '#101214', icon: path.join(__dirname, 'icon.ico'),
+        title: windowTitle, backgroundColor: '#101214', icon: path.join(__dirname, 'icon.ico'),
         webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, spellcheck: false } });
+    if (!app.isPackaged) window.on('page-title-updated', event => { event.preventDefault(); window.setTitle(windowTitle); });
     const integration = attachIntegration(window), updates = attachUpdates(window, integration);
     const files = attachFiles(window);
     Menu.setApplicationMenu(null);

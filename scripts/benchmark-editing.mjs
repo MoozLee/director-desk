@@ -17,17 +17,23 @@ try {
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`);
     await page.waitForFunction(() => window.__director);
     const results = [];
-    for (const [objects, scenes] of [[80, 1], [240, 1], [240, 12]]) {
-        results.push(await page.evaluate(async ({ objects, scenes }) => {
+    for (const [objects, scenes, resources] of [[80, 1, false], [240, 1, false], [240, 12, false], [80, 6, true]]) {
+        results.push(await page.evaluate(async ({ objects, scenes, resources }) => {
             const { demoProject, entity, clone } = await import('/src/model.ts');
             const { readSceneDocument } = await import('/src/scenes/sequence-project.ts');
             const { SceneSession } = await import('/src/scenes/sequence-session.ts');
-            const api = window.__director, p = demoProject();
+            const api = window.__director; let p = demoProject();
             p.room.enabled = false; p.entities = p.entities.filter(e => e.kind === 'camera').slice(0, 1);
             p.cuts = [{ time: 0, cameraId: p.entities[0].id }];
             for (let i = 0; i < objects; i++) {
                 const e = entity(i % 12 === 0 ? 'actor' : 'prop', i % 12 === 0 ? 'person' : 'shape-box', `对象${i}`, [(i % 16) * 2 - 16, 0, Math.floor(i / 16) * 2 - 12]);
                 e.id = `object-${i}`; p.entities.push(e);
+            }
+            if(resources) {
+                const {includeMotionResources,insertBuiltinMotion}=await import('/src/animation/motion-presets.ts');
+                p=await includeMotionResources(p);
+                const actor=p.entities.find(e=>e.kind==='actor');actor.clips=[];insertBuiltinMotion(p,actor.id,'human-sit-idle-v1',0,4);
+                await api.getEngine().externalModels.prepare(p);
             }
             const doc = readSceneDocument(p);
             for (let i = 1; i < scenes; i++) doc.scenes.push({ ...clone(doc.scenes[0]), id: `scene-${i}`, name: `戏段${i}` });
@@ -55,8 +61,8 @@ try {
                 if (api.getDocument().activeSceneId !== select.value) throw Error('Scene switch failed');
             });
             const screenshot = engine.renderOutput(1, 640, 360).toDataURL(); engine.restorePreview(0);
-            return { objects, scenes, readMs, commitMs, rebuildMs, sampleMs, editMs: median(edits), switchMs, screenshot };
-        }, { objects, scenes }));
+            return { objects, scenes, resources, resourceBytes:JSON.stringify(p.resources??[]).length,readMs, commitMs, rebuildMs, sampleMs, editMs: median(edits), switchMs, screenshot };
+        }, { objects, scenes, resources }));
         const result = results.at(-1);
         await fs.writeFile(`tmp/editing-performance/${label}-${objects}-${scenes}.png`, Buffer.from(result.screenshot.split(',')[1], 'base64'));
         delete result.screenshot;
@@ -75,6 +81,12 @@ try {
                     renderer: extension ? gl.getParameter(extension.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
                     drawCalls: { stage: engine.editorRenderer.info.render.calls, shot: engine.shotRenderer.info.render.calls } });
             }; requestAnimationFrame(frame);
+        }));
+        result.idle=await page.evaluate(()=>new Promise(resolve=>{
+            const engine=window.__director.getEngine(),sample=engine.sample,render=engine.render,onFrame=engine.onFrame;let samples=0,renders=0,painted=0;
+            engine.sample=function(...args){samples++;return sample.apply(this,args);};engine.render=function(...args){renders++;return render.apply(this,args);};
+            engine.onFrame=function(){painted++;return onFrame.call(this);};
+            setTimeout(()=>{engine.sample=sample;engine.render=render;engine.onFrame=onFrame;resolve({samples,renders,painted,intervalMs:500});},500);
         }));
         console.log(JSON.stringify(result));
     }

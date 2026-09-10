@@ -11,13 +11,13 @@ try {
     await page.goto(process.env.DIRECTOR_URL || 'http://127.0.0.1:5183');
     await page.waitForFunction(() => !!window.__director);
     const original = await page.evaluate(() => window.__director.getProject());
-    await page.locator('#creation-mode').selectOption('geometry');
+    await page.locator('[data-creation-mode="geometry"]').click();
     assert.equal(await page.evaluate(() => window.__director.getProject().creationMode), 'geometry');
     assert.deepEqual(await page.evaluate(() => window.__director.getProject().entities), original.entities);
     await page.locator('[data-act="undo"]').click();
-    assert.equal(await page.locator('#creation-mode').inputValue(), 'full');
+    assert.equal(await page.locator('[data-creation-mode="full"]').getAttribute('aria-pressed'), 'true');
     await page.locator('[data-act="redo"]').click();
-    assert.equal(await page.locator('#creation-mode').inputValue(), 'geometry');
+    assert.equal(await page.locator('[data-creation-mode="geometry"]').getAttribute('aria-pressed'), 'true');
     const report = await page.evaluate(async () => {
         const call = async (name, args = {}) => { const r = await window.__director.callTool(name, args); if (!r.ok) throw Error(r.error); return r.data; };
         const before = await call('director_read');
@@ -105,11 +105,11 @@ try {
     const file = path.resolve('tmp/creation-mode/geometry.director');
     const downloadEvent = page.waitForEvent('download'); await page.locator('[data-act="save"]').click();
     await (await downloadEvent).saveAs(file);
-    await page.locator('#creation-mode').selectOption('full');
+    await page.locator('[data-creation-mode="full"]').click();
     await page.locator('#reference-labels').uncheck();
     await page.locator('#project-file').setInputFiles(file);
     await page.waitForFunction(() => window.__director.getProject().creationMode === 'geometry' && window.__director.getProject().referenceLabels === true);
-    assert.equal(await page.locator('#creation-mode').inputValue(), 'geometry');
+    assert.equal(await page.locator('[data-creation-mode="geometry"]').getAttribute('aria-pressed'), 'true');
     assert.equal(await page.locator('#reference-labels').isChecked(), true);
     await page.locator('[data-side="assets"]').click();
     assert.equal((await page.locator('#library-count').textContent()).trim(), '6 项');

@@ -141,6 +141,10 @@ reference 字段引用 references 中的 ID。图片项为 `{id,name,data}`，da
 
 带原生动画的 clips 使用 action=`native` 和 native 数据，索引来自实际加载报告；跨骨架使用 action=`retarget`，携带源资源、骨骼映射和校准。需要素材动作时优先查询 motionPresets 并调用 `motion` 操作，减少手工拼接。基础 walk/run/crawl/lie/fall 等仍按实际目标能力选择。复杂骨架必须在运行中的软件验证。
 
+独立动作支持包含骨架和动画的 FBX、GLB/glTF，无网格的来源只用于 retarget，不能作为 external-model 场景实例。用户动作库仅在本机保存；在线查询 `director_motions({source:"user",query:"动作名"})` 后使用返回 id 执行 motion。应用后仍是本节的标准 resources＋retarget 片段，工程跨机器打开不依赖原动作库。离线不能仅写一个 user-motion 收藏 ID，须保留实际资源包、来源骨架映射和 retarget 片段；没有源文件就说明缺少素材，不伪造资源或映射。
+
+动作片段可带可选 `name`（1—100 字的非空名称），用于时间轴显示，随裁剪和工程保存；省略时使用既有默认动作名称。用户动作应用后会复制收藏名称，后续修改收藏不改动已排片段。
+
 道具 `handBinding={actorId,hand:"left"|"right",offset:[x,y,z],rotation:[x,y,z]}`；offset 为随手旋转的米制偏移，rotation 为相对弧度，缩放独立。绑定覆盖整段且要求 path=null。解绑同时回填空间查询的世界位置和 rotationRadians 可保留当前摆放；不能离线由基础 position 推断动画中手的实际坐标。
 
 单段 floors 为 `[{id,name,elevation}]`，实体 floorId 表示归属，editorView 包含 activeFloorId/hiddenFloorIds/hiddenEntityIds/hideWalls。楼层升降会移动未改归属的对象和整条路径，手持道具跟随人物，锁定受影响对象会拒绝操作。仅改归属不移动对象。编辑器隐藏不影响真实机位输出。

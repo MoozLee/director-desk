@@ -44,10 +44,11 @@ test('geometry discovery is scoped and its six-shape guide creates valid actual 
 });
 
 test('read then direct batch builds geometric blocking, camera and saved prompt without catalog or preview', async () => {
-    const ctx = { project: { ...demoProject(), creationMode: 'geometry' }, playing: false, busy: false, draft: null,
+    let revision=0;
+    const ctx = { project: { ...demoProject(), creationMode: 'geometry' }, get revision(){return revision;}, playing: false, busy: false, draft: null,
         history: { pending: false, undoStack: [], redoStack: [] },
         engine: { exporting: false, externalModels: { prepare: async () => {}, assertReady() {}, retain() {} } },
-        updateTimeUI() {}, change(fn: () => void) { fn(); return true; },
+        updateTimeUI() {}, change(fn: () => void) { fn(); revision++; return true; },
     } as unknown as AppContext;
     const service = createToolService(ctx);
     const read = await service.call('director_read'); assert.equal(read.ok, true);

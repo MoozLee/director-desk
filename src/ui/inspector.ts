@@ -50,7 +50,9 @@ export function createInspector(ctx: AppContext) {
         // requests a refresh, which must wait until this DOM replacement finishes.
         if (rendering) { renderPending = true; return; }
         rendering = true;
-        try { renderContent(); }
+        try {
+            renderContent();
+        }
         finally {
             rendering = false;
             if (renderPending) { renderPending = false; queueMicrotask(renderInspector); }
@@ -63,13 +65,13 @@ export function createInspector(ctx: AppContext) {
             $('#inspector-header').innerHTML = '<div class="inspect-title"><h2>AI 修改定位</h2></div><div class="inspect-subtitle">内置助手与 MCP · 点击记录定位</div>';
             $('#inspector-tabs').innerHTML = '';
             $('#inspector-content').innerHTML = editLocations.render(); editLocations.bind();
-            $('#inspector-footer').innerHTML = button('inspector-return', '返回所选对象', '', 'wide subtle'); return;
+            $('#inspector-footer').innerHTML = '<div class="page-footer">'+button('inspector-return', '返回', '', 'subtle')+'</div>'; return;
         }
         if (ctx.inspectorTab === 'environment') {
             $('#inspector-header').innerHTML = '<div class="inspect-title"><h2>灯光与环境</h2></div><div class="inspect-subtitle">调整直接作用于当前戏段</div>';
             $('#inspector-tabs').innerHTML = '';
             $('#inspector-content').innerHTML = lightingEditor.render(); lightingEditor.bind();
-            $('#inspector-footer').innerHTML = `<div class="inspector-tool-actions">${lightingEditor.footer()}</div>` + button('inspector-return', '返回所选对象', '', 'wide subtle');
+            $('#inspector-footer').innerHTML = `<div class="inspector-tool-actions">${lightingEditor.footer()}` + button('inspector-return', '返回', '', 'subtle')+'</div>';
             return;
         }
         if (!e) {

@@ -13,6 +13,7 @@ import { createZonePanel } from './zone-panel.ts';
 import { createFloorPanel } from './floor-panel.ts';
 import { createPathSurfacePanel } from './path-surface-panel.ts';
 import { createModelImport } from './model-import.ts';
+import { createUserMotionPanel } from './user-motion-panel.ts';
 import { findAsset } from '../asset-catalog.ts';
 import { selectClip } from './clip-controls.ts';
 import { createSpatialPanel } from './spatial-panel.ts';
@@ -39,6 +40,7 @@ export function createCommands(ctx: AppContext, inspectorTools: { handle(action:
     const structurePanel = createStructureLinkPanel(ctx);
     const surfacePanel = createPathSurfacePanel(ctx);
     const modelImport = createModelImport(ctx);
+    const userMotion = createUserMotionPanel(ctx);
     const spatialPanel = createSpatialPanel(ctx);
     const rangePanel = createSpatialRangePanel(ctx);
     const productionPanel = createProductionPanel(ctx);
@@ -51,13 +53,14 @@ export function createCommands(ctx: AppContext, inspectorTools: { handle(action:
         if (sceneSequence.handle(action)) return;
         if (colorPalette.handle(action)) return;
         if (modelImport.handle(action)) return;
+        if (userMotion.handle(action)) return;
         if (modelNodes.handle(action)) return;
         if (resources.handle(action) || replacements.handle(action)) return;
         if (resourceStatistics.handle(action)) return;
         if (sceneReuse.handle(action) || cameraVisibility.handle(action)) return;
         if (surfacePanel.handle(action)) return;
         if (['cinema-open', 'lighting-open', 'light-open', 'inspector-return'].includes(action)) {
-            ctx.inspectorTab = action === 'cinema-open' ? 'effects' : action === 'lighting-open' ? 'environment' : action === 'light-open' || e?.light ? 'light' : e?.camera ? 'camera' : 'base';
+            ctx.inspectorTab = action === 'cinema-open' ? 'effects' : action === 'lighting-open' ? 'environment' : action === 'light-open' ? 'light' : e?.camera ? 'camera' : 'base';
             ctx.renderInspector(); return;
         }
         if (inspectorTools.handle(action)) return;

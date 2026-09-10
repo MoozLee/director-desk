@@ -1,0 +1,20 @@
+.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.settings-grid section{padding:12px;border:1px solid #363636;border-radius:6px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.settings-grid h3{margin:0;font-size:13px}.settings-grid p{margin:0;font-size:12px;color:#aaa;line-height:1.5}.settings-grid button{width:100%}
+.timeline-footer{display:flex;justify-content:flex-end;flex-shrink:0;border-top:1px solid #333;background:#191919;padding:3px 10px}
+.timeline-zoom-controls{display:flex;align-items:center;gap:4px}
+.timeline-zoom-controls button{width:28px;height:28px;min-height:28px;padding:4px}
+.timeline-zoom-controls select{height:28px;padding:3px 6px}
+.segmented-control{display:inline-flex;align-items:center;border:1px solid #444;border-radius:999px;padding:2px;background:#101010;flex-shrink:0}
+.view-toolbar .segmented-control button{border:0;border-radius:999px;min-height:25px;height:25px;padding:3px 8px;background:transparent;color:#999}
+.view-toolbar .segmented-control button[aria-pressed=true]{background:#e7e7e7;color:#181818}
+.project-title .chevron{display:flex;align-items:center;justify-content:center;margin:0;flex:0 0 16px}
+.project-title .chevron .icon{width:16px;height:16px}
+select:not([multiple]):not([size]){appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23aaa' stroke-width='1.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center;background-size:14px 14px;padding-right:24px!important}
+[hidden]{display:none!important}
+.modal-header{gap:10px}.modal-header>div{min-width:0;flex:1}
+.modal-footer .modal-back{flex-shrink:0}
+.page-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-shrink:0}
+.page-back{flex-shrink:0}
+#update-panel .page-back{width:auto}
+#update-panel header strong{margin-right:auto}

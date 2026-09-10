@@ -36,7 +36,7 @@ function attachUpdates(window, integration) {
             return { ok: true, data };
         } catch (error) { return { ok: false, error: error.message }; }
     });
-    const timer = setTimeout(async () => { await host.initialize(); if (host.read().config.automatic && (mode === 'installed' || mode === 'portable')) await host.check().catch(() => {}); }, 15000);
+    const timer = setTimeout(async () => { try { await host.initialize(); if (mode !== 'development') await host.check(); } catch { /* Startup checks stay silent when offline. */ } }, 3000);
     timer.unref();
     window.on('closed', () => { clearTimeout(timer); host.dispose(); ipcMain.removeHandler('director-updates'); });
     return { isQuitting: () => quitting };

@@ -1,16 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { History } from '../src/storage.ts';
-test('undo, redo and rollback restore the associated object selection', () => {
-    const p = demoProject(); let selected = p.entities[0].id;
-    const history = new History(() => selected);
-    history.begin(p); p.name = 'Changed'; selected = p.entities[1].id; history.commit(p);
-    const restored = history.undo(p)!; assert.equal(history.restoredSelection, p.entities[0].id);
-    selected = history.restoredSelection!;
-    history.redo(restored); assert.equal(history.restoredSelection, p.entities[1].id);
-    history.begin(p); selected = p.entities[2].id; history.rollback();
-    assert.equal(history.restoredSelection, p.entities[0].id);
-});
 import { assertLockedEntitiesUnchanged } from '../src/editor/invariants.ts';
 test('lock protects edits and deletion while allowing explicit unlock and independent additions', () => {
     const p = demoProject(); p.entities[0].locked = true;
@@ -37,7 +26,8 @@ test('every scene template is editable project data and outdoor ground is real g
             mesh.scale.set(...ground.scale); mesh.updateMatrixWorld(true);
             const box = new Box3().setFromObject(mesh);
             assert.ok(Math.abs(box.max.y) < .00001);
-            assert.ok(Math.abs(box.max.x - box.min.x - 40) < .00001);
+            const widths: Partial<Record<typeof template.id, number>> = {'light-stage':16,'dolly-hall':8,'neon-chase':12};
+            assert.ok(Math.abs(box.max.x - box.min.x - (widths[template.id] ?? 40)) < .00001);
             disposeTree(mesh);
         }
     }

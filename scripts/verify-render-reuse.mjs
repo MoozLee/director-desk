@@ -73,8 +73,10 @@ try {
             const roots = new Map(engine.models), edited = p.entities.find(e => e.kind === 'prop' && !e.handBinding);
             edited.position[0] += .25;
             engine.rebuild(p);
-            for (const e of p.entities) check((roots.get(e.id) === engine.models.get(e.id)) === (e.id !== edited.id), 'Wrong instance replaced');
+            for (const e of p.entities) check(roots.get(e.id) === engine.models.get(e.id), 'Moving an object must reuse model instances');
             compareFresh(p);
+            const named=p.entities.find(e=>e.id===actor.id),root=engine.models.get(named.id);
+            named.name='重命名人物';named.locked=true;engine.rebuild(p);check(engine.models.get(named.id)===root,'Name/lock changes must not rebuild a model');compareFresh(p);named.locked=false;
             p.entities.find(e => e.id === crowd.id).count = 2; compareFresh(p);
             p.entities.find(e => e.id === prop.id).handBinding.hand = 'left'; compareFresh(p);
             const seated = p.entities.find(e => e.id === actor.id); seated.color = '#229966'; seated.height = 2; compareFresh(p);

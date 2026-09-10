@@ -1,5 +1,7 @@
 import { saveProjectFile } from './ui/project-save.ts';
 import { mountFileLocations } from './ui/file-locations.ts';
+import { mountSettings } from './ui/settings-panel.ts';
+import { bindLiveFields } from './ui/live-fields.ts';
 import { selectClip } from './ui/clip-controls.ts';
 import { captureStructureEdits, syncStructureLinks } from './building/structure-links.ts';
 import { syncFloorElevations } from './building/floors.ts';
@@ -20,9 +22,10 @@ import { createScene, type SceneTemplate } from './scenes.ts';
 import { createEditingTools } from './editor/operations.ts';
 import { Engine } from './engine.ts';
 import type { Action, Entity, Project, Vec3 } from './model.ts';
-import { assertProject, clone, demoProject } from './model.ts';
+import { assertProject, clone } from './model.ts';
 import { autosave, recover } from './storage.ts';
 import { SceneWorkspace } from './scenes/scene-workspace.ts';
+import { RecoveryAutosave } from './editor/recovery-autosave.ts';
 import { readSceneDocument, projectForScene, type SceneDocument } from './scenes/sequence-project.ts';
 import type { SceneContext } from './scenes/sequence-session.ts';
 import { prepareDocumentModels } from './scenes/document-models.ts';
@@ -45,14 +48,17 @@ import { createSidebar } from './ui/sidebar.ts';
 import { createTimeline } from './ui/timeline.ts';
 import { createVideoPanel } from './ui/video-panel.ts';
 import { $, escape, icon } from './ui/common.ts';
-let project = demoProject(), selected = project.entities[1].id, inspectorTab = 'path', sidebarTab = 'scene', assetFilter = '全部', query = '';
+let project = createScene('light-stage'), selected = project.entities[0].id, inspectorTab = 'base', sidebarTab = 'scene', assetFilter = '全部', query = '';
 let time = 0, playing = false, loop = false, mode = 'split', preview = 'program', revision = 0, dirty = false, busy = false;
 let inspectorRenderedFor = '';
 let draft: {
     id: string;
 } | null = null;
 const history = new SceneWorkspace(project, () => ({ time, selected, preview }));
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
+const recoverySave = new RecoveryAutosave(force => autosave(() =>
+    history.pending || draft || engine.dragging || engine.exporting || busy && !force ? null : history.document()),
+    () => { $('#save-status').textContent = '自动恢复已保存'; },
+    () => { $('#save-status').textContent = '请手动保存项目'; toast('自动恢复保存失败，请导出项目文件备份', true); });
 let inspectorSeekTimer: ReturnType<typeof setTimeout> | undefined;
 let aborter: AbortController | null = null;
 let transformError: Error | undefined;
@@ -108,12 +114,7 @@ else {
     engine.project = project;
     engine.sample(time);
     engine.refreshHelpers();
-} engine.select(selected, engine.selectedPoint); renderPanels(); engine.externalModels.retain([project, ...history.undoStack, ...history.redoStack]); clearTimeout(saveTimer); saveTimer = setTimeout(() => {
-    const savedRevision = revision;
-    void autosave(history.document()).then(() => { if (savedRevision === revision) $('#save-status').textContent = '自动恢复已保存'; }).catch(() => {
-        if (savedRevision === revision) { $('#save-status').textContent = '请手动保存项目'; toast('自动恢复保存失败，请导出项目文件备份', true); }
-    });
-}, 500); }
+} engine.select(selected, engine.selectedPoint); renderPanels(); engine.externalModels.retain([project, ...history.undoStack, ...history.redoStack]); recoverySave.request(); }
 function change(fn: () => void, rebuild = true): boolean { if (busy)
     return false; if (draft || history.pending) { toast('请先完成或取消当前绘制／拖动操作'); return false; } playing = false; const original = project; history.begin(project); try {
     fn();
@@ -149,7 +150,7 @@ function renderPanels() {
     $('#project-name').textContent = project.name;
     renderSceneSwitcher(uiContext);
     $('#aspect').value = project.aspect;
-    $('#creation-mode').value = project.creationMode ?? 'full';
+    document.querySelectorAll<HTMLElement>('[data-creation-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.creationMode === (project.creationMode ?? 'full'))));
     $<HTMLInputElement>('#reference-labels').checked = project.referenceLabels ?? false;
     $('#fps').value = String(project.fps);
     $('#duration').value = String(project.duration);
@@ -179,7 +180,7 @@ function updateTimeUI() {
     $('#timecode').textContent = timeCode(time);
     ($('#scrubber') as HTMLInputElement).value = String(time);
     $('#shot-time').textContent = timeCode(time);
-    document.querySelectorAll<HTMLElement>('.playhead-line').forEach(el => el.style.left = (time / Number($('.ruler')?.dataset.duration ?? project.duration) * 100) + '%');
+    $('#timeline-content').style.setProperty('--timeline-playhead', String(time));
     const play = $<HTMLButtonElement>('[data-act="play"]');
     const label = playing ? '暂停' : '播放';
     // Preserve the pointer target between press and release, including a slow click.
@@ -189,15 +190,18 @@ function updateTimeUI() {
     }
 }
 const labelNodes = new Map<string, HTMLButtonElement>();
+const frameFields = new Map(['object-snap-status','shot-name','shot-lens','shot-warning'].map(id => [id,$('#'+id)]));
+function frameText(id: string, value: string) { const node=frameFields.get(id)!; if(node.textContent!==value)node.textContent=value; }
 engine.onFrame = () => {
-    $('#object-snap-status').textContent = engine.objectSnapEnabled && engine.objectSnapTarget ? `已吸附：${engine.objectSnapTarget}` : '';
+    frameText('object-snap-status', engine.objectSnapEnabled && engine.objectSnapTarget ? `已吸附：${engine.objectSnapTarget}` : '');
     const camera = engine.cameraEntity();
-    $('#shot-name').textContent = camera.name + (preview === 'program' ? ' · 成片' : '');
-    $('#shot-lens').textContent = `${camera.camera!.focal} mm · ${project.aspect}`;
+    frameText('shot-name', camera.name + (preview === 'program' ? ' · 成片' : ''));
+    frameText('shot-lens', `${camera.camera!.focal} mm · ${project.aspect}`);
     const p = engine.getShotCamera().position, r = project.room;
     const outside = r.enabled && (Math.abs(p.x) > r.width / 2 || Math.abs(p.z) > r.depth / 2 || p.y > r.height || p.y < 0);
     const hiddenObjects = camera.camera!.hiddenEntityIds?.length ?? 0;
-    $('#shot-warning').textContent = hiddenObjects ? `本机位隐藏 ${hiddenObjects} 个对象${camera.camera!.hideWalls.length ? `、${camera.camera!.hideWalls.length} 面房间墙体` : ''}` : outside && !camera.camera!.hideWalls.length ? '机位在房间外 · 墙体保留' : camera.camera!.hideWalls.length ? `已移除 ${camera.camera!.hideWalls.length} 面拍摄墙体` : '同场景真实取景';
+    frameText('shot-warning', hiddenObjects ? `本机位隐藏 ${hiddenObjects} 个对象${camera.camera!.hideWalls.length ? `、${camera.camera!.hideWalls.length} 面房间墙体` : ''}` : outside && !camera.camera!.hideWalls.length ? '机位在房间外 · 墙体保留' : camera.camera!.hideWalls.length ? `已移除 ${camera.camera!.hideWalls.length} 面拍摄墙体` : '同场景真实取景');
+    if (mode === 'shot') return;
     const labels = engine.getProjectedLabels(), ids = new Set(labels.map(l => l.id));
     for (const [id, node] of labelNodes)
         if (!ids.has(id)) {
@@ -212,10 +216,11 @@ engine.onFrame = () => {
             $('#object-labels').append(node);
             labelNodes.set(l.id, node);
         }
-        node.className = 'object-label' + (l.id === selected ? ' active' : '');
-        node.style.left = l.x + 'px';
-        node.style.top = l.y + 'px';
-        node.hidden = !l.visible;
+        const className='object-label' + (l.id === selected ? ' active' : '');
+        if(node.className!==className)node.className=className;
+        if(node.style.left!==l.x+'px')node.style.left=l.x+'px';
+        if(node.style.top!==l.y+'px')node.style.top=l.y+'px';
+        if(node.hidden===l.visible)node.hidden=!l.visible;
         if (node.dataset.name !== l.name || node.dataset.color !== l.color) {
             node.innerHTML = `<i style="background:${l.color}"></i>${escape(l.name)}`;
             node.dataset.name = l.name;
@@ -223,8 +228,8 @@ engine.onFrame = () => {
         }
     }
 };
-function seek(t: number) { if (busy)
-    return; time = Math.max(0, Number.isFinite(t) ? t : 0); extendTimelineView(uiContext, time); engine.sample(time); updateTimeUI();
+function seek(t: number, deferSample = false) { if (busy)
+    return; time = Math.max(0, Number.isFinite(t) ? t : 0); extendTimelineView(uiContext, time); if(!deferSample)engine.sample(time); updateTimeUI();
     clearTimeout(inspectorSeekTimer);
     inspectorSeekTimer = setTimeout(() => { if (!draft && !busy && !engine.dragging && !document.activeElement?.closest('#inspector-content input,#inspector-content select')) renderInspector(); }, 80);
 }
@@ -270,8 +275,8 @@ function frame(now: number) { const delta = Math.min((now - previousFrame) / 100
         }
     }
     navigation.update(delta);
-    engine.sample(time);
-    engine.render();
+    if (playing || time !== engine.time || history.pending || draft || engine.dragging) engine.sample(time);
+    engine.render(false);
     if (now - lastUI > 50) {
         updateTimeUI();
         lastUI = now;
@@ -290,6 +295,7 @@ const uiContext: AppContext = {
     get mode() { return mode; }, set mode(value) { mode = value; },
     get preview() { return preview; }, set preview(value) { preview = value; },
     get dirty() { return dirty; }, set dirty(value) { dirty = value; },
+    get revision() { return revision; },
     get busy() { return busy; }, set busy(value) { busy = value; },
     get draft() { return draft; }, set draft(value) { draft = value; },
     get aborter() { return aborter; }, set aborter(value) { aborter = value; },
@@ -310,10 +316,12 @@ const toolService = createToolService(uiContext);
 window.directorDesktop?.onTool((name, args) => toolService.call(name, args));
 mountAI(uiContext);
 mountFileLocations(uiContext);
+mountSettings(uiContext);
+bindLiveFields(uiContext, editingTools.mutateField);
 mountUpdates(async run => {
     if (busy || history.pending || draft || document.querySelector('#ai-panel')?.getAttribute('data-running') === 'true') throw Error('请先完成当前编辑、导出或 AI 任务');
-    busy = true; playing = false; clearTimeout(saveTimer);
-    try { await autosave(history.document()); await run(); } finally { busy = false; }
+    busy = true; playing = false;
+    try { await recoverySave.flush(); await run(); } finally { busy = false; }
 });
 renderPanels();
 engine.select(selected);
@@ -332,6 +340,7 @@ window.addEventListener('beforeunload', event => { if (dirty || busy || history.
     event.returnValue = '';
 } });
 if (import.meta.env.DEV) {
+    document.title += ' · 开发测试版';
     Object.assign(window, { __director: { callTool: (name: string, args: Record<string, unknown> = {}) => toolService.call(name, args), getProject: () => clone(project), getDocument: () => history.document(), getEngine: () => engine, setTime: (t: number) => { playing = false; seek(t); }, setPreview: (id: string) => { preview = id; renderCameras(); }, replaceProject: (p: Project | SceneDocument) => { selectClip(null);project = history.reset(p); revision++; selected = project.entities[0].id; time = 0; engine.rebuild(project); renderPanels(); }, signature: () => engine.projectionSignature(), exportForTest: async (opts: Parameters<typeof import('./export.ts')['exportVideo']>[1]) => { const { exportVideo } = await import('./export.ts'); const blob = await exportVideo(engine, opts, new AbortController().signal, () => { }); return blob ? Array.from(new Uint8Array(await blob.arrayBuffer())) : []; } } });
 }
 function renderSidebar() { sidebarUI.renderSidebar(); }

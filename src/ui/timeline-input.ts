@@ -1,6 +1,7 @@
 import type { AppContext } from '../app-context.ts';
-import { clone, assertProject } from '../model.ts';
-import { clipRange, setClipRange } from '../clip-editing.ts';
+import { assertProject } from '../model.ts';
+import { createTimelineDrag } from '../editor/timeline-drag.ts';
+import { createTimelineDragPreview } from './timeline-preview.ts';
 import { $ } from './common.ts';
 import { bindTimelineZoom, timelineTimeAt, pixelsPerSecond, extendTimelineView } from './timeline-zoom.ts';
 import { bindClipControls, clipFromBar, selectClip } from './clip-controls.ts';
@@ -10,10 +11,12 @@ export function bindTimelineInput(ctx: AppContext) {
     bindTimelineZoom(ctx); bindClipControls(ctx);
     let lastClick={key:'',at:0};
     let cleanup:((cancel?:boolean)=>void)|undefined;
-    const seekAt=(x:number)=>{ctx.playing=false;ctx.seek(Math.round(timelineTimeAt(x)*ctx.project.fps)/ctx.project.fps);};
+    const seekAt=(x:number)=>{ctx.playing=false;const time=Math.round(timelineTimeAt(x)*ctx.project.fps)/ctx.project.fps;if(time!==ctx.time)ctx.seek(time,true);};
     mode.addEventListener('change',()=>{cleanup?.(true);timeline.classList.toggle('hover-preview',mode.value==='preview');});
     timeline.addEventListener('pointermove',ev=>{
-        if(mode.value==='preview' && !cleanup && !ctx.busy && !ctx.draft && !ctx.playing && !ev.buttons && !$('#modal-root').children.length && (ev.target as HTMLElement).closest('.ruler,.track-lane')) seekAt(ev.clientX);
+        if(mode.value==='preview' && !cleanup && !ctx.busy && !ctx.draft && !ctx.playing && !ev.buttons && !$('#modal-root').children.length && (ev.target as HTMLElement).closest('.ruler,.track-lane')) {
+            seekAt(ev.clientX);
+        }
     });
     timeline.addEventListener('pointerdown',ev=>{
         if(ev.button!==0 || ctx.busy || ctx.draft || ctx.history.pending || cleanup) return;
@@ -23,11 +26,17 @@ export function bindTimelineInput(ctx: AppContext) {
         const selection=bar?clipFromBar(bar):null;
         if(selection && selection.kind!=='cut' && ctx.project.entities.find(e=>e.id===selection.entityId)?.locked) {ctx.toast('对象已锁定');return;}
         ev.preventDefault(); timeline.focus({preventScroll:true}); ctx.playing=false;
-        const before=clone(ctx.project), startX=ev.clientX, startScroll=timeline.scrollLeft, pps=pixelsPerSecond();
-        const range=selection?{...clipRange(before,selection)}:null;
-        const resize=!!target.dataset.resize;
+        const before=ctx.project, startX=ev.clientX, startScroll=timeline.scrollLeft, pps=pixelsPerSecond();
+        const drag=selection?createTimelineDrag(ctx.project,selection):null;
+        const previewDrag=selection?createTimelineDragPreview(ctx,selection):null;
+        const resize=!!bar && !!target.closest('[data-resize]');
         let x=startX,moved=false,raf=0,last=performance.now();
+        const rect=timeline.getBoundingClientRect(), label=timeline.querySelector('.track-label')!.getBoundingClientRect().width;
+        const left=Math.max(0,rect.left)+label,right=Math.min(window.innerWidth,rect.left+timeline.clientWidth)-12;
+        let appliedDelta:number|undefined;
+        let resultSelection=selection;
         if(selection){selectClip(selection);ctx.history.begin(ctx.project);} else seekAt(x);
+        document.documentElement.dataset.timelineDrag=selection?(resize?'resize':'move'):'seek';
         timeline.setPointerCapture(ev.pointerId);
         const apply=()=>{
             if(!selection){seekAt(x);return;}
@@ -35,34 +44,33 @@ export function bindTimelineInput(ctx: AppContext) {
             if(Math.abs(distance)>3) moved=true;
             if(!moved)return;
             const delta=Math.round(distance/pps*before.fps)/before.fps;
-            ctx.project=clone(before);
+            if(delta===appliedDelta)return;
+            appliedDelta=delta;
             try {
-                const a=range!.start,b=range!.end,frame=1/before.fps;
-                if(selection.kind==='cut') {
-                    if(resize) {
-                        const limit=before.cuts[selection.index+1] ? (before.cuts[selection.index+2]?.time ?? before.duration) : Infinity;
-                        setClipRange(ctx.project,selection,a,Math.min(limit-frame,Math.max(a+frame,b+delta)));
-                    } else if(selection.index>0) {
-                        ctx.project.cuts[selection.index].time=Math.max(before.cuts[selection.index-1].time+frame,Math.min(b-frame,a+delta));
-                    }
-                } else setClipRange(ctx.project,selection,resize?a:a+Math.max(delta,-a),resize?Math.max(a+frame,b+delta):b+Math.max(delta,-a));
-                ctx.engine.project=ctx.project;ctx.engine.sample(ctx.time);ctx.renderTimeline();
-            } catch { ctx.project=clone(before); }
+                resultSelection=drag!.apply(delta,resize);
+                selectClip(resultSelection);
+                previewDrag!(resultSelection);
+            } catch { resultSelection=selection;selectClip(selection);previewDrag!(selection); }
         };
         const tick=(now:number)=>{
             const dt=Math.min(.05,(now-last)/1000);last=now;
-            const rect=timeline.getBoundingClientRect(), label=timeline.querySelector('.track-label')!.getBoundingClientRect().width;
-            const left=rect.left+label,right=rect.right-12;
             const speed=x>right-42?Math.min(1,(x-right+42)/42)*850:x<left+42?-Math.min(1,(left+42-x)/42)*850:0;
-            if(speed){extendTimelineView(ctx,timelineTimeAt(right)+30); const old=timeline.scrollLeft;timeline.scrollLeft+=speed*dt;if(old!==timeline.scrollLeft)apply();}
+            if(speed){if(speed>0)extendTimelineView(ctx,timelineTimeAt(right)+30); const old=timeline.scrollLeft;timeline.scrollLeft+=speed*dt;if(old!==timeline.scrollLeft)apply();}
             raf=requestAnimationFrame(tick);
         };
-        const move=(e:PointerEvent)=>{if(e.pointerId===ev.pointerId){x=e.clientX;apply();}};
-        const up=(e:PointerEvent)=>{if(e.pointerId===ev.pointerId)cleanup?.(e.type==='pointercancel');};
+        // Apply input before the render loop; a second RAF here adds a frame of latency.
+        const move=(e:PointerEvent)=>{if(e.pointerId===ev.pointerId){if(!(e.buttons&1)){cleanup?.();return;}x=e.clientX;apply();}};
+        const scroll=()=>apply();
+        const up=(e:PointerEvent)=>{if(e.pointerId===ev.pointerId){if(e.type==='pointerup'){x=e.clientX;apply();}cleanup?.(e.type==='pointercancel');}};
+        const lostCapture=(e:PointerEvent)=>{if(e.pointerId===ev.pointerId)cleanup?.();};
+        const mouseUp=(e:MouseEvent)=>{if(e.button===0)cleanup?.();};
         cleanup=(cancel=false)=>{
-            cancelAnimationFrame(raf); document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',up);
-            if(timeline.hasPointerCapture(ev.pointerId))timeline.releasePointerCapture(ev.pointerId);
             cleanup=undefined;
+            cancelAnimationFrame(raf); document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',up);
+            timeline.removeEventListener('scroll',scroll);
+            timeline.removeEventListener('lostpointercapture',lostCapture);window.removeEventListener('mouseup',mouseUp,true);
+            delete document.documentElement.dataset.timelineDrag;
+            if(timeline.hasPointerCapture(ev.pointerId))timeline.releasePointerCapture(ev.pointerId);
             if(!selection)return;
             try {
                 if(cancel)throw Error('已取消拖动');
@@ -76,10 +84,11 @@ export function bindTimelineInput(ctx: AppContext) {
                     if(lastClick.key===key && now-lastClick.at<450) {timeline.dispatchEvent(new Event('edit-selected-clip'));lastClick={key:'',at:0};}
                     else lastClick={key,at:now};
                 }
-            }catch(e){ctx.project=ctx.history.rollback()??before;ctx.engine.rebuild(ctx.project);ctx.renderPanels();if(!cancel)ctx.toast((e as Error).message,true);}
+            }catch(e){selectClip(selection);ctx.project=ctx.history.rollback()??before;ctx.engine.rebuild(ctx.project);ctx.renderPanels();if(!cancel)ctx.toast((e as Error).message,true);}
         };
-        document.addEventListener('pointermove',move);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',up);raf=requestAnimationFrame(tick);
+        timeline.addEventListener('scroll',scroll);timeline.addEventListener('lostpointercapture',lostCapture);window.addEventListener('mouseup',mouseUp,true);document.addEventListener('pointermove',move);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',up);raf=requestAnimationFrame(tick);
     });
     window.addEventListener('blur',()=>cleanup?.(true));
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)cleanup?.(true);});
     document.addEventListener('keydown',ev=>{if(ev.key==='Escape')cleanup?.(true);},true);
 }

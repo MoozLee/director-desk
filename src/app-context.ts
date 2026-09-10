@@ -26,6 +26,7 @@ export interface AppContext {
     mode: string;
     preview: string;
     dirty: boolean;
+    readonly revision: number;
     busy: boolean;
     draft: {
         id: string;
@@ -48,7 +49,7 @@ export interface AppContext {
     renderTimeline(): void;
     renderCameras(): void;
     updateTimeUI(): void;
-    seek(t: number): void;
+    seek(t: number, deferSample?: boolean): void;
     saveProject(): Promise<boolean>;
     showModal(title: string, body: string, footer?: string): void;
     closeModal(): void;

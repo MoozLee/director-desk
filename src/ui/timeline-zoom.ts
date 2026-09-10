@@ -1,6 +1,7 @@
 import type { AppContext } from '../app-context.ts';
 import { $ } from './common.ts';
 let extent = 60;
+let tickRuler:HTMLElement|null=null,tickKey='';
 export const pixelsPerSecond = () => 60 * Number($<HTMLSelectElement>('#timeline-zoom').value);
 export function timelineExtent(duration = 0, time = 0) {
     const visible = Math.max(1, ($('#timeline-content')?.clientWidth ?? 1600) - 192) / pixelsPerSecond();
@@ -15,6 +16,7 @@ export function sizeTimeline() {
     const container = $('#timeline-content'), tracks = container.querySelector<HTMLElement>('.timeline-tracks'), ruler = container.querySelector<HTMLElement>('.ruler');
     if (!tracks || !ruler) return;
     const label = container.querySelector('.track-label')!.getBoundingClientRect().width;
+    container.style.setProperty('--timeline-pps', pixelsPerSecond() + 'px');
     tracks.style.width = label + Number(ruler.dataset.duration) * pixelsPerSecond() + 'px';
     drawTicks();
 }
@@ -26,6 +28,9 @@ function drawTicks() {
     const rect = ruler.getBoundingClientRect(), viewport = container.getBoundingClientRect();
     const start = Math.max(0, Math.floor((viewport.left - rect.left) / px / step) * step);
     const end = Math.min(duration, (viewport.right - rect.left) / px + step);
+    const key=[start,Math.ceil(end/step),step,duration,px].join(':');
+    if(tickRuler===ruler && tickKey===key)return;
+    tickRuler=ruler;tickKey=key;
     ruler.querySelectorAll('[data-tick]').forEach(tick => tick.remove());
     for (let t = start, i = 0; t <= end + 1e-8 && i < 100; t = start + ++i * step) {
         const tick = document.createElement('span'); tick.dataset.tick = ''; tick.style.left = t / duration * 100 + '%'; tick.textContent = String(Number(t.toFixed(3))); ruler.append(tick);
@@ -33,7 +38,7 @@ function drawTicks() {
 }
 export function extendTimelineView(ctx: AppContext, time: number) {
     const old = extent; timelineExtent(ctx.project.duration, time);
-    if (extent !== old) ctx.renderTimeline();
+    if (extent !== old) { const ruler=$('.ruler');if(ruler){ruler.dataset.duration=String(extent);sizeTimeline();} }
 }
 export function bindTimelineZoom(ctx: AppContext) {
     const container = $('#timeline-content'), zoom = $<HTMLSelectElement>('#timeline-zoom');
@@ -53,9 +58,13 @@ export function bindTimelineZoom(ctx: AppContext) {
     $('#timeline-center').addEventListener('click', center);
     $('#timeline-zoom-in').addEventListener('click', () => change(1)); $('#timeline-zoom-out').addEventListener('click', () => change(-1));
     container.addEventListener('wheel', event => {
-        if (ctx.history.pending) return;
-        if (event.ctrlKey || event.metaKey) { event.preventDefault(); change(event.deltaY < 0 ? 1 : -1, event.clientX); }
-        else if (event.shiftKey || (event.target as HTMLElement).closest('.ruler')) { event.preventDefault(); container.scrollLeft += event.deltaX || event.deltaY; }
+        if (event.ctrlKey || event.metaKey) { event.preventDefault(); if(!ctx.history.pending)change(event.deltaY < 0 ? 1 : -1, event.clientX); }
+        else if (ctx.history.pending || event.shiftKey || (event.target as HTMLElement).closest('.ruler')) {
+            event.preventDefault();
+            const delta=event.deltaX || event.deltaY;
+            if(delta>0)extendTimelineView(ctx,timelineTimeAt(container.getBoundingClientRect().right)+delta/pixelsPerSecond());
+            container.scrollLeft += delta;
+        }
     }, { passive:false });
     container.addEventListener('scroll', () => {
         drawTicks();

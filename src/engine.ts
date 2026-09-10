@@ -87,6 +87,7 @@ export class Engine {
     private snapTargets: SnapBounds[] | null = null;
     private contactMarker = new ContactMarker();
     showContactAnchor(entityId = '', anchorId = '') {
+        this.needsRender = true;
         this.contactMarker.show(entityId, anchorId, this.helpers);
         this.contactMarker.update(this.project.entities, this.models);
     }
@@ -110,6 +111,8 @@ export class Engine {
     private shot: HTMLElement;
     private resizeObserver: ResizeObserver;
     private resizeNeeded = true;
+    private needsRender = true;
+    private renderedView = '';
     private events = new AbortController();
     constructor(project: Project, stage: HTMLElement, shot: HTMLElement, callbacks: Callbacks) {
         this.project = project;
@@ -127,6 +130,7 @@ export class Engine {
         this.editorCamera.position.set(7, 5.9, 7);
         this.editorCamera.layers.enable(1);
         this.orbit = new OrbitControls(this.editorCamera, this.editorRenderer.domElement);
+        this.orbit.addEventListener('change', () => { this.needsRender = true; });
         this.orbit.target.set(0, .85, 0);
         this.orbit.enableDamping = true;
         this.orbit.minDistance = .3;
@@ -135,6 +139,7 @@ export class Engine {
         this.orbit.update();
         this.scene.add(this.helpers, this.pathHelpers, this.proxy);
         this.gizmo = new TransformControls(this.editorCamera, this.editorRenderer.domElement);
+        this.gizmo.addEventListener('change', () => { this.needsRender = true; });
         this.gizmo.setSize(.78);
         const helper = this.gizmo.getHelper();
         helper.traverse(o => o.layers.set(1));
@@ -227,6 +232,7 @@ export class Engine {
         this.cb.transformEnd(cancel);
     }
     sample(time: number) {
+        this.needsRender = true;
         this.time = time;
         for (const e of this.project.entities) {
             const root = this.models.get(e.id)!;
@@ -419,6 +425,7 @@ export class Engine {
         return grid.toArray() as Vec3;
     }
     refreshHelpers() {
+        this.needsRender = true;
         this.contactMarker.root?.removeFromParent();
         while (this.helpers.children.length)
             disposeTree(this.helpers.children[0]);
@@ -495,12 +502,15 @@ export class Engine {
         }
         this.resizeNeeded = false;
     }
-    render() {
+    render(force = true) {
         if (this.exporting || this.disposed)
             return;
+        this.orbit.update();
+        const view = `${this.previewId}:${this.gridVisible}:${this.drawingPath}:${this.positionKeying}:${this.objectSnapEnabled}:${this.objectSnapTarget}`;
+        if (!force && !this.needsRender && !this.resizeNeeded && view === this.renderedView) return;
+        this.needsRender = false; this.renderedView = view;
         if (this.resizeNeeded)
             this.resize();
-        this.orbit.update();
         this.helpers.traverse(o => { if (o instanceof T.CameraHelper)
             o.update(); });
         this.prepareView(true);

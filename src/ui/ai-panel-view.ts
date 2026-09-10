@@ -18,7 +18,7 @@ export function createAIPanel(desktop: boolean) {
     document.body.append(panel);
     const find = <T extends HTMLElement = HTMLInputElement>(id: string) => panel.querySelector<T>('#' + id)!;
     const windowLayout = floatingPanel(panel, panel.querySelector('.ai-header')!, find('ai-resize'), find<HTMLButtonElement>('ai-collapse'), 'director-ai-window-v1');
-    const open = (value: boolean) => { panel.hidden = !value; if (value) windowLayout.refresh(); toggle.setAttribute('aria-expanded', String(value)); if (!value) toggle.focus({ preventScroll: true }); };
+    const open = (value: boolean) => { panel.hidden = !value; if (value) windowLayout.refresh(); toggle.setAttribute('aria-expanded', String(value)); if (!value) { panel.querySelector('[data-parent-page-back]')?.remove(); toggle.focus({ preventScroll: true }); } };
     toggle.onclick = () => open(panel.hidden); find('ai-close').onclick = () => open(false);
     const navigate = (view: string) => {
         for (const name of ['chat', 'settings', 'skills', 'mcp']) find(name === 'settings' ? 'ai-settings' : 'ai-' + name).hidden = name !== view;

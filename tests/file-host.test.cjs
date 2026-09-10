@@ -5,6 +5,23 @@ const path = require('node:path');
 const os = require('node:os');
 const { createFileHost } = require('../desktop/file-host.cjs');
 
+test('video export uses the default directory, numbers collisions atomically and rejects paths', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'director-export-'));
+    const defaults = { projects: path.join(root, 'projects'), exports: path.join(root, 'exports') };
+    try {
+        const host = createFileHost({ directory: root, defaults }); await host.ready;
+        const bytes = Uint8Array.from([1, 2, 3]);
+        const results = await Promise.all([host.saveExport({ name: '测试.mp4', bytes }), host.saveExport({ name: '测试.mp4', bytes: bytes.buffer })]);
+        assert.deepEqual(results.map(r => r.filename).sort(), ['测试 (2).mp4', '测试.mp4'].sort());
+        for (const result of results) assert.deepEqual(await fs.readFile(path.join(defaults.exports, result.filename)), Buffer.from(bytes));
+        for (const name of ['../escape.mp4', 'C:\\escape.mp4', 'video.exe', 'CON.mp4', 'a:b.mp4', '.hidden.mp4'])
+            await assert.rejects(host.saveExport({ name, bytes }), /文件名/);
+        await assert.rejects(host.saveExport({ name: 'empty.mp4', bytes: new Uint8Array() }), /大小/);
+        await assert.rejects(host.saveExport({ name: 'bad.mp4', bytes: [1, 2] }), /数据/);
+        assert.equal((await fs.readdir(defaults.exports)).length, 2);
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
 test('separate default directories persist locally; saving confirms actual atomic completion and cancellation', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'director-files-'));
     const defaults = { projects: path.join(root, 'projects'), exports: path.join(root, 'exports') };
