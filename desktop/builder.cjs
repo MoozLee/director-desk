@@ -8,6 +8,7 @@ module.exports = {
         filter: ['SKILL.md', 'LICENSE', 'references/project-format.md', 'references/online-workflow.md', 'scripts/project-tool.mjs', 'assets/minimal.director'] },
         { from: '.audit/desktop-app/LICENSE', to: 'LICENSE' }],
     onNodeModuleFile: () => false,
+    extraResources: [{ from: '.audit/desktop-app/desktop/mcp-stdio.cjs', to: 'mcp/stdio-bridge.cjs' }],
     asar: true, npmRebuild: false, publish: { provider: 'generic', url: 'https://bigthat.me/updates/win-x64/' },
     electronVersion: require('electron/package.json').version,
     electronDist: 'node_modules/electron/dist',

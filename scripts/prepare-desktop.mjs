@@ -49,6 +49,7 @@ await build({ entryPoints: ['src/automation/contract.ts'], outfile: path.join(de
 const bundled = await build({ entryPoints: ['desktop/integration.cjs'], outfile: path.join(desktopRoot, 'desktop/integration.cjs'), bundle: true, platform: 'node', format: 'cjs', external: ['electron', './tools-contract.cjs'], sourcemap: false, minify: true, metafile: true });
 await build({ entryPoints: ['desktop/files.cjs'], outfile: path.join(desktopRoot, 'desktop/files.cjs'), bundle: true, platform: 'node', format: 'cjs', external: ['electron'], sourcemap: false, minify: true });
 const updatesBundle = await build({ entryPoints: ['desktop/updates.cjs'], outfile: path.join(desktopRoot, 'desktop/updates.cjs'), bundle: true, platform: 'node', format: 'cjs', external: ['electron'], sourcemap: false, minify: true, metafile: true });
+const bridgeBundle = await build({ entryPoints: ['desktop/mcp-stdio.cjs'], outfile: path.join(desktopRoot, 'desktop/mcp-stdio.cjs'), bundle: true, platform: 'node', format: 'cjs', sourcemap: false, minify: true, metafile: true });
 for (const file of ['SKILL.md', 'LICENSE', 'references/project-format.md', 'references/online-workflow.md', 'scripts/project-tool.mjs', 'assets/minimal.director']) {
     const relative = path.join('skills/director-desk', file), destination = path.join(desktopRoot, relative);
     await fs.mkdir(path.dirname(destination), { recursive: true }); await fs.copyFile(relative, destination);
@@ -58,7 +59,7 @@ await fs.copyFile('LICENSE', path.join(desktopRoot, 'LICENSE'));
 await fs.writeFile(path.join(desktopRoot, 'package.json'), JSON.stringify({ name: 'director-desk', productName: '导演台', version: metadata.version,
     description: '导演台 · AI 短剧预演', main: 'desktop/main.cjs', author: 'DirectorDesk', license: metadata.license, private: true }, null, 2));
 const packages = new Set(['three', 'mediabunny']);
-for (const input of [...Object.keys(bundled.metafile.inputs), ...Object.keys(updatesBundle.metafile.inputs)]) { const match = input.match(/^node_modules\/(?:@[^/]+\/[^/]+|[^/]+)/); if (match) packages.add(match[0].slice(13)); }
+for (const input of [...Object.keys(bundled.metafile.inputs), ...Object.keys(updatesBundle.metafile.inputs), ...Object.keys(bridgeBundle.metafile.inputs)]) { const match = input.match(/^node_modules\/(?:@[^/]+\/[^/]+|[^/]+)/); if (match) packages.add(match[0].slice(13)); }
 const licenses = await Promise.all([...packages].sort().map(async name => {
     const dir = path.join('node_modules', name), files = await fs.readdir(dir), license = files.find(f => /^licen[sc]e(?:\.[a-z]+)?$/i.test(f));
     if (!license && name === 'lazy-val') return await fs.readFile('desktop/licenses/lazy-val.txt', 'utf8');

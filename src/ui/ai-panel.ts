@@ -1,3 +1,4 @@
+import { mountAIMcp } from './ai-mcp.ts';
 import { mountAISelection } from './ai-selection.ts';
 import type { AppContext } from '../app-context.ts';
 import type { AgentEvent, Channel, DesktopResult, ConversationSnapshot } from '../automation/desktop-types.ts';
@@ -61,22 +62,7 @@ export function mountAI(ctx: AppContext) {
     find('ai-new').onclick = () => { if (bridge && !active) safe(async () => { busy(true); try { restoreConversation(check(await bridge.newConversation())); status('已手动开始新对话'); } finally { busy(false); } }); };
     find('ai-undo').onclick = () => { if (!active) void ctx.act('undo', document.createElement('button')); else status('请先停止任务，再撤销'); };
     find('ai-channel').onchange = () => { status('已切换渠道，保留当前对话上下文。'); };
-    function mcpState(state: { enabled: boolean; url?: string }) {
-        find('ai-mcp-enabled').checked = state.enabled; find('ai-mcp-status').textContent = state.url || '关闭';
-        find('ai-mcp-reset').disabled = !state.enabled; find('ai-mcp-copy').disabled = !state.enabled;
-    }
-    find('ai-mcp-enabled').onchange = () => { if (bridge) safe(async () => {
-        const enabled = find('ai-mcp-enabled').checked; find('ai-mcp-enabled').disabled = true;
-        try { mcpState(check(await bridge.mcp(enabled))); }
-        catch (e) { mcpState(check(await bridge.mcp())); throw e; }
-        finally { find('ai-mcp-enabled').disabled = false; }
-    }); };
-    find('ai-mcp-reset').onclick = () => { if (bridge && confirm('重置后，旧配置将无法发起新调用，需要向客户端重新复制配置。正在执行的调用不会撤销。确定重置？')) safe(async () => {
-        find('ai-mcp-reset').disabled = true;
-        try { mcpState(check(await bridge.resetMcp())); status('访问令牌已重置，地址保持不变。请重新复制连接配置。'); }
-        finally { mcpState(check(await bridge.mcp())); }
-    }); };
-    find('ai-mcp-copy').onclick = () => { if (bridge) safe(async () => { check(await bridge.copyMcp()); status('连接配置已复制，包含本机访问凭据，请只交给要连接的客户端。'); }); };
+    const mcpState = mountAIMcp(panel, status);
     function event(data: AgentEvent) {
         sessionId = data.sessionId;
         if (data.type === 'text') log(data.text || '');

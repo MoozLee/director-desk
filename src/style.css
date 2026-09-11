@@ -14,7 +14,11 @@ input::-webkit-inner-spin-button{opacity:.25}
 input[type=color]{width:100%;padding:4px;height:35px}
 input[type=checkbox]{accent-color:#cfcfcf;width:14px;height:14px}
 input[type=range]{accent-color:#cbcbcb;padding:0;border:0;height:3px;cursor:pointer}
-select{cursor:pointer}
+/* Native popup options have their own surface; transparent toolbar selects
+   must not make the expanded menu inherit the operating system's light theme. */
+select{cursor:pointer;color-scheme:dark}
+select option,select optgroup{background-color:#242424;color:#e9e9e9}
+select option:disabled,select optgroup:disabled{color:#979797}
 a{color:#c9c9c9}
 small{font-size:10px}
 .icon{width:16px;height:16px;flex-shrink:0}

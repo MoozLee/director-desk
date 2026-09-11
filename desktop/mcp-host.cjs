@@ -1,6 +1,7 @@
 const { createMcpConfig, newToken } = require('./mcp-config.cjs');
 const { startMcp } = require('./mcp-server.cjs');
-function createMcpHost({ directory, safeStorage, definitions, call, version }) {
+const { mcpConnection } = require('./mcp-connection.cjs');
+function createMcpHost({ directory, safeStorage, definitions, call, version, bridgeRuntime }) {
     const config = createMcpConfig(directory, safeStorage);
     let server = null, queue = Promise.resolve(), disposed = false;
     const serial = action => { const next = queue.then(action); queue = next.catch(() => {}); return next; };
@@ -25,9 +26,9 @@ function createMcpHost({ directory, safeStorage, definitions, call, version }) {
             server.setToken(token);
             return state();
         }); },
-        connection() { return serial(() => {
+        connection(client) { return serial(() => {
             if (disposed || !server) throw Error('请先开启 MCP');
-            return { mcpServers: { 'director-desk': { url: server.url, headers: { Authorization: 'Bearer ' + server.token } } } };
+            return mcpConnection(server, client, bridgeRuntime);
         }); },
         close() { disposed = true; return serial(async () => { if (server) { await server.close(); server = null; } }); },
     };

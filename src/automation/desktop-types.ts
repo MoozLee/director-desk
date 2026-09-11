@@ -20,7 +20,7 @@ declare global {
         run(data: Record<string, unknown>): Promise<DesktopResult>;
         stop(): Promise<DesktopResult>;
         mcp(enabled?: boolean): Promise<DesktopResult<{ enabled: boolean; url?: string }>>;
-        copyMcp(): Promise<DesktopResult>;
+        copyMcp(client?: 'http' | 'claude-code' | 'claude-desktop' | 'stdio'): Promise<DesktopResult>;
         copyText?(text: string): Promise<DesktopResult>;
         resetMcp(): Promise<DesktopResult<{ enabled: boolean; url?: string }>>;
         onEvent(callback: (event: AgentEvent) => void): () => void;

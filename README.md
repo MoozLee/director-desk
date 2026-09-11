@@ -64,7 +64,7 @@
 
 ![新版导演助手：光影舞台中的任务输入示例，尚未发送](docs/images/ai-assistant.jpg)
 
-**外部 MCP Agent**：在桌面版的 **AI → MCP 连接** 中启用服务、复制连接配置。让支持 MCP 的 Agent 读取内置 `director_skill`，即可查询指定时刻的位置、理解空间关系并编辑当前工程。成功修改可以定位查看，也可以撤销。
+**外部 MCP Agent**：在桌面版的 **AI → MCP 连接** 中启用服务、复制连接配置。让支持 MCP 的 Agent 读取内置 `director_skill`，即可查询指定时刻的位置、理解空间关系并编辑当前工程。成功修改可以定位查看，也可以撤销。 可选择 Claude Code、Claude Desktop、通用 HTTP 或 stdio 配置；stdio 桥接随软件提供，无需另装 Node.js。连接方式见 [MCP 使用说明](docs/mcp-clients.md)。
 
 **自定义技能**：在 **AI → 技能** 导入自己的 SKILL.md 或技能文件夹，也可从公开 GitHub 技能目录下载，自由启用、停用和更新。技能保存在本机，软件升级保留用户技能。
 

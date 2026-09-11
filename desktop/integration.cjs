@@ -1,6 +1,7 @@
 const { prepareMediaImport } = require('./media-import.cjs');
 const { ipcMain, app, safeStorage, clipboard } = require('electron');
 const { randomUUID } = require('node:crypto');
+const path = require('node:path');
 const { createAIHost } = require('./ai-host.cjs');
 const { createMcpHost } = require('./mcp-host.cjs');
 const { createSkillStore } = require('./skills/store.cjs');
@@ -21,7 +22,8 @@ function attachIntegration(window) {
         pending.set(id, { resolve, timer }); window.webContents.send('director-tool-call', { id, name, args });
     });
     };
-    const mcp = createMcpHost({ directory: app.getPath('userData'), safeStorage, definitions: MCP_TOOL_DEFINITIONS, call: callTool, version: app.getVersion() });
+    const mcp = createMcpHost({ directory: app.getPath('userData'), safeStorage, definitions: MCP_TOOL_DEFINITIONS, call: callTool, version: app.getVersion(),
+        bridgeRuntime: { command: process.execPath, bridgePath: app.isPackaged ? path.join(process.resourcesPath, 'mcp', 'stdio-bridge.cjs') : path.join(app.getAppPath(), 'desktop', 'mcp-stdio.cjs') } });
     const host = createAIHost({ directory: app.getPath('userData'), safeStorage, definitions: TOOL_DEFINITIONS, discussionTools: DISCUSSION_TOOLS, isDiscussionToolCall, callTool,
         skill: BUILTIN_SKILL, skills,
         send: data => { if (!window.isDestroyed()) window.webContents.send('director-ai-event', data); } });
@@ -46,7 +48,7 @@ function attachIntegration(window) {
             } else if (action === 'reset-mcp') {
                 result = await mcp.reset();
             } else if (action === 'copy-mcp') {
-                clipboard.writeText(JSON.stringify(await mcp.connection(), null, 2)); result = true;
+                clipboard.writeText(JSON.stringify(await mcp.connection(data), null, 2)); result = true;
             } else if (action === 'copy-text') {
                 if (typeof data !== 'string' || data.length > 100000) throw new Error('复制内容无效或超过 100000 字');
                 clipboard.writeText(data); result = true;
