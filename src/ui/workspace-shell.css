@@ -26,7 +26,7 @@
 .scene-switcher{padding:10px 12px;gap:6px}
 .scene-switcher select,.scene-switcher button{height:32px;min-height:32px;font-size:12px;padding:5px 8px}
 .side-tabs{height:38px;padding:0 12px;gap:20px}
-.side-tabs button{height:38px;font-size:12px}
+.side-tabs > button{height:38px;font-size:12px}
 .search-field{margin:10px 12px}
 .search-field input{padding:8px 0;font-size:11px}
 .header-actions select{width:80px;font-size:11px}
@@ -105,7 +105,6 @@
 #timeline-zoom-in,#timeline-zoom-out{height:28px;min-height:28px;font-size:16px}
 #timeline-center{height:28px;min-height:28px;font-size:11px}
 .transport .timecode{font-size:12px;margin-left:4px}
-#scrubber{min-width:40px;margin-inline:10px}
 .duration-input{font-size:11px}
 .duration-input input{height:28px;width:55px;font-size:12px}
 .statusbar{font-size:10px;gap:12px}

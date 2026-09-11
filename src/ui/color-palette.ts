@@ -1,6 +1,6 @@
 import type { AppContext } from '../app-context.ts';
 import { normalizedColor, setEntityColor } from '../editor/entity-color.ts';
-import { $, button, escape, options } from './common.ts';
+import { $, escape, options } from './common.ts';
 import './color-palette.css';
 
 const swatches = [
@@ -12,49 +12,39 @@ const swatches = [
 ];
 
 export function createColorPalette(ctx: AppContext) {
-    function open() {
-        const entity = ctx.current(); if (!entity || entity.locked) return;
-        const targetId = entity.id, scene = ctx.scenes.context, before = JSON.stringify(entity);
-        let color = entity.color, appearance = entity.external?.appearance ?? 'color';
-        ctx.showModal('模型调色', `<div class="color-palette"><p class="color-target">${escape(entity.name)}</p>
-            <div class="color-swatches" role="group" aria-label="常用色板">${swatches.map(([name, value]) => `<button type="button" data-swatch="${value}" style="--swatch:${value}" aria-label="${name} ${value}" title="${name}" aria-pressed="false"></button>`).join('')}</div>
-            <div class="color-custom"><label class="field"><span>自定义颜色</span><input id="palette-picker" type="color" value="${color}"/></label><label class="field"><span>HEX 色值</span><input id="palette-hex" type="text" value="${color}" maxlength="7" spellcheck="false" autocomplete="off"/></label></div>
-            ${entity.external ? `<label class="field"><span>模型材质</span><select id="palette-appearance">${options([['color', '统一着色'], ['original', '原材质'], ['white', '白模']], appearance)}</select></label>` : ''}
-            <p class="color-feedback" id="palette-feedback" aria-live="polite">选择颜色后点击应用。</p></div>`, button('close-modal', '取消', '', 'subtle') + '<button id="palette-apply" class="primary">应用颜色</button>');
-        $('.modal').classList.add('color-modal');
-        const picker = $<HTMLInputElement>('#palette-picker'), hex = $<HTMLInputElement>('#palette-hex'), apply = $<HTMLButtonElement>('#palette-apply');
-        const mode = document.querySelector<HTMLSelectElement>('#palette-appearance');
-        const feedback = $('#palette-feedback');
-        function refresh() {
-            document.querySelectorAll<HTMLButtonElement>('[data-swatch]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.swatch === color)));
-            picker.value = color; hex.value = color;
-            if (mode) mode.value = appearance;
-            feedback.textContent = '点击应用后生效，可撤销。'; apply.disabled = false; hex.removeAttribute('aria-invalid');
-        }
-        function choose(value: string) {
-            try { color = normalizedColor(value); appearance = 'color'; refresh(); }
-            catch (error) { feedback.textContent = (error as Error).message; hex.setAttribute('aria-invalid', 'true'); apply.disabled = true; }
-        }
-        $('.color-swatches').addEventListener('click', event => {
-            const value = (event.target as HTMLElement).closest<HTMLElement>('[data-swatch]')?.dataset.swatch;
-            if (value) choose(value);
+    let owner = '';
+    const key = () => `${ctx.scenes.context.sessionId}:${ctx.scenes.context.sceneId}:${ctx.selected}`;
+    function render() {
+        if (owner !== key()) { owner = ''; return; }
+        const entity = ctx.current(); if (!entity || entity.locked) { owner = ''; return; }
+        const host = document.createElement('div'); host.className = 'inline-color-palette';
+        host.innerHTML = `<div class="color-swatches" role="group" aria-label="常用色板">${swatches.map(([name,value])=>`<button type="button" data-swatch="${value}" style="--swatch:${value}" title="${name}" aria-label="${name} ${value}" aria-pressed="${value === entity.color}"></button>`).join('')}</div>
+          <div class="color-custom"><label class="field"><span>自定义颜色</span><input id="palette-picker" type="color" value="${entity.color}"/></label><label class="field"><span>HEX 色值</span><input id="palette-hex" value="${escape(entity.color)}" maxlength="7" spellcheck="false"/></label></div>
+          ${entity.external ? `<label class="field"><span>模型材质</span><select id="palette-appearance">${options([['color','统一着色'],['original','原材质'],['white','白模']],entity.external.appearance)}</select></label>` : ''}
+          <p id="palette-feedback" class="color-feedback" aria-live="polite">选择即生效，可撤销</p>`;
+        $('#inspector-header').append(host);
+        const commit = (color: string, appearance = 'color') => {
+            if (ctx.busy || ctx.history.pending || ctx.draft || ctx.engine.exporting || owner !== key() || ctx.current()?.locked) return;
+            try { const value = normalizedColor(color); ctx.change(()=>setEntityColor(ctx.current()!,value,appearance as 'color'|'original'|'white')); }
+            catch (error) { host.querySelector('#palette-feedback')!.textContent = (error as Error).message; }
+        };
+        host.addEventListener('click', event => {
+            event.stopPropagation();
+            const color = (event.target as HTMLElement).closest<HTMLElement>('[data-swatch]')?.dataset.swatch;
+            if (color) commit(color);
         });
-        picker.addEventListener('input', () => choose(picker.value));
-        hex.addEventListener('input', () => {
-            try { color = normalizedColor(hex.value); appearance = 'color'; picker.value = color; if (mode) mode.value = appearance; apply.disabled = false; hex.removeAttribute('aria-invalid'); feedback.textContent = '点击应用后生效，可撤销。';
-                document.querySelectorAll<HTMLButtonElement>('[data-swatch]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.swatch === color)));
-            } catch { apply.disabled = true; hex.setAttribute('aria-invalid', 'true'); feedback.textContent = '请输入 3 位或 6 位 HEX 色值。'; }
+        host.addEventListener('change', event => {
+            event.stopPropagation(); const input = event.target as HTMLInputElement;
+            if (input.id === 'palette-appearance') commit(entity.color,input.value);
+            else if (input.id === 'palette-picker' || input.id === 'palette-hex') commit(input.value);
         });
-        mode?.addEventListener('change', () => { appearance = mode.value as typeof appearance; });
-        apply.addEventListener('click', () => {
-            if (ctx.busy || ctx.history.pending || ctx.draft || ctx.engine.exporting) return;
-            const current = ctx.project.entities.find(e => e.id === targetId), now = ctx.scenes.context;
-            if (!current || current.locked || now.sessionId !== scene.sessionId || now.sceneId !== scene.sceneId || JSON.stringify(current) !== before) {
-                feedback.textContent = '对象或戏段已变化，请关闭后重新打开调色板。'; apply.disabled = true; return;
-            }
-            if (ctx.change(() => setEntityColor(current, color, appearance))) ctx.closeModal();
+        host.addEventListener('keydown', event => {
+            if (event.key === 'Escape') { event.stopPropagation(); owner = ''; ctx.renderInspector(); }
+            if (event.key === 'Enter' && (event.target as HTMLElement).id === 'palette-hex') { event.preventDefault(); commit((event.target as HTMLInputElement).value); }
         });
-        refresh();
     }
-    return { handle(action: string) { if (action !== 'color-open') return false; open(); return true; } };
+    return { render, handle(action: string) {
+        if (action !== 'color-open') return false;
+        owner = owner === key() ? '' : key(); ctx.renderInspector(); return true;
+    } };
 }

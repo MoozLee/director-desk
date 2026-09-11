@@ -43,11 +43,12 @@ export function extendTimelineView(ctx: AppContext, time: number) {
 export function bindTimelineZoom(ctx: AppContext) {
     const container = $('#timeline-content'), zoom = $<HTMLSelectElement>('#timeline-zoom');
     const center = () => {
+        if (document.documentElement.dataset.timelineDrag) return;
         extendTimelineView(ctx, ctx.time); const rect = $('.ruler').getBoundingClientRect(), viewport = container.getBoundingClientRect();
         container.scrollLeft += rect.left + ctx.time * pixelsPerSecond() - viewport.left - viewport.width / 2;
     };
     const change = (direction: number, x?: number) => {
-        if (ctx.history.pending) return;
+        if (ctx.history.pending || document.documentElement.dataset.timelineDrag) return;
         const at = x === undefined ? ctx.time : timelineTimeAt(x);
         zoom.selectedIndex = Math.max(0, Math.min(zoom.options.length - 1, zoom.selectedIndex + direction));
         extendTimelineView(ctx, at); sizeTimeline();
@@ -68,7 +69,9 @@ export function bindTimelineZoom(ctx: AppContext) {
     }, { passive:false });
     container.addEventListener('scroll', () => {
         drawTicks();
-        if (container.scrollLeft + container.clientWidth >= container.scrollWidth - 100) extendTimelineView(ctx, timelineTimeAt(container.getBoundingClientRect().right) + 30);
+        // Native thumb dragging must keep a fixed range. Extending here changes
+        // the thumb geometry under the pointer and causes a page-sized jump.
+        // Wheel/edge gestures explicitly extend the content before scrolling it.
     });
     new ResizeObserver(() => { extendTimelineView(ctx, ctx.time); sizeTimeline(); }).observe(container);
 }

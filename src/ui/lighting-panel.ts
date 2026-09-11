@@ -26,6 +26,8 @@ export function createLightingPanel(ctx: AppContext) {
         const scene = ctx.project.lighting ?? defaultLighting(), disabled = entity?.locked ? 'disabled' : '';
         const fields = light ? [['intensity', '灯光强度'], ['temperature', '色温'], ['color', '灯光颜色']] : [['ambient', '环境亮度'], ['exposure', '曝光'], ['sunIntensity', '太阳光强度']];
         if (!fields.some(([id]) => id === channel)) channel = fields[0][0];
+        let html = '';
+        for (const [tab,label] of [['main','照明参数'],['shape',light?'范围与形状':'太阳光'],['atmosphere',light?'闪烁':'雾'],['keys','参数关键帧']]) {
         let body = '';
         if (tab === 'main' && !light) body = select('preset', '光影预设', [['', '选择预设'], ...Object.entries(LIGHTING_PRESETS)], '')
             + pair(num('ambient', '环境亮度', numberAt(scene.ambient, ctx.time), 0, 20), num('exposure', '曝光', numberAt(scene.exposure, ctx.time), .05, 10))
@@ -39,9 +41,9 @@ export function createLightingPanel(ctx: AppContext) {
             + pair(color('sun-color', '太阳光颜色', scene.sunColor ?? '#fff7e9'), num('sun-intensity', '太阳光强度', numberAt(scene.sunIntensity, ctx.time, 3.5), 0, 100))
             + '<p>太阳方向为从场景中心指向光源的向量。阴影覆盖会随当前场景的对象位置调整。</p>'
             + `<div class="cinema-pair">${(scene.sunDirection ?? [-3.7, 7, 4]).map((v, i) => num('direction-' + i, 'XYZ'[i], v, -1000, 1000)).join('')}</div>`;
-        if (tab === 'shape' && light) body = pair(num('range', '照射／阴影范围 / m', light.range, .1, 10000), select('shadows', '投影', entity!.asset === 'light-area' ? [['false', '面光源不投影']] : [['false', '关闭'], ['true', '开启']], String(light.shadows)))
-            + pair(num('angle', '聚光半角 / 度', light.angle, 1, 89), num('penumbra', '聚光边缘柔化', light.penumbra, 0, 1, '.05'))
-            + pair(num('width', '面光宽度 / m', light.width, .01, 500), num('height', '面光高度 / m', light.height, .01, 500))
+        if (tab === 'shape' && light) body = num('range', '照射／阴影范围 / m', light.range, .1, 10000)
+            + (entity!.asset === 'light-spot' ? pair(num('angle', '聚光半角 / 度', light.angle, 1, 89), num('penumbra', '聚光边缘柔化', light.penumbra, 0, 1, '.05')) : '')
+            + (entity!.asset === 'light-area' ? pair(num('width', '面光宽度 / m', light.width, .01, 500), num('height', '面光高度 / m', light.height, .01, 500)) : '')
             + '<p>聚光角度用于聚光灯；面光尺寸用于面光源。面光源提供柔和照明，目前不投射阴影。</p>';
         if (tab === 'atmosphere' && !light) body = select('fog-on', '场景雾', [['false', '关闭'], ['true', '开启']], String(!!scene.fog))
             + pair(color('fog-color', '雾颜色', scene.fog?.color ?? scene.background), num('fog-density', '雾密度', numberAt(scene.fog?.density, ctx.time), 0, .5, '.001'))
@@ -61,19 +63,20 @@ export function createLightingPanel(ctx: AppContext) {
                 + pair('<button data-act="lighting-key-now">取当前时间</button>', `<button data-act="lighting-key-save" ${disabled}>记录 / 更新关键帧</button>`)
                 + `<button data-act="lighting-key-remove" ${disabled || !keys.length ? 'disabled' : ''}>删除所选关键帧</button>`;
         }
-        const layout = inspectorToolLayout(body); footer = layout.footer;
-        if (!light) footer += `<select id="lighting-new-type" aria-label="新增灯光类型">${options(Object.entries(LIGHT_TYPES), 'light-spot')}</select><button data-act="lighting-add">添加灯光</button>`;
-        return `<div class="cinema-panel inspector-cinema"><nav>${[['main', '灯光'], ['shape', light ? '形状' : '太阳'], ['atmosphere', light ? '闪烁' : '雾'], ['keys', '关键帧']].map(([id, label]) => `<button data-light-tab="${id}" class="${tab === id ? 'active' : ''}">${label}</button>`).join('')}${layout.help}</nav>${layout.body}</div>`;
+        const layout = inspectorToolLayout(body);
+        html += `<section class="inspector-parameter-group" data-light-section="${tab}"><h3>${label} ${layout.help}</h3><div class="cinema-panel inspector-cinema">${layout.body}<div class="inspector-tool-actions">${layout.footer}</div></div></section>`;
+        }
+        footer = !light ? `<select id="lighting-new-type" aria-label="新增灯光类型">${options(Object.entries(LIGHT_TYPES), 'light-spot')}</select><button data-act="lighting-add">添加灯光</button>` : '';
+        return html;
     }
     function bind() {
         if (el('through-walls') && ctx.current()?.asset === 'light-area') el('through-walls').disabled = true;
         el('channel')?.addEventListener('change', () => { channel = el('channel').value; keyIndex = 0; render(); });
         el('key')?.addEventListener('change', () => { keyIndex = n('key'); render(); });
-        if (tab !== 'keys') document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('#inspector-content .cinema-panel input, #inspector-content .cinema-panel select').forEach(input => {
+        document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-light-section]:not([data-light-section="keys"]) input,[data-light-section]:not([data-light-section="keys"]) select').forEach(input => {
             if (input.id === 'lighting-new-type') return;
-            input.addEventListener('change', () => handle(input.id === 'lighting-preset' ? 'lighting-preset' : 'lighting-save'));
+            input.addEventListener('change', () => { tab=input.closest<HTMLElement>('[data-light-section]')!.dataset.lightSection!;handle(input.id === 'lighting-preset' ? 'lighting-preset' : 'lighting-save'); });
         });
-        document.querySelectorAll<HTMLButtonElement>('[data-light-tab]').forEach(button => { button.onclick = () => { tab = button.dataset.lightTab!; render(); }; });
     }
     return { render: content, bind, handle, footer: () => footer };
     function handle(action: string) {
@@ -103,7 +106,7 @@ export function createLightingPanel(ctx: AppContext) {
                 else { scene.ambient = keep(scene.ambient, n('ambient')); scene.exposure = keep(scene.exposure, n('exposure')); scene.background = el('background').value; scene.groundColor = el('ground').value; scene.quality = el('quality').value as typeof scene.quality; }
             }
             if (tab === 'shape') {
-                if (light) { for (const key of ['range', 'angle', 'penumbra', 'width', 'height'] as const) light[key] = n(key); light.shadows = el('shadows').value === 'true'; }
+                if (light) { for (const key of ['range', 'angle', 'penumbra', 'width', 'height'] as const) if(el(key)) light[key] = n(key); light.shadows = el('shadows').value === 'true'; }
                 else { scene.defaultLights = el('default').value === 'true'; scene.sunColor = el('sun-color').value; scene.sunIntensity = keep(scene.sunIntensity, n('sun-intensity'), 3.5); scene.sunDirection = [n('direction-0'), n('direction-1'), n('direction-2')]; }
             }
             if (tab === 'atmosphere') {

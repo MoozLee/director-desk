@@ -30,7 +30,7 @@ test('creation policy persists per scene without converting objects and rejects 
     assert.throws(() => validateProject({ ...original, referenceLabels: 'yes' }), /标签/);
 });
 
-test('geometry discovery is scoped and its six-shape guide creates valid actual geometry', () => {
+test('geometry discovery is scoped and its shape guide creates valid actual geometry', () => {
     const guide = geometryCreationGuide();
     assert.deepEqual(guide.assets.map(a => a.id), [...GEOMETRY_ASSET_IDS]);
     for (const { id } of guide.assets) {
@@ -38,7 +38,7 @@ test('geometry discovery is scoped and its six-shape guide creates valid actual 
         const e = p.entities.at(-1)!;
         assert.equal(e.kind, 'prop'); assert.equal(e.assetParameters!.height, 1.8);
     }
-    assert.deepEqual(queryAssetCatalog({ group: '全部' }, GEOMETRY_ASSET_IDS).assets.map(a => a.id), [...GEOMETRY_ASSET_IDS]);
+    assert.deepEqual(queryAssetCatalog({ group: '全部', limit: 50 }, GEOMETRY_ASSET_IDS).assets.map(a => a.id), [...GEOMETRY_ASSET_IDS]);
     const missing = queryAssetCatalog({ ids: ['person', 'shape-box'] }, GEOMETRY_ASSET_IDS);
     assert.deepEqual(missing.missingIds, ['person']); assert.equal(missing.assets.length, 1);
 });
@@ -53,7 +53,7 @@ test('read then direct batch builds geometric blocking, camera and saved prompt 
     const service = createToolService(ctx);
     const read = await service.call('director_read'); assert.equal(read.ok, true);
     const data = read.data as { revision: number; creationMode: string; geometry: ReturnType<typeof geometryCreationGuide> };
-    assert.equal(data.creationMode, 'geometry'); assert.equal(data.geometry.assets.length, 6);
+    assert.equal(data.creationMode, 'geometry'); assert.equal(data.geometry.assets.length, GEOMETRY_ASSET_IDS.length);
     const operations = [
         ...['first', 'second'].map((id, i) => ({ operation: 'add', asset: 'shape-capsule', id, name: `角色${i + 1}`, patch: {
             color: i ? '#222222' : '#44AA66', assetParameters: { width: .5, height: 1.8, depth: .5 },

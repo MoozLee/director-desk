@@ -90,7 +90,6 @@ export function mountModelControl(ctx: AppContext) {
             }
             ctx.engine.sample(Math.max(take.start, ctx.time - 1e-8)); ctx.engine.render();
             if (now - lastUI > 100) {
-                document.querySelector<HTMLInputElement>('#scrubber')!.max = String(ctx.project.duration);
                 document.querySelector<HTMLInputElement>('#duration')!.value = String(ctx.project.duration);
                 document.querySelector('#duration-label')!.textContent = `${ctx.project.duration.toFixed(1)} s`;
                 extendTimelineView(ctx, take.time);

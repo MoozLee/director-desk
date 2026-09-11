@@ -3,6 +3,23 @@ import assert from 'node:assert/strict';
 import { assertProject, clone, demoProject, entity, validateProject } from '../src/model.ts';
 import { applyOperations } from '../src/automation/edits.ts';
 import { assignUnsortedFloors, editorEntityVisible, emptyEditorView, removeFloor, workingElevation } from '../src/building/floors.ts';
+import { readSceneDocument, projectForScene, duplicateDocumentScene, updateDocumentScene } from '../src/scenes/sequence-project.ts';
+
+test('track ordering is validated editor metadata, persists per scene and leaves staging untouched', () => {
+    const original = demoProject(), order = [`entity:${original.entities[1].id}`, `path:${original.entities[0].id}`, 'note:removed-note'];
+    const ordered = applyOperations(original, [{ operation: 'project', patch: { editorView: { ...emptyEditorView(), trackOrder: order } } }]);
+    assert.deepEqual(ordered.entities, original.entities); assert.deepEqual(ordered.cuts, original.cuts);
+    let document = readSceneDocument(ordered); const first = document.activeSceneId;
+    document = duplicateDocumentScene(document,first,'第二场','second');
+    const second = projectForScene(document); second.editorView!.trackOrder = [...order].reverse();
+    document = updateDocumentScene(document,'second',second);
+    const restored = readSceneDocument(JSON.parse(JSON.stringify(document)));
+    assert.deepEqual(projectForScene(restored,first).editorView!.trackOrder,order);
+    assert.deepEqual(projectForScene(restored,'second').editorView!.trackOrder,[...order].reverse());
+    for (const invalid of [null, 'entity:one', [42], ['entity:x','entity:x'], ['cuts']]) {
+        assert.throws(()=>applyOperations(original,[{operation:'project',patch:{editorView:{...emptyEditorView(),trackOrder:invalid}}}]),/轨道顺序/);
+    }
+});
 const floors = [{ id: 'ground-floor', name: '一层', elevation: 0 }, { id: 'upper-floor', name: '二层', elevation: 3 }];
 test('floor elevation edits shift members and retained routes once, keep timing, and move fixed camera targets', () => {
     const original = demoProject(); original.floors = clone(floors); original.entities.forEach(e => e.floorId = 'ground-floor');

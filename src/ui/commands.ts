@@ -1,5 +1,4 @@
 import { createSceneSequencePanel } from './scene-sequence-panel.ts';
-import { createColorPalette } from './color-palette.ts';
 import { mirrorPose } from '../assets/joint-schema.ts';
 import { createModelNodesPanel } from './model-nodes-panel.ts';
 import { createResourcePanel } from './resource-panel.ts';
@@ -30,7 +29,6 @@ import { addCut, entityPosition, samplePose, shiftPath } from '../timeline.ts';
 import { $, button } from './common.ts';
 import type { AppContext } from '../app-context.ts';
 export function createCommands(ctx: AppContext, inspectorTools: { handle(action: string): boolean }) {
-    const colorPalette = createColorPalette(ctx);
     const sceneSequence = createSceneSequencePanel(ctx);
     const modelNodes = createModelNodesPanel(ctx);
     const resources = createResourcePanel(ctx), replacements = createReplacePropPanel(ctx);
@@ -51,7 +49,6 @@ export function createCommands(ctx: AppContext, inspectorTools: { handle(action:
         if (ctx.history.pending && !ctx.draft && action !== 'cancel-export') { ctx.toast('请先结束当前拖动操作'); return; }
         if (ctx.draft && !['finish-path', 'cancel-path', 'undo', 'save', 'home', 'top', 'grid', 'focus', 'help', 'close-modal'].includes(action)) { ctx.toast('请先完成路线，或按 Esc 取消'); return; }
         if (sceneSequence.handle(action)) return;
-        if (colorPalette.handle(action)) return;
         if (modelImport.handle(action)) return;
         if (userMotion.handle(action)) return;
         if (modelNodes.handle(action)) return;

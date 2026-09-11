@@ -1,6 +1,6 @@
 import type { Entity, Project } from '../model.ts';
 export interface Floor { id: string; name: string; elevation: number }
-export interface EditorView { activeFloorId: string; hiddenFloorIds: string[]; hiddenEntityIds: string[]; hideWalls: boolean }
+export interface EditorView { trackOrder?: string[]; activeFloorId: string; hiddenFloorIds: string[]; hiddenEntityIds: string[]; hideWalls: boolean }
 export const emptyEditorView = (): EditorView => ({ activeFloorId: '', hiddenFloorIds: [], hiddenEntityIds: [], hideWalls: false });
 export function workingElevation(project: Project) { return project.floors?.find(f => f.id === project.editorView?.activeFloorId)?.elevation ?? 0; }
 export function assertFloors(project: Project) {
@@ -15,6 +15,7 @@ export function assertFloors(project: Project) {
     for (const e of project.entities) if (e.floorId !== undefined && (typeof e.floorId !== 'string' || e.floorId && !ids.has(e.floorId))) throw Error('对象归属的楼层不存在');
     const view = project.editorView;
     if (view !== undefined) {
+        if (view && view.trackOrder !== undefined && (!Array.isArray(view.trackOrder) || view.trackOrder.length > 20000 || new Set(view.trackOrder).size !== view.trackOrder.length || view.trackOrder.some(key => typeof key !== 'string' || key.length > 450 || !/^(entity|path|note):.+$/.test(key)))) throw Error('时间轴轨道顺序无效');
         const entityIds = new Set(project.entities.map(e => e.id));
         const list = (v: unknown, choices: Set<string>) => Array.isArray(v) && new Set(v).size === v.length && v.every(id => typeof id === 'string' && choices.has(id));
         if (!view || typeof view !== 'object' || Array.isArray(view) || typeof view.activeFloorId !== 'string' || view.activeFloorId && !ids.has(view.activeFloorId)

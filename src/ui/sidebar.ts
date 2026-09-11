@@ -1,11 +1,9 @@
 import { createAssetBrowser } from './asset-browser.ts';
-import { bindSidebarTools } from './sidebar-tools.ts';
 import { $ } from './common.ts';
 import type { AppContext } from '../app-context.ts';
 import { createSceneObjectBrowser } from './scene-object-browser.ts';
 export function createSidebar(ctx: AppContext) {
     const objects = createSceneObjectBrowser(ctx, renderSidebar);
-    bindSidebarTools();
     const browser = createAssetBrowser(ctx);
     function renderSidebar() {
         document.querySelectorAll('[data-side]').forEach(el => el.classList.toggle('active', (el as HTMLElement).dataset.side === ctx.sidebarTab));

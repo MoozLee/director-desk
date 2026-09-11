@@ -7,7 +7,7 @@ import { isDiscussionToolCall } from '../src/automation/contract.ts';
 
 test('bundled skill is fresh and versioned by content rather than the application release', async () => {
     const files = ['skills/director-desk/SKILL.md', 'skills/director-desk/references/online-workflow.md',
-        'skills/director-desk/references/project-format.md', 'src/automation/contract.ts', 'src/automation/tool-summaries.ts', 'src/media/help.ts'];
+        'skills/director-desk/references/project-format.md', 'src/automation/contract.ts', 'src/automation/tool-summaries.ts', 'src/media/help.ts', 'src/automation/read-sections.ts'];
     const contents = await Promise.all(files.map(file => fs.readFile(file, 'utf8').then(s => s.replace(/\r\n/g, '\n'))));
     assert.equal(BUILTIN_SKILL.version, 'sha256:' + createHash('sha256').update(JSON.stringify(contents)).digest('hex'));
     assert.equal(BUILTIN_SKILL.instructions, contents[1]);

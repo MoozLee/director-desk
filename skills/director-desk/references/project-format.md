@@ -147,7 +147,7 @@ reference 字段引用 references 中的 ID。图片项为 `{id,name,data}`，da
 
 道具 `handBinding={actorId,hand:"left"|"right",offset:[x,y,z],rotation:[x,y,z]}`；offset 为随手旋转的米制偏移，rotation 为相对弧度，缩放独立。绑定覆盖整段且要求 path=null。解绑同时回填空间查询的世界位置和 rotationRadians 可保留当前摆放；不能离线由基础 position 推断动画中手的实际坐标。
 
-单段 floors 为 `[{id,name,elevation}]`，实体 floorId 表示归属，editorView 包含 activeFloorId/hiddenFloorIds/hiddenEntityIds/hideWalls。楼层升降会移动未改归属的对象和整条路径，手持道具跟随人物，锁定受影响对象会拒绝操作。仅改归属不移动对象。编辑器隐藏不影响真实机位输出。
+单段 floors 为 `[{id,name,elevation}]`，实体 floorId 表示归属，editorView 包含 activeFloorId/hiddenFloorIds/hiddenEntityIds/hideWalls；可选 trackOrder 是轨道键数组（entity:对象ID、path:对象ID、note:备注ID），仅控制编辑器排序，切镜固定置顶。省略保持默认，新轨道追加，已删除轨道键忽略。楼层升降会移动未改归属的对象和整条路径，手持道具跟随人物，锁定受影响对象会拒绝操作。仅改归属不移动对象。编辑器隐藏不影响真实机位输出。
 
 静态模块 `structureLink={parentId,parentPort,ownPort,offset:[x,y,z],rotation:[x,y,z]}` 连接已查询到的端口；不支持循环、动画模块或与手持并用。父模块变化在同一事务传播，锁定下游会拒绝。断开用 structureLink=null，保留当前世界变换。它不是网格布尔合并，不会自动开洞或重画人物路径。
 

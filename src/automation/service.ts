@@ -1,10 +1,8 @@
+import { readScene, type SceneReadOptions } from './read-scene.ts';
 import {importMedia} from '../media/source.ts';
 import {defaultSurfaceLayer} from '../media/model.ts';
 import type { AppContext } from '../app-context.ts';
-import { GEOMETRY_ASSET_IDS, geometryCreationGuide } from '../assets/creation-mode.ts';
-import { resourceUsage } from '../resources/resource-usage.ts';
-import { sceneResourceReport } from '../resources/render-statistics.ts';
-import { structurePorts, worldStructurePorts } from '../building/structure-ports.ts';
+import { GEOMETRY_ASSET_IDS } from '../assets/creation-mode.ts';
 import { queryAssetCatalog, type AssetQuery } from '../assets/catalog-query.ts';
 import { clone, outputSize, uid } from '../model.ts';
 import { applyOperationsWithResources, changeSummary, type EditOperation } from './edits.ts';
@@ -17,13 +15,12 @@ import { scanSpatialRange, type SpatialRangeOptions } from '../spatial/range.ts'
 import { download } from '../storage.ts';
 import { productionEntries } from '../production/bundle.ts';
 import { createZip } from '../production/zip.ts';
-import { productionData, safeFilename } from '../production/notes.ts';
+import { safeFilename } from '../production/notes.ts';
 import { validateToolInput } from './validate.ts';
 import { toolHelp } from './contract.ts';
 import { continueScene, continuitySummary } from '../scenes/continue-scene.ts';
 import { editIndependentScene, readIndependentScene } from './scene-tools.ts';
-import { inheritedPoseAt } from '../scenes/initial-pose.ts';
-import { BUILTIN_SKILL, readBuiltinSkill } from './skill.ts';
+import { readBuiltinSkill } from './skill.ts';
 import { editLocations } from './edit-locations.ts';
 import { recordEdits } from './edit-journal.ts';
 export function createToolService(ctx: AppContext) {
@@ -105,24 +102,7 @@ export function createToolService(ctx: AppContext) {
             return { revision, ...data, origin: { ...data.origin, objects: objects.slice(offset, offset + limit), total: objects.length, offset,
                 nextOffset: offset + limit < objects.length ? offset + limit : null } };
         }
-        if (name === 'director_read') {
-            const ids = Array.isArray(args.ids) ? args.ids : null;
-            const resource = args.resourceId === undefined ? undefined : ctx.project.resources?.find(r => r.id === args.resourceId);
-            if (args.resourceId !== undefined && !resource) throw Error('模型资源不存在');
-            return { revision: currentRevision(), sceneContext: ctx.scenes?.context, scenes: ctx.scenes?.list(), name: ctx.project.name, duration: ctx.project.duration, fps: ctx.project.fps, aspect: ctx.project.aspect,
-                referenceLabels: ctx.project.referenceLabels ?? false, creationMode: ctx.project.creationMode ?? 'full', ...(ctx.project.creationMode === 'geometry' ? { geometry: geometryCreationGuide() } : {}),
-                ...(resource ? { model: ctx.engine.externalModels.inspection(resource) } : {}),
-                skill: { name: BUILTIN_SKILL.name, version: BUILTIN_SKILL.version },
-                time: ctx.time, cameraId: ctx.preview, selectedId: ctx.selected, room: ctx.project.room, lighting: ctx.project.lighting, floors: ctx.project.floors ?? [], zones: ctx.project.zones ?? [], editorView: ctx.project.editorView, cuts: ctx.project.cuts,
-                media:(ctx.project.media??[]).map(({data:_data,...metadata})=>metadata),
-                references: ctx.project.references.map(({ id, name }) => ({ id, name })), production: productionData(ctx.project),
-                resources: (ctx.project.resources ?? []).map(({ package: _package, ...metadata }) => metadata),
-                ...(args.details || resource ? { resourceUsage: resourceUsage(ctx.project).filter(r => !resource || r.id === resource.id).map(r => ({ ...r, sceneReferences: ctx.scenes?.resourceScenes(r.id) ?? [], used: ctx.scenes ? ctx.scenes.resourceScenes(r.id).length > 0 : r.used })) } : {}),
-                ...(args.details ? { resourceStatistics: sceneResourceReport(ctx.engine),mediaRuntime:ctx.engine.surfaces.textures.statistics() } : {}),
-                entities: ctx.project.entities.filter(e => !ids || ids.includes(e.id)).map(e => args.details ? { ...clone(e), ...(e.initialPose ? { initialPose: { active: inheritedPoseAt(e, ctx.time), nodeCount: e.initialPose.nodes.length, description: '接拍姿态；原始节点数组保存在工程文件中，新动作开始后不再保持' } } : {}) } : { id: e.id, name: e.name, asset: e.asset, kind: e.kind, color: e.color, reference: e.reference, locked: e.locked, visible: e.visible, position: e.position }),
-                ...(args.details ? { structureModules: ctx.project.entities.filter(e => (!ids || ids.includes(e.id)) && structurePorts(e).length).map(e => ({ id: e.id, localPorts: structurePorts(e), worldPorts: !e.path && !e.handBinding && !e.clips.length ? worldStructurePorts(e) : [], link: e.structureLink ?? null })) } : {}),
-                coordinates: '米／秒；工程 rotation 为弧度，世界 +Y 向上，人物 +Z 为前；当前动画位置应查询 spatial。图片字节未发送。' };
-        }
+        if (name === 'director_read') return readScene(ctx, currentRevision(), args as SceneReadOptions);
         if (name === 'director_nodes') {
             const time = args.time === undefined ? ctx.time : Number(args.time); if (!Number.isFinite(time) || time < 0) throw Error('节点查询时间无效');
             const previous = ctx.engine.time;

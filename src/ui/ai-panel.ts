@@ -1,3 +1,4 @@
+import { mountAISelection } from './ai-selection.ts';
 import type { AppContext } from '../app-context.ts';
 import type { AgentEvent, Channel, DesktopResult, ConversationSnapshot } from '../automation/desktop-types.ts';
 import { escape } from './common.ts';
@@ -7,6 +8,7 @@ import { mountAISkills } from './ai-skills-panel.ts';
 export function mountAI(ctx: AppContext) {
     const bridge = window.directorDesktop;
     const { panel, find, open } = createAIPanel(Boolean(bridge));
+    const scope = mountAISelection(ctx, panel, open);
     find('ai-context').textContent = '默认编辑当前戏段；图片不自动上传。';
     find('ai-new').title = '仅重置 AI 对话，不新建或清空工程';
     find('ai-send').title = '发送任务 · Ctrl / Cmd + Enter';
@@ -47,9 +49,9 @@ export function mountAI(ctx: AppContext) {
     find('ai-send').onclick = () => { if (!bridge || active) return; const prompt = find('ai-prompt').value.trim(); if (!prompt) return;
         const profile = profiles.find(p => p.id === find('ai-channel').value); if (!profile) { status('请先保存渠道'); return; }
         busy(true); log('\n你：' + prompt + '\nAI：'); find('ai-prompt').value = '';
-        safe(async () => { try { check(await bridge.run({ profileId: profile.id, sessionId, prompt, mode: find('ai-mode').value })); }
+        safe(async () => { try { check(await bridge.run({ profileId: profile.id, sessionId, prompt, useSelection: scope.useSelection(), mode: find('ai-mode').value })); }
             catch (error) { if (!find('ai-prompt').value) find('ai-prompt').value = prompt; throw error; }
-            finally { busy(false); } });
+            finally { scope.endTask(); busy(false); } });
     };
     find('ai-prompt').addEventListener('keydown', event => {
         if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); find<HTMLButtonElement>('ai-send').click(); }
@@ -92,5 +94,5 @@ export function mountAI(ctx: AppContext) {
         if (profiles.some(p => p.id === conversation.profileId)) find('ai-channel').value = conversation.profileId;
         if (conversation.transcript) status('已恢复本机对话，可继续；点击新对话才清空。');
     });
-    else panel.querySelectorAll<HTMLButtonElement | HTMLInputElement>('input,select,textarea,button').forEach(e => { if (!['ai-close', 'ai-collapse', 'ai-scene-prompt'].includes(e.id) && !e.dataset.aiView) e.disabled = true; });
+    else panel.querySelectorAll<HTMLButtonElement | HTMLInputElement>('input,select,textarea,button').forEach(e => { if (!['ai-close', 'ai-collapse', 'ai-scene-prompt', 'ai-scope-toggle'].includes(e.id) && !e.dataset.aiView) e.disabled = true; });
 }

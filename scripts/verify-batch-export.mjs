@@ -31,7 +31,7 @@ try {
         window.__beforeBatch = JSON.stringify(window.__director.getDocument());
         window.__beforeSignature = window.__director.signature();
     });
-    await page.locator('[data-act="export"]').click();
+    await page.locator('[data-menu="file"]').click();await page.locator('[data-act="export"]').click();
     await page.locator('#export-name').fill('自定义文件名.mp4');
     assert.match(await page.locator('#export-summary').innerText(), /自定义文件名.mp4/);
     const fits = async () => {
@@ -90,16 +90,18 @@ try {
     }));
     assert.deepEqual(restoration, { document: true, signature: true });
     // A real cancellation must release the renderer and leave the editor usable.
-    await page.locator('[data-act="export"]').click();
+    await page.locator('[data-menu="file"]').click();await page.locator('[data-act="export"]').click();
     await page.locator('#export-scope').selectOption('batch'); await page.locator('[data-pick="all"]').click();
     await page.locator('#export-save').selectOption('download');
     await page.locator('[data-act="export-start"]').click();
     await page.locator('[data-act="cancel-export"]').click();
-    await page.waitForSelector('.export-modal', { state: 'detached', timeout: 30000 });
+    await page.waitForSelector('[data-act="export-start"]', { timeout: 30000 });
+    assert(await page.locator('.export-modal').isVisible());
+    await page.locator('.modal-footer [data-act="close-modal"]').click();
     assert.equal(await page.evaluate(() => window.__director.getEngine().exporting), false);
     assert.equal(await page.evaluate(() => window.__beforeBatch === JSON.stringify(window.__director.getDocument())), true);
     await page.setViewportSize({ width: 1000, height: 680 });
-    await page.locator('[data-act="export"]').click(); await page.locator('#export-scope').selectOption('batch');
+    await page.locator('[data-menu="file"]').click();await page.locator('[data-act="export"]').click(); await page.locator('#export-scope').selectOption('batch');
     await fits();
     await page.locator('.modal-footer [data-act="close-modal"]').click();
     assert.deepEqual(errors, []);

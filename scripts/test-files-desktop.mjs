@@ -9,7 +9,7 @@ const profile = path.join(root, 'profile'), projects = path.join(root, 'projects
 for (const dir of [profile, projects, exports, chosen]) await fs.mkdir(dir, { recursive: true });
 await fs.writeFile(path.join(profile, 'file-locations.json'), JSON.stringify({ projects, exports }));
 const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-const app = await electron.launch({ executablePath: createRequire(import.meta.url)('electron'), args: [path.resolve('.audit/desktop-app'), `--director-test-profile=${profile}`], env });
+const app = await electron.launch({ executablePath: createRequire(import.meta.url)('electron'), args: [path.resolve(process.env.DIRECTOR_TEST_APP || '.audit/desktop-app'), `--director-test-profile=${profile}`], env });
 let closed = false;
 try {
     await app.evaluate(({ dialog }, { root, chosen }) => {
@@ -21,8 +21,8 @@ try {
     const page = await app.firstWindow();
     // Electron's native will-prevent-unload handler owns this dialog, not CDP.
     page.on('dialog', () => {});
-    await page.waitForSelector('#settings-toggle');
-    await page.locator('#settings-toggle').click(); await page.locator('[data-setting="files"]').click();
+    await page.waitForSelector('.application-menu');
+    await page.locator('[data-menu="edit"]').click();await page.locator('#settings-toggle').click(); await page.locator('[data-settings-category="files"]').click(); await page.locator('[data-setting="files"]').click();
     assert.equal(await page.locator('#location-projects').inputValue(), projects);
     assert.equal(await page.locator('#location-exports').inputValue(), exports);
     await page.locator('[data-location="projects"]').click();
@@ -31,7 +31,7 @@ try {
     await page.screenshot({ path: path.join(root, 'locations.png') });
     await page.locator('.modal-footer [data-act="close-modal"]').click();
     // Exercise real renderer -> preload -> IPC -> filesystem delivery, with no save dialog.
-    await page.locator('[data-act="export"]').click();
+    await page.locator('[data-menu="file"]').click();await page.locator('[data-menu-copy="export"]').click();
     await page.locator('#export-name').fill('renamed-export');
     await page.locator('#export-end').fill('.25');
     await page.locator('#export-size').selectOption('640');
@@ -75,11 +75,11 @@ try {
     await done; closed = true;
     const saved = JSON.parse(await fs.readFile(path.join(root, 'saved.director'), 'utf8'));
     assert.equal(saved.scenes.find(s => s.id === saved.activeSceneId).state.duration, 36);
-    const second = await electron.launch({ executablePath: createRequire(import.meta.url)('electron'), args: [path.resolve('.audit/desktop-app'), `--director-test-profile=${profile}`], env });
+    const second = await electron.launch({ executablePath: createRequire(import.meta.url)('electron'), args: [path.resolve(process.env.DIRECTOR_TEST_APP || '.audit/desktop-app'), `--director-test-profile=${profile}`], env });
     try {
         await second.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 1; });
         const reopened = await second.firstWindow(); reopened.on('dialog', () => {});
-        await reopened.waitForSelector('#settings-toggle');
+        await reopened.waitForSelector('.application-menu');
         const locations = await reopened.evaluate(() => window.directorDesktop.files('locations'));
         assert.equal(locations.data.projects, chosen); assert.equal(locations.data.exports, exports);
         await reopened.locator('#duration').fill('37'); await reopened.locator('#duration').press('Tab');

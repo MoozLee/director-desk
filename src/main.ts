@@ -1,3 +1,5 @@
+import { setSelectedEntities } from './editor/timeline-selection.ts';
+import { mountApplicationMenu } from './ui/application-menu.ts';
 import { saveProjectFile } from './ui/project-save.ts';
 import { mountFileLocations } from './ui/file-locations.ts';
 import { mountSettings } from './ui/settings-panel.ts';
@@ -35,6 +37,7 @@ import './style.css';
 import './ui/responsive-panels.css';
 import './ui/asset-browser.css';
 import './ui/workspace-shell.css';
+import './ui/fixed-zones.css';
 import './ui/dialog-shell.css';
 import './ui/video-panel.css';
 import { entityPosition, shiftPath } from './timeline.ts';
@@ -139,7 +142,7 @@ catch (error) {
 function extendDuration() { for (const e of project.entities) {
     project.duration = Math.max(project.duration, ...e.clips.map(c => c.end), ...(e.path?.sections?.map(s => s.end) ?? e.path?.points.map(p => p.time) ?? []), ...e.poseKeys.map(k => k.time), ...(e.camera?.targetPath?.points.map(p => p.time) ?? []));
 } }
-function selectEntity(id: string) { if (draft)
+function selectEntity(id: string, preserveTimelineSelection = false) { if(!preserveTimelineSelection)setSelectedEntities([id]); if (draft)
     finishPath(); selected = id; const e = current(); if (!e)
     return; if (e.light) inspectorTab = 'light';
 else if (e.kind === 'camera')
@@ -147,7 +150,7 @@ else if (e.kind === 'camera')
 else if (!['base', 'path', 'actions', 'pose', 'structure'].includes(inspectorTab) || e.kind === 'prop' && ['actions', 'pose'].includes(inspectorTab))
     inspectorTab = 'base'; engine.select(id); renderPanels(); }
 function renderPanels() {
-    $('#project-name').textContent = project.name;
+    document.title = `${project.name} · 导演台${import.meta.env.DEV ? ' · 开发测试版' : ''}`;
     renderSceneSwitcher(uiContext);
     $('#aspect').value = project.aspect;
     document.querySelectorAll<HTMLElement>('[data-creation-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.creationMode === (project.creationMode ?? 'full'))));
@@ -155,8 +158,6 @@ function renderPanels() {
     $('#fps').value = String(project.fps);
     $('#duration').value = String(project.duration);
     $('#duration-label').textContent = `${project.duration.toFixed(1)} s`;
-    $('#scrubber').setAttribute('max', String(project.duration));
-    $('#scrubber').setAttribute('step', String(1 / project.fps));
     $('#room-badge').textContent = project.room.enabled ? `${project.room.width} × ${project.room.depth} m / 层高 ${project.room.height} m` : '室外 / 自由搭建 · 1 格 = 1 米';
     const animalCount = project.entities.filter(e => isAnimalAsset(e.asset)).length;
     $('#scene-status').textContent = `${project.entities.filter(e => e.kind === 'actor' && !isAnimalAsset(e.asset)).length} 人${animalCount ? ` · ${animalCount} 只动物` : ''} · ${project.entities.filter(e => e.kind === 'camera').length} 台摄影机 · ${project.entities.filter(e => e.kind === 'prop').length} 件道具`;
@@ -178,7 +179,6 @@ function renderCameras() {
 function timeCode(t: number) { const frames = Math.round(t * project.fps), f = frames % project.fps, s = Math.floor(frames / project.fps); return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60, f].map(x => String(x).padStart(2, '0')).join(':'); }
 function updateTimeUI() {
     $('#timecode').textContent = timeCode(time);
-    ($('#scrubber') as HTMLInputElement).value = String(time);
     $('#shot-time').textContent = timeCode(time);
     $('#timeline-content').style.setProperty('--timeline-playhead', String(time));
     const play = $<HTMLButtonElement>('[data-act="play"]');
@@ -231,7 +231,7 @@ engine.onFrame = () => {
 function seek(t: number, deferSample = false) { if (busy)
     return; time = Math.max(0, Number.isFinite(t) ? t : 0); extendTimelineView(uiContext, time); if(!deferSample)engine.sample(time); updateTimeUI();
     clearTimeout(inspectorSeekTimer);
-    inspectorSeekTimer = setTimeout(() => { if (!draft && !busy && !engine.dragging && !document.activeElement?.closest('#inspector-content input,#inspector-content select')) renderInspector(); }, 80);
+    inspectorSeekTimer = setTimeout(() => { if (!draft && !busy && !engine.dragging && !document.activeElement?.closest('#inspector-content input,#inspector-content select,#timeline-curves')) renderInspector(); }, 80);
 }
 function setView(value: string) { if (!['stage', 'split', 'shot'].includes(value)) return; mode = value; $('#viewports').className = 'viewports ' + value; document.querySelectorAll('.view-modes button[data-view]').forEach(el => el.classList.toggle('active', (el as HTMLElement).dataset.view === value)); engine.requestResize(); }
 async function saveProject() { return saveProjectFile(uiContext); }
@@ -323,6 +323,7 @@ mountUpdates(async run => {
     busy = true; playing = false;
     try { await recoverySave.flush(); await run(); } finally { busy = false; }
 });
+mountApplicationMenu();
 renderPanels();
 engine.select(selected);
 requestAnimationFrame(frame);
@@ -340,7 +341,7 @@ window.addEventListener('beforeunload', event => { if (dirty || busy || history.
     event.returnValue = '';
 } });
 if (import.meta.env.DEV) {
-    document.title += ' · 开发测试版';
+    if (!document.title.endsWith(' · 开发测试版')) document.title += ' · 开发测试版';
     Object.assign(window, { __director: { callTool: (name: string, args: Record<string, unknown> = {}) => toolService.call(name, args), getProject: () => clone(project), getDocument: () => history.document(), getEngine: () => engine, setTime: (t: number) => { playing = false; seek(t); }, setPreview: (id: string) => { preview = id; renderCameras(); }, replaceProject: (p: Project | SceneDocument) => { selectClip(null);project = history.reset(p); revision++; selected = project.entities[0].id; time = 0; engine.rebuild(project); renderPanels(); }, signature: () => engine.projectionSignature(), exportForTest: async (opts: Parameters<typeof import('./export.ts')['exportVideo']>[1]) => { const { exportVideo } = await import('./export.ts'); const blob = await exportVideo(engine, opts, new AbortController().signal, () => { }); return blob ? Array.from(new Uint8Array(await blob.arrayBuffer())) : []; } } });
 }
 function renderSidebar() { sidebarUI.renderSidebar(); }

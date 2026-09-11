@@ -5,6 +5,7 @@ import { createExportScenePicker } from './export-scene-picker.ts';
 import { estimatedVideoBytes, jobFrames, planVideoExports, type ExportJob, type ExportScene } from '../exporting/plan.ts';
 import { runVideoExports } from '../exporting/batch.ts';
 import { videoDestination, type SaveMode } from '../exporting/delivery.ts';
+import { exportErrorMessage } from '../exporting/errors.ts';
 import type { AppContext } from '../app-context.ts';
 
 export function createVideoPanel(ctx: AppContext) {
@@ -125,11 +126,13 @@ export function createVideoPanel(ctx: AppContext) {
             if (large) { ctx.toast(`“${large.sceneName}”预计超过 250 MB，请选择直接写入或降低规格`, true); return; }
         }
         ctx.busy = true; ctx.playing = false; ctx.updateTimeUI();
-        ++previewGeneration;await previewTask;
+        ++previewGeneration;
         ctx.aborter = new AbortController();
-        let started = false, count = 0;
+        let started = false, succeeded = false, count = 0;
         try {
+            // Open the picker while the export click still has user activation.
             const destination = await videoDestination(mode, jobs);
+            await previewTask;
             started = true;
             $('#export-progress').hidden = false;
             document.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>('.export-fields input,.export-fields select,.export-fields button').forEach(el => el.disabled = true);
@@ -143,13 +146,20 @@ export function createVideoPanel(ctx: AppContext) {
                     $('#progress-detail').textContent = `${job.sceneName} → ${job.filename} · 已完成 ${count} 场`;
                 }, (_job, filename) => { count++; $('#progress-detail').textContent = `已完成 ${count} / ${jobs.length}：${filename}`; }, exportVideo);
             ctx.toast(mode === 'download' ? `已生成 ${count} 个视频，请在下载列表查看` : `已导出 ${count} 个视频`);
+            succeeded = true;
         } catch (error) {
             const canceled = (error as Error).name === 'AbortError';
-            if (started) ctx.toast(`${canceled ? '已取消导出' : (error as Error).message}；已完成 ${count} / ${jobs.length}，其余未完成`, !canceled);
-            else if (!canceled) ctx.toast((error as Error).message, true);
+            if (started) ctx.toast(`${canceled ? '已取消导出' : exportErrorMessage(error)}；已完成 ${count} / ${jobs.length}，其余未完成`, !canceled);
+            else if (!canceled) ctx.toast(exportErrorMessage(error), true);
         } finally {
             ctx.busy = false; ctx.aborter = null;
-            if (started) ctx.closeModal();
+            if (succeeded) ctx.closeModal();
+            else if (document.querySelector('.export-modal')) {
+                $('#export-progress').hidden = true;
+                document.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>('.export-fields input,.export-fields select,.export-fields button').forEach(el => el.disabled = false);
+                picker.refresh();
+                $('.modal-footer').innerHTML = button('close-modal', '返回', '', 'subtle') + button('export-start', count ? '重新导出所选戏段' : '重试导出', 'download', 'primary');
+            }
             ctx.renderPanels();
         }
     }

@@ -45,7 +45,7 @@ export function createSceneSequencePanel(ctx: AppContext) {
     });
     function open() {
         const scenes = ctx.scenes.list(), id = ctx.scenes.context.sceneId, index = scenes.findIndex(s => s.id === id), scene = scenes[index];
-        ctx.showModal('独立戏段', `<div class="sequence-panel"><p class="panel-help">当前第 ${index + 1} 场，共 ${scenes.length} 场。各场站位、路径、动作、切镜及备注独立保存；左侧下拉框随时切换。</p>
+        ctx.showModal('独立戏段', `<div class="sequence-panel"><p class="panel-help">当前第 ${index + 1} 场，共 ${scenes.length} 场。各场站位、路径、动作、切镜及备注独立保存；顶部戏段下拉框随时切换。</p>
             <label class="field">当前戏段名称<input id="sequence-name" maxlength="200" value="${escape(scene.name)}"/></label>
             <div class="sequence-actions">${button('sequence-rename', '保存名称', '', 'subtle')}${button('sequence-up', '上移', '', 'subtle', index === 0 ? 'disabled' : '')}${button('sequence-down', '下移', '', 'subtle', index === scenes.length - 1 ? 'disabled' : '')}${button('sequence-delete', '删除本场', '', 'subtle', scenes.length === 1 ? 'disabled' : '')}</div>
             <label class="field">新增戏段名称<input id="sequence-new-name" maxlength="200" value="第 ${scenes.length + 1} 场"/></label>

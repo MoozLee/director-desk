@@ -9,7 +9,7 @@ import { options } from './common.ts';
 import './camera-effects-panel.css';
 
 export function createCameraEffectsPanel(ctx: AppContext) {
-    let owner = '', tab = 'preset', channel: CameraChannel = 'focal', selectedKey = 0;
+    let owner = '', channel: CameraChannel = 'focal', selectedKey = 0;
     const el = (name: string) => document.getElementById('cinema-' + name) as HTMLInputElement;
     const n = (name: string) => Number(el(name).value);
     const select = (name: string, label: string, list: [string, string][], value: string) => `<label>${label}<select id="cinema-${name}">${options(list, value)}</select></label>`;
@@ -20,11 +20,13 @@ export function createCameraEffectsPanel(ctx: AppContext) {
         owner = entity.id;
         const e = ctx.project.entities.find(e => e.id === owner); if (!e?.camera) return '';
         const c = e.camera, effects = c.effects ?? {}, disabled = e.locked ? 'disabled' : '';
+        let html = '';
+        for (const [tab,label] of [['preset','运镜预设'],['channels','参数关键帧'],['shake','手持晃动'],['lens','镜头效果']]) {
         let body = '';
         if (tab === 'preset') body = select('preset', '运镜预设', Object.entries(CAMERA_PRESETS), 'arc-push')
-            + `<div class="cinema-pair">${input('start', '开始 / 秒', ctx.time, 0, 1e6)}${input('duration', '时长 / 秒', 5, .01, 1e6)}</div>`
+            + `<div class="cinema-pair">${input('preset-start', '开始 / 秒', ctx.time, 0, 1e6)}${input('duration', '时长 / 秒', 5, .01, 1e6)}</div>`
             + `<div class="cinema-pair">${input('amplitude', '移动幅度 / m', 2, .01, 1000)}${input('angle', '转动角度 / 度', 70, -720, 720)}</div>`
-            + `<div class="cinema-pair">${select('side', '方向', [['1', '向右'], ['-1', '向左']], '1')}${select('ease', '速度节奏', Object.entries(EASINGS), 'smooth')}</div>`
+            + `<div class="cinema-pair">${select('side', '方向', [['1', '向右'], ['-1', '向左']], '1')}${select('preset-ease', '速度节奏', Object.entries(EASINGS), 'smooth')}</div>`
             + '<p>路径预设替换原路径；倾斜、构图、甩镜改对应参数。生成后可继续编辑。</p>'
             + `<button data-act="cinema-generate" ${disabled}>应用预设</button>`;
         if (tab === 'channels') {
@@ -42,7 +44,7 @@ export function createCameraEffectsPanel(ctx: AppContext) {
             const s = effects.shake;
             body = select('shake', '手持类型', [['none', '关闭'], ...Object.entries(SHAKE_PRESETS)], s?.preset ?? 'none')
                 + `<div class="cinema-pair">${input('amount', '强度', s?.amount ?? 1, 0, 5)}${input('frequency', '频率倍率', s?.frequency ?? 1, .1, 10)}</div>`
-                + `<div class="cinema-pair">${input('start', '开始 / 秒', s?.start ?? ctx.time, 0, 1e6)}${input('end', '结束 / 秒', s?.end ?? Math.max(ctx.time + 1, ctx.project.duration), .01, 1e6)}</div>`
+                + `<div class="cinema-pair">${input('shake-start', '开始 / 秒', s?.start ?? ctx.time, 0, 1e6)}${input('end', '结束 / 秒', s?.end ?? Math.max(ctx.time + 1, ctx.project.duration), .01, 1e6)}</div>`
                 + input('seed', '变化种子', s?.seed ?? 1, -2147483648, 2147483647, '1')
                 + '<p>晃动叠加在机位路径或 POV 上，首尾渐入渐出。同一种子、同一时刻的画面固定，重播和导出一致。</p>'
                 ;
@@ -53,14 +55,16 @@ export function createCameraEffectsPanel(ctx: AppContext) {
             + select('preview-quality', '预览精度 · 导出保持完整分辨率', [['full', '完整'], ['draft', '流畅 · 降低预览分辨率']], ctx.engine.previewQuality)
             + `<p>畸变强度与景深在「参数」调整。跟随延迟仅改变机位位置。${effects.dollyZoom ? `希区柯克变焦已开启，参考距离 ${effects.dollyZoom.distance.toFixed(2)} m；其焦距优先于焦距通道。` : '希区柯克变焦可从运镜预设生成。'}</p>`
             + `<div class="cinema-pair"><button data-act="cinema-dolly-clear" ${disabled || !effects.dollyZoom ? 'disabled' : ''}>关闭希区柯克变焦</button></div>`;
-        const layout = inspectorToolLayout(body); footer = layout.footer;
-        return `<div class="cinema-panel inspector-cinema"><nav>${[['preset', '运镜'], ['channels', '参数'], ['shake', '手持'], ['lens', '镜头']].map(([id, label]) => `<button data-cinema-tab="${id}" class="${tab === id ? 'active' : ''}">${label}</button>`).join('')}${layout.help}</nav>${layout.body}</div>`;
+        const layout = inspectorToolLayout(body);
+        html += `<section class="inspector-parameter-group" data-cinema-section="${tab}"><h3>${label} ${layout.help}</h3><div class="cinema-panel inspector-cinema">${layout.body}<div class="inspector-tool-actions">${layout.footer}</div></div></section>`;
+        }
+        footer = ''; return html;
     }
     function bind() {
-        document.querySelectorAll<HTMLButtonElement>('[data-cinema-tab]').forEach(button => { button.onclick = () => { tab = button.dataset.cinemaTab!; render(); }; });
         el('channel')?.addEventListener('change', () => { channel = el('channel').value as CameraChannel; selectedKey = 0; render(); });
         el('key')?.addEventListener('change', () => { selectedKey = Number(el('key').value); render(); });
-        if (tab === 'lens' || tab === 'shake') document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('#inspector-content .cinema-panel input, #inspector-content .cinema-panel select').forEach(input => {
+        document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-cinema-section="lens"] input,[data-cinema-section="lens"] select,[data-cinema-section="shake"] input,[data-cinema-section="shake"] select').forEach(input => {
+            const tab = input.closest<HTMLElement>('[data-cinema-section]')!.dataset.cinemaSection;
             if (input.id !== 'cinema-preview-quality') input.addEventListener('change', () => handle(tab === 'lens' ? 'cinema-lens-save' : 'cinema-shake-save'));
         });
         el('preview-quality')?.addEventListener('change', () => ctx.engine.setPreviewQuality(el('preview-quality').value as 'full' | 'draft'));
@@ -74,7 +78,7 @@ export function createCameraEffectsPanel(ctx: AppContext) {
         ctx.change(() => {
             const c = e.camera!, effects: CameraEffects = c.effects ??= {}, channels = effects.channels ??= {};
             const spec = CAMERA_CHANNELS[channel], fallback = channel === 'focal' ? c.focal : spec.default;
-            if (action === 'cinema-generate') applyCameraMotion(ctx.project, owner, el('preset').value, n('start'), n('duration'), { amplitude: n('amplitude'), angle: n('angle'), side: n('side'), easing: el('ease').value as Easing });
+            if (action === 'cinema-generate') applyCameraMotion(ctx.project, owner, el('preset').value, n('preset-start'), n('duration'), { amplitude: n('amplitude'), angle: n('angle'), side: n('side'), easing: el('preset-ease').value as Easing });
             if (action === 'cinema-key-save') {
                 const time = Math.round(n('time') * ctx.project.fps) / ctx.project.fps;
                 channels[channel] = setNumberKey(channels[channel], time, n('value'), fallback, chosenEasing(el('ease').value, keyEasing(channels[channel], selectedKey)));
@@ -85,7 +89,7 @@ export function createCameraEffectsPanel(ctx: AppContext) {
                 const value = channels[channel];
                 if (typeof value === 'object') { const last = numberAt(value, ctx.time, fallback); value.keys.splice(selectedKey, 1); if (!value.keys.length) channels[channel] = last; }
             }
-            if (action === 'cinema-shake-save') effects.shake = el('shake').value === 'none' ? null : { preset: el('shake').value as keyof typeof SHAKE_PRESETS, amount: n('amount'), frequency: n('frequency'), seed: n('seed'), start: n('start'), end: n('end') };
+            if (action === 'cinema-shake-save') effects.shake = el('shake').value === 'none' ? null : { preset: el('shake').value as keyof typeof SHAKE_PRESETS, amount: n('amount'), frequency: n('frequency'), seed: n('seed'), start: n('shake-start'), end: n('end') };
             if (action === 'cinema-lens-save') { effects.distortionType = el('distortion').value as CameraEffects['distortionType']; effects.focusTargetId = el('focus').value; effects.followLag = n('lag'); }
             if (action === 'cinema-dolly-clear') effects.dollyZoom = null;
         }, false);

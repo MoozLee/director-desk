@@ -1,3 +1,4 @@
+import { setSelectedEntities, selectedEntities } from '../editor/timeline-selection.ts';
 import { prepareDocumentModels } from '../scenes/document-models.ts';
 import { bindTimelineInput } from './timeline-input.ts';
 import * as T from 'three';
@@ -39,7 +40,9 @@ export function bindEvents(ctx: AppContext) {
         }
         const row = target.closest<HTMLElement>('[data-select]');
         if (row) {
-            ctx.selectEntity(row.dataset.select!);
+            const id=row.dataset.select!;
+            if(event.ctrlKey||event.metaKey){const ids=selectedEntities();setSelectedEntities(ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]);}else setSelectedEntities([id]);
+            ctx.selectEntity(row.dataset.select!,true);
             return;
         }
         const tab = target.closest<HTMLElement>('[data-inspect]');
@@ -207,10 +210,6 @@ export function bindEvents(ctx: AppContext) {
         const target = event.target as HTMLInputElement;
         if (ctx.busy)
             return;
-        if (target.id === 'scrubber') {
-            ctx.playing = false;
-            ctx.seek(Number(target.value));
-        }
         if (target.id === 'search') {
             ctx.query = target.value;
             ctx.renderSidebar();

@@ -18,7 +18,7 @@ try {
     const name=await page.evaluate(id=>window.__director.getProject().entities.find(e=>e.id===id).name,id);await page.locator('#search').fill(name);
     await page.locator(`[data-select="${id}"]`).first().click();
    }
-   const tabs=id==='environment'?['environment']:await page.locator('[data-inspect]').evaluateAll(es=>es.map(e=>e.dataset.inspect));
+   const tabs=id==='environment'?['environment']:await page.evaluate(()=>[...document.querySelectorAll('[data-inspect]')].map(e=>e.dataset.inspect));
    for(const tab of tabs) {
     if(tab!=='environment')await page.locator(`[data-inspect="${tab}"]`).click();
     const attribute=await page.evaluate(()=>document.querySelector('[data-inspector-section]')?'data-inspector-section':document.querySelector('[data-cinema-tab]')?'data-cinema-tab':'data-light-tab');
@@ -34,7 +34,9 @@ try {
        if(r.left<bounds.left-1||r.right>bounds.right+1)problems.push(`横向溢出 ${label(a)}`);
        for(const b of controls.slice(i+1)){if(a.contains(b)||b.contains(a))continue;const s=b.getBoundingClientRect(),x=Math.min(r.right,s.right)-Math.max(r.left,s.left),y=Math.min(r.bottom,s.bottom)-Math.max(r.top,s.top);if(x>1&&y>1)problems.push(`重叠 ${label(a)} / ${label(b)}`);else if(x>4&&y>-4&&y<=1)problems.push(`垂直贴合 ${label(a)} / ${label(b)}`);}
       }
-      if(root.scrollHeight>root.clientHeight+2)problems.push(`高度溢出 ${root.scrollHeight-root.clientHeight}px`);
+      const ids=[...root.querySelectorAll('[id]')].map(e=>e.id);if(new Set(ids).size!==ids.length)problems.push('重复控件 ID');
+      if(root.scrollWidth>root.clientWidth+2)problems.push('属性区域出现横向滚动');
+      if(root.scrollHeight>root.clientHeight+2 && !['auto','scroll'].includes(getComputedStyle(root).overflowY))problems.push('分组参数被裁切且无法到达');
       return problems;
      });
      checked++;if(result.length){issues.push({width,height,id,tab,section,problems:result});await page.screenshot({path:`tmp/inspector-layout/issue-${checked}.png`});}

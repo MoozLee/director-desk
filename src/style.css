@@ -52,8 +52,8 @@ kbd{font-family:inherit;font-size:10px;padding:2px 5px;color:#7e7e7e;border:1px 
 .workspace{display:grid;grid-template-columns:207px minmax(450px,1fr) 278px;min-height:0}
 .sidebar{display:flex;flex-direction:column;min-height:0;background:var(--panel);border-right:1px solid var(--line)}
 .side-tabs{display:flex;align-items:center;padding:0 15px;gap:20px;height:47px;border-bottom:1px solid var(--line);flex-shrink:0}
-.side-tabs button{height:47px;min-height:0;padding:0;background:none!important;border-radius:0;border:0;border-bottom:2px solid transparent;font-size:12px;color:#999999}
-.side-tabs button.active{border-bottom-color:#ececec!important}
+.side-tabs > button{height:47px;min-height:0;padding:0;background:none!important;border-radius:0;border:0;border-bottom:2px solid transparent;font-size:12px;color:#999999}
+.side-tabs > button.active{border-bottom-color:#ececec!important}
 .search-field{margin:14px 13px 10px;display:flex;align-items:center;gap:6px;border:1px solid #3a3a3a;border-radius:5px;background:#202020;padding:0 8px;color:#8a8a8a}
 .search-field input{width:100%;padding:9px 0;border:0;background:transparent;font-size:10px;outline:none}
 .search-field .icon{width:13px}
@@ -175,7 +175,6 @@ summary{cursor:pointer;padding:6px 0}
 .play-button{background:#e4e4e4;color:#222222;width:27px;height:27px;min-height:27px;padding:5px}
 .play-button:hover{color:#f4f4f4}
 .timecode{font:11px Consolas,monospace;letter-spacing:.7px;color:#c4c4c4;margin-left:6px;white-space:nowrap}
-#scrubber{flex:1;min-width:100px;margin:0 15px}
 .duration-input{display:flex;align-items:center;gap:6px;font-size:10px;color:#9f9f9f}
 .duration-input input{width:53px;height:27px;font:11px Consolas;padding:5px;background:#2a2a2a}
 .timeline-content{overflow:auto;min-height:0;flex:1;scrollbar-width:thin;scrollbar-color:#5e5e5e transparent}
@@ -312,7 +311,6 @@ html[data-timeline-drag="seek"],html[data-timeline-drag="seek"] *{cursor:crossha
 .hover-preview .timeline-clip button{visibility:hidden}
 .transport{gap:7px}
 .transport .timeline-title{width:auto;min-width:100px}
-#scrubber{min-width:60px}
 .view-toolbar .tools{min-width:0}
 
 

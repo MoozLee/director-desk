@@ -1,25 +1,16 @@
 import { escape } from './common.ts';
-
 export interface InspectorSection { id: string; label: string; html: string }
-/** UI-only section state. Project data and edit handlers remain with their owning modules. */
-export function createInspectorNavigation(refresh: () => void) {
-    const selected = new Map<string, string>();
-    const content = document.querySelector<HTMLElement>('#inspector-content')!;
-    content.addEventListener('click', event => {
-        const button = (event.target as HTMLElement).closest<HTMLElement>('[data-inspector-section]');
-        if (!button) return;
-        event.stopPropagation();
-        selected.set(button.dataset.sectionOwner!, button.dataset.inspectorSection!);
-        refresh();
-        content.querySelector<HTMLElement>('[data-inspector-section][aria-pressed="true"]')?.focus({ preventScroll: true });
-    });
+/** Related fields are displayed together; item selectors still select a point/clip/key. */
+export function createInspectorNavigation() {
+    let requested: {key:string;section:string}|undefined;
     return {
-        select(key: string, section: string) { selected.set(key, section); },
+        select(key: string, section: string) { requested={key,section}; },
+        reveal() {
+            const target=requested;requested=undefined;if(!target)return;
+            queueMicrotask(()=>document.querySelector<HTMLElement>(`[data-section-owner="${CSS.escape(target.key)}"][data-section="${CSS.escape(target.section)}"]`)?.scrollIntoView({block:'nearest'}));
+        },
         render(key: string, sections: InspectorSection[]) {
-            const current = sections.find(section => section.id === selected.get(key)) ?? sections[0];
-            selected.set(key, current.id);
-            if (selected.size > 200) selected.delete(selected.keys().next().value!);
-            return `<nav class="inspector-section-tabs" aria-label="属性分组">${sections.map(section => `<button type="button" data-section-owner="${escape(key)}" data-inspector-section="${section.id}" aria-pressed="${section === current}">${escape(section.label)}</button>`).join('')}</nav><div class="inspector-page" data-section="${current.id}">${current.html}</div>`;
+            return sections.map(section => `<section class="inspector-parameter-group" data-section-owner="${escape(key)}" data-section="${section.id}"><h3>${escape(section.label)}</h3><div class="inspector-page">${section.html}</div></section>`).join('');
         },
     };
 }

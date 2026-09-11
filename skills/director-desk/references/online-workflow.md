@@ -6,8 +6,8 @@
 
 - 本说明由软件内置的 `director_skill` 按版本提供。当前对话已包含同版本说明就沿用，不反复读取、安装或更新；版本变化时读取一次最新说明。新对话没有旧说明时应重新读取，不依赖全局“已学过”标记。工具不可用的旧版软件使用随包说明。
 - 默认直接修改当前工程的当前戏段。补建场景、修改剧情、走位或运镜不需要新建或复制；只有用户要求新工程、新戏段、备选副本或接拍时才另建。房间、走廊等连续区域使用同一戏段内的物体和 zones，不拆成独立戏段；可用正常撤销修正。
-- `director_read` 获取当前工程；已有任务快照或本轮读取结果时直接利用，修改后沿用提交返回的 revision；只有缺少对象详情、版本冲突或结果未确认时再读取，详情用 ids 限定。工具返回足够时不为确认成功再次回读。
-- 按当前 `creationMode` 搭建：`geometry`（仅几何体）直接使用快照 `geometry` 中六种形状及尺寸写法，人物用命名、上色的单个胶囊加 path 占位，家具建筑用几何体组合；不检索人物、家具或动作库。几何角色为 prop，notes.actorId 用空串，剧情和对白写角色名；多个形状不会自动作为一个物体移动。`full`（完整资产／旧工程默认）仅按需要的名称、关键词、ID 或类型查询。
+- `director_read` 获取当前工程；已有任务快照或本轮读取结果时直接利用，修改后沿用提交返回的 revision；只有缺少对象详情、版本冲突或结果未确认时再读取，默认仅返回基本信息和对象摘要；详情用 `ids`＋`details:true` 限定。按需用 `sections:["scene"]` 读房间／灯光／楼层／区域／编辑视图，`["cuts"]` 读切镜，`["production"]` 读完整备注和提示词，`["references"]` 读参考素材名称，`["resources"]` 读资源元数据，`["statistics"]` 才统计性能；可以合并多个分区。`sections:[]` 仅取基本信息，`["all"]` 显式取全部。省略的分区不代表空值，不能据此清空工程。工具返回足够时不为确认成功再次回读。
+- 按当前 `creationMode` 搭建：`geometry`（仅几何体）直接使用快照 `geometry` 中可用形状及尺寸写法，人物用命名、上色的单个胶囊加 path 占位，家具建筑用几何体组合；不检索人物、家具或动作库。几何角色为 prop，notes.actorId 用空串，剧情和对白写角色名；多个形状不会自动作为一个物体移动。`full`（完整资产／旧工程默认）仅按需要的名称、关键词、ID 或类型查询。
 - `director_assets({queries:["桌","椅","黑板"]})` 可一次找所需物件，未知尺寸参数时同次带 `details:true`。空查询不返回目录，`found:false`、missingQueries/missingIds 明确表示未找到；不要把没找到理解成要扫描全库。已知 ID 和参数可直接添加。默认最多 8 条匹配，分页只用于继续寻找确实需要的候选；不例行查全部类别或翻完全部页。
 - `director_apply` 可一批新增多个人物、道具、机位和动作，普通编辑直接提交。参数错误时按返回信息修改即可，无需逐对象预检。
 - `director_spatial` 可传 `ids:["实体ID"]` 只返回所需对象；遮挡仍使用完整场景，返回的 counts 仍为全场统计，减少重复传回无关对象的数据。连接旧版软件时若工具 schema 没有 ids，省略该字段即可。
@@ -25,12 +25,12 @@
 - 用户已导入的动作按需用 `director_motions({source:"user",query:"所需动作",limit:20})` 查询；只返回本机收藏摘要，无素材字节。`complete:true` 的结果可把 id 原样用作 `motion.asset`，仍复用当前工程事务、预检与撤销。应用时源资源自动嵌入工程，之后不依赖本机收藏；无需同时扫描内置和用户全库。未完成映射的素材先由用户在动作库校正。
 - 米/秒，世界 +Y 向上、人物 +Z 向前；rotation 为弧度、pose 为度。路径用 `{smooth:false,points:[{time,position:[x,y,z]}]}`。颜色为 #RRGGBB。duration 支持小数，不把 24.5 秒无故延长至 25 秒。
 - `project.patch.referenceLabels:true/false` 开关参考视频中的名称标签，默认关闭；随戏段保存，摄影机预览、截图与视频共用。覆盖人物、群演组和胶囊占位，名称取实体 name；POV 不显示自身标签。标签仅作角色识别，配套生成提示词注明不要把标签变成成片字幕／文字。
-- cuts 的 value 为完整 `[{time:0,cameraId},...]`；notes 的 value 为完整 `{fixedPrompt:"",sceneReferenceIds:[],notes:[{id,start,end,actorId:"",story:"",emotion:"",dialogue:"",action:""}]}`。所有文字字段齐全，未写内容用空串。可附 promptText 保存本段完整提示词。保留原有备注、引用及未改的 promptText，不用 patch 替代 value。
+- cuts 的 value 为完整 `[{time:0,cameraId},...]`；notes 的 value 为完整 `{fixedPrompt:"",sceneReferenceIds:[],notes:[{id,start,end,actorId:"",story:"",emotion:"",dialogue:"",action:""}]}`。所有文字字段齐全，未写内容用空串。可附 promptText 保存本段完整提示词。保留原有备注、引用及未改的 promptText，不用 patch 替代 value。整段替换前，已有内容未知时用 `sections:["production"]` 读取完整 production；切镜同理用 `sections:["cuts"]`，已有当前数据则直接复用。
 - preview 不写入对象。预检成功后用 previewId、未变化的 revision 和新 requestId 提交，省略 operations；修改批次或预检失效时重新提供 operations。明确的小修改无需先预检。
 
 ## 多戏段、检查与交付
 
-同一戏段可用 project 补丁的 `zones` 整体数组标记空间：`{id,name,color,min:[x,y,z],max:[x,y,z],connectsTo:[区域ID]}`，min/max 是世界坐标范围，每轴 min < max。连接按双向人工说明理解，不表示墙已打通。director_read 返回区域；director_spatial 的对象 zoneIds 按当前原点判断，重叠区域可能同时命中，不表示全身都在区域内。区域只在布景显示，不进入参考视频，也不分割独立戏段。
+同一戏段可用 project 补丁的 `zones` 整体数组标记空间：`{id,name,color,min:[x,y,z],max:[x,y,z],connectsTo:[区域ID]}`，min/max 是世界坐标范围，每轴 min < max。连接按双向人工说明理解，不表示墙已打通。`director_read(sections:["scene"])` 返回区域；director_spatial 的对象 zoneIds 按当前原点判断，重叠区域可能同时命中，不表示全身都在区域内。区域只在布景显示，不进入参考视频，也不分割独立戏段。
 
 摄影机可写 `patch.camera.targetPath:{smooth:true,points:[{time:0,position:[0,1,0]},{time:5,position:[3,1,-2]}]}`，时间严格递增；该字段独立于摄影机位置 path。smooth 为注视点的平滑起止，首帧前与末帧后保持端点。独立机位 aim:"target" 和 follow 优先使用该视线，follow 的 targetId 仍用于位置跟随；手动旋转和 POV 不使用它。坐标是静态世界注视点，不是持续绑定人物；设 targetPath:null 恢复普通目标规则。按需使用，不要求每台摄影机配置。
 
@@ -46,7 +46,7 @@ director_export 导出工程、截图、视频或素材包，走用户本地保�
 
 完成用户要求的戏段和分镜后，接着输出该段可用于参考视频生成的完整提示词，并保存到该段 `production.promptText`。多场任务每场分别提供；后续改剧情、画幅或分镜时同步改受影响的段，不为小修改重写全工程。用户只要调整工具设置或明确不要提示词时，不附带生成。利用已知编排与备注直接写，不增加固定扫描、审批或另一轮模型任务。
 
-通用排列为“片段编号／名称＋视频参考固定头＋视频固定头＋上一场戏＋初始状态＋cut 正文”。参考头负责身份、外观来源和视频约束；视频头负责画幅、媒介、风格、表演和声音。每个独立生成片段都完整重复适用的固定头，不能写“同上”。沿用用户最新要求及 `production.fixedPrompt` 中确认的项目风格；人物、颜色、题材、画幅、模型版本、时长上限和音乐偏好都是项目变量。
+通用排列为“片段编号／名称＋视频参考固定头＋视频固定头＋cut 正文”。不再单列“上一场戏／上一段戏”和“初始状态”；理解剧情所必需的衔接自然写入相关 cut。参考头负责身份、外观来源和视频约束；视频头负责画幅、媒介、风格、表演和声音。每个独立生成片段都完整重复适用的固定头，不能写“同上”。沿用用户最新要求及 `production.fixedPrompt` 中确认的项目风格；人物、颜色、题材、画幅、模型版本、时长上限和音乐偏好都是项目变量。
 
 ```text
 【实际片段编号或戏段名称】
@@ -70,10 +70,6 @@ director_export 导出工程、截图、视频或素材包，走用户本地保�
 【存在次要人物时：根据剧情自然倾听和反应，虚化程度按项目要求，不额外制造台词。】
 【项目确认的配乐、字幕和画面叠字要求；环境声、动作声及剧情需要的道具文字。】
 【电话、广播等本段确有的特殊声音要求；无需要则省略。】
-
-上一场戏：【简述已发生的相关剧情与人物情绪；首场或无前情时省略，不编造。】
-
-初始状态：【本场开始时的时间、地点、人物站位／坐姿／朝向、手持物和关键道具状态，交代理解本场所需的空间关系。】
 
 cut1:
 [【实际开始 mm:ss，可含小数】—【实际结束 mm:ss，可含小数】]
@@ -99,4 +95,8 @@ cut1:
 
 用户需要时定向查询视觉元素、影响区域或空间扭曲，不扫描全库。`director_media(action:"list")` 查工程已导入的媒体；`action:"surfaces",entityId` 查网格／材质槽。桌面导入用 `action:"import",path,revision,requestId`，可带 entityId 直接承载；不要让模型输出大段 base64。详细 surface、visual、field、deform、warp 数据按需查 `director_help(names:["director_media"])`。普通修改仍用 director_apply，复用现有关键帧曲线和撤销。
 
-surface 是物体实际显示的材质／媒体，旧 references 是历史参考素材，两者不混用。发光材质不会照亮周围，需要真实灯光；聚光灯可携带一层媒体用于投影。烟火／流体使用确定性视觉近似；屏幕扭曲不改变空间射线报告。镜面、传送门内部不递归绘制彼此。视频画面随工程时间定位，声音忽略。`director_read(details:true)` 含资源与媒体运行状态；按实际需要查询，不增加固定验收轮次。
+surface 是物体实际显示的材质／媒体，旧 references 是历史参考素材，两者不混用。发光材质不会照亮周围，需要真实灯光；聚光灯可携带一层媒体用于投影。烟火／流体使用确定性视觉近似；屏幕扭曲不改变空间射线报告。镜面、传送门内部不递归绘制彼此。视频画面随工程时间定位，声音忽略。`director_read(sections:["resources"],details:true)` 含资源使用情况；`sections:["statistics"]` 返回渲染与媒体运行状态；按实际需要查询，不增加固定验收轮次。
+
+### 用户选中范围
+
+用户说“选中的这些／只改这里”时，已有任务快照包含 selection 就直接使用；没有时用 `director_read({sections:["selection"]})` 取实际 entityIds、片段标识与起止秒数、timeRange。只有时间范围表示该时间窗，不默认绑定右侧当前对象；选择片段优先以各片段为准，外包时间窗不表示中间所有片段都可改。内置“交给 AI”自动携带此信息。只改用户指定范围，保留其他安排；需要对象或备注详情再按需读取，不新建工程、不增加审批。此选择是临时编辑意图，不进入离线工程、不作为权限锁；用户明确扩大任务范围时按新要求操作。

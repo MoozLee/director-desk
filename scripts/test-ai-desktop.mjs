@@ -35,7 +35,7 @@ const server = http.createServer(async (req, res) => {
         assert.ok(body.tools.some(t => t.function.name === 'director_continuity'));
     }
     if (forgeSceneWrite) tool = { name: 'director_scene', arguments: JSON.stringify({ action: 'remove', sceneId: 'scene-main', revision: 1, requestId: 'forged-discuss-write' }) };
-    else if (!replies.length) tool = { name: mutate ? 'director_read' : 'director_scene', arguments: mutate ? '{}' : '{"action":"list"}' };
+    else if (!replies.length) tool = { name: mutate ? 'director_read' : 'director_scene', arguments: mutate ? '{"sections":["production"]}' : '{"action":"list"}' };
     else if (replies.length === 1 && mutate) tool = { name: 'director_apply', arguments: JSON.stringify({
         revision: JSON.parse(replies[0].content).data.revision, requestId: 'mock-ai-add', operations: [{ operation: 'add', asset: 'woman', id: 'ai-added', name: 'AI 演员', position: [1, 0, 2] },
             { operation: 'notes', value: { ...JSON.parse(replies[0].content).data.production, promptText: promptFixture + '\n新增人物进入。' } }] }) };
@@ -81,7 +81,7 @@ try {
         const response = await client.callTool({ name, arguments: args }), result = JSON.parse(response.content[0].text);
         assert.equal(result.ok, expected, JSON.stringify(result)); return result;
     }
-    let scene = (await tool('director_read', { details: true })).data;
+    let scene = (await tool('director_read', { sections: ['all'], details: true })).data;
     const embeddedSkill = (await tool('director_skill')).data;
     assert.ok(embeddedSkill.instructions); assert.equal(embeddedSkill.unchanged, false);
     assert.equal(scene.skill.version, embeddedSkill.version);
@@ -96,7 +96,7 @@ try {
     assert.equal((await tool('director_media',mediaArgs)).data.revision,importedMedia.revision);
     const listedMedia=(await tool('director_media',{action:'list'})).data;assert.equal(listedMedia.media.length,1);assert.equal(listedMedia.media[0].data,undefined);
     assert.ok((await tool('director_media',{action:'surfaces',entityId:target})).data.surfaces.length>0);
-    await tool('director_history',{revision:importedMedia.revision,action:'undo'});scene=(await tool('director_read',{details:true})).data;
+    await tool('director_history',{revision:importedMedia.revision,action:'undo'});scene=(await tool('director_read',{sections:['all'],details:true})).data;
     const spatialArgs = { time: 2, cameraId: 'program', occlusionKeys: ['entity:' + target] };
     const allSpatial = (await tool('director_spatial', spatialArgs)).data;
     const selectedSpatial = (await tool('director_spatial', { ...spatialArgs, ids: [target] })).data;
@@ -130,7 +130,7 @@ try {
     const commitBytes = Buffer.byteLength(JSON.stringify(previewCommit)), fullBytes = Buffer.byteLength(JSON.stringify({ revision: scene.revision, requestId: 'review-commit', operations: classroomOps }));
     await fs.writeFile('tmp/ai-preview-payload.json', JSON.stringify({ fullBytes, commitBytes, reduction: 1 - commitBytes / fullBytes }, null, 2));
     assert.equal(committed.committed, true); assert.equal(committed.summary.hasChanges, true);
-    const classroom = (await tool('director_read', { ids: ['review-person', 'review-desk'], details: true })).data;
+    const classroom = (await tool('director_read', { ids: ['review-person', 'review-desk'], sections: ['entities', 'production'], details: true })).data;
     assert.equal(classroom.entities.find(e => e.id === 'review-desk').assetParameters.width, 1.4);
     assert.ok(classroom.entities.find(e => e.id === 'review-person').clips.some(c => c.action === 'sit'));
     assert.equal(classroom.production.notes[0].id, 'review-note');
@@ -155,7 +155,7 @@ try {
     await page.keyboard.press('Escape'); await page.locator('#ai-toggle').click();
     const wrongNotes = await tool('director_apply', { revision: classroom.revision, requestId: 'review-notes-patch', preview: true, operations: [{ operation: 'notes', patch: { story: 'wrong field' } }] }, false);
     assert.match(wrongNotes.error, /operations\[0\].*fixedPrompt/);
-    assert.deepEqual((await tool('director_read')).data.production, classroom.production);
+    assert.deepEqual((await tool('director_read', { sections: ['production'] })).data.production, classroom.production);
     const alternatives = (await tool('director_assets', { queries: ['blackboard', 'lectern', 'desk'] })).data.assets;
     assert.ok(['furniture-blackboard', 'furniture-lectern', 'furniture-desk'].every(id => alternatives.some(a => a.id === id)));
     await tool('director_path_surface', { entityId: 'review-person' });
@@ -163,12 +163,12 @@ try {
     await tool('director_nodes', { entityId: 'review-desk' }, false);
     await tool('director_stride', { entityId: 'review-person', clipId: classroom.entities.find(e => e.id === 'review-person').clips[0].id }, false);
     await tool('director_history', { action: 'undo', revision: committed.revision });
-    scene = (await tool('director_read', { details: true })).data;
+    scene = (await tool('director_read', { sections: ['all'], details: true })).data;
     assert.equal(scene.entities.some(e => e.id.startsWith('review-')), false);
     const initial = scene.entities.length;
     const batch = { revision: scene.revision, requestId: 'mcp-add', operations: [{ operation: 'add', asset: 'woman', id: 'mcp-actor', name: 'MCP 演员', patch: { path: { smooth: false, points: [{ time: 0, position: [0, 0, 0] }, { time: 5, position: [2, 1, 3] }] }, clips: [{ id: 'mcp-walk', action: 'walk', start: 0, end: 5, speed: 1 }] } }] };
     const first = await tool('director_apply', batch); assert.deepEqual(await tool('director_apply', batch), first);
-    scene = (await tool('director_read', { details: true })).data; assert.equal(scene.entities.length, initial + 1);
+    scene = (await tool('director_read', { sections: ['all'], details: true })).data; assert.equal(scene.entities.length, initial + 1);
     await tool('director_apply', { ...batch, requestId: 'stale' }, false);
     const bad = await tool('director_export', { kind: 'video', size: 8000 }, false); assert.match(bad.error, /参数/);
     await tool('director_apply', { revision: scene.revision, requestId: 'rollback', operations: [{ operation: 'add', asset: 'woman' }, { operation: 'update', id: 'missing', patch: { name: 'x' } }] }, false);
@@ -187,7 +187,7 @@ try {
     let frames = 0; for await (const _packet of new EncodedPacketSink(track).packets()) frames++; assert.equal(frames, 12); video.dispose();
     await tool('director_history', { revision: scene.revision, action: 'undo' }); assert.equal((await tool('director_read')).data.entities.length, initial);
     // Real MCP transport must preserve independent scene history and inherited state.
-    const beforeContinuation = (await tool('director_read')).data;
+    const beforeContinuation = (await tool('director_read', { sections: ['production'] })).data;
     await tool('director_apply', { revision: beforeContinuation.revision, requestId: 'source-prompt', operations: [
         { operation: 'notes', value: { ...beforeContinuation.production, fixedPrompt: '电影风格', promptText: promptFixture } },
     ] });
@@ -200,13 +200,13 @@ try {
     const ending = (await tool('director_continuity', { limit: 1 })).data;
     assert.equal(ending.origin.sourceStatus, 'unchanged'); assert.equal(ending.origin.objects.length, 1);
     assert.equal(ending.origin.nextOffset, 1);
-    const second = (await tool('director_read')).data;
+    const second = (await tool('director_read', { sections: ['production'] })).data;
     assert.equal(second.production.promptText, undefined, 'a continuation does not replay the preceding scene prompt');
     assert.equal(second.production.fixedPrompt, '电影风格');
     assert.equal(second.sceneContext.sceneId, 'mcp-scene-b');
     await page.locator('#production-prompt-text').fill('旧窗口编辑不应写到新段');
     await page.locator('#production-prompt-text').blur();
-    assert.equal((await tool('director_read')).data.production.promptText, undefined);
+    assert.equal((await tool('director_read', { sections: ['production'] })).data.production.promptText, undefined);
     await page.keyboard.press('Escape');
     await page.locator('#ai-scene-prompt').click();
     assert.equal(await page.locator('#production-prompt-text').inputValue(), '');
@@ -306,7 +306,7 @@ try {
     await page.locator('#ai-prompt').fill('添加一个演员'); await page.locator('#ai-send').click();
     await page.waitForFunction(() => document.querySelector('#ai-status').textContent.includes('任务完成'));
     assert.ok((await tool('director_read')).data.entities.some(e => e.id === 'ai-added'));
-    assert.equal((await tool('director_read')).data.production.promptText, promptFixture + '\n新增人物进入。');
+    assert.equal((await tool('director_read', { sections: ['production'] })).data.production.promptText, promptFixture + '\n新增人物进入。');
     assert.equal((await tool('director_scene', { action: 'list' })).data.scenes.length, 1, 'ordinary AI edit stays in the current scene');
     await page.locator('#ai-undo').click(); assert.equal((await tool('director_read')).data.entities.length, initial);
     const beforeNewChat = (await tool('director_scene', { action: 'read' })).data;
@@ -341,7 +341,7 @@ try {
     assert.match(await page.locator('#ai-transcript').inputValue(), /讨论越权检查/);
     await page.screenshot({ path: 'tmp/ai-execution-validation.png' });
     // Lock must be respected across MCP as well as in-app edits.
-    scene = (await tool('director_read', { details: true })).data;
+    scene = (await tool('director_read', { sections: ['all'], details: true })).data;
     await tool('director_view', { time: 0, entityId: scene.entities.find(e => e.kind === 'actor').id });
     await page.locator('#ai-close').click();
     // Memory-only secret disappears on process reload of the host; remembered secret is encrypted on disk.

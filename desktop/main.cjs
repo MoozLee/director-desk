@@ -19,15 +19,17 @@ async function createWindow() {
     window = new BrowserWindow({ width: 1600, height: 1000, minWidth: 1000, minHeight: 720, show: false,
         title: windowTitle, backgroundColor: '#101214', icon: path.join(__dirname, 'icon.ico'),
         webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, spellcheck: false } });
-    if (!app.isPackaged) window.on('page-title-updated', event => { event.preventDefault(); window.setTitle(windowTitle); });
+    window.on('page-title-updated', (event, title) => {
+        event.preventDefault();
+        const name = title || '导演台';
+        window.setTitle(!app.isPackaged && !name.endsWith(' · 开发测试版') ? name + ' · 开发测试版' : name);
+    });
     const integration = attachIntegration(window), updates = attachUpdates(window, integration);
     const files = attachFiles(window);
     Menu.setApplicationMenu(null);
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event, url) => { if (url !== origin + '/') event.preventDefault(); });
     window.webContents.on('will-attach-webview', event => event.preventDefault());
-    window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-    window.webContents.session.setPermissionCheckHandler(() => false);
     window.webContents.on('will-prevent-unload', event => {
         if (updates.isQuitting()) { event.preventDefault(); return; }
         files.preventUnload(event);

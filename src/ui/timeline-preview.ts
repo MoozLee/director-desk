@@ -4,7 +4,7 @@ import { extendTimelineView } from './timeline-zoom.ts';
 
 export const timelineOffset=(time:number)=>`calc(var(--timeline-pps) * ${Math.max(0,time)})`;
 /** Timing-only edits reuse mounted bars, labels and pointer targets. */
-export function createTimelineDragPreview(ctx:AppContext,initial:TimelineSelection) {
+export function createTimelineDragPreview(ctx:AppContext,initial:TimelineSelection, manageHighlight=true, updateExtent=true) {
     const root=document.querySelector<HTMLElement>('#timeline-content')!;
     const cutBars=initial.kind==='cut'?[...root.querySelectorAll<HTMLElement>('[data-cut]')]:[];
     const names=new Map(ctx.project.entities.filter(e=>e.camera).map(e=>[e.id,e.name]));
@@ -17,9 +17,9 @@ export function createTimelineDragPreview(ctx:AppContext,initial:TimelineSelecti
     const set=(bar:HTMLElement,start:number,end:number)=>{bar.style.left=timelineOffset(start);bar.style.width=timelineOffset(end-start);};
     return (selection:TimelineSelection)=>{
     const range=clipRange(ctx.project,selection);
-    extendTimelineView(ctx,Math.max(ctx.project.duration,range.end));
+    if(updateExtent)extendTimelineView(ctx,Math.max(ctx.project.duration,range.end));
     const next=selection.kind==='cut'?cutBars[selection.index]:selectedBar;
-    if(highlighted!==next){highlighted?.classList.remove('clip-selected');next?.classList.add('clip-selected');highlighted=next;}
+    if(manageHighlight && highlighted!==next){highlighted?.classList.remove('clip-selected');next?.classList.add('clip-selected');highlighted=next;}
     if(selection.kind==='cut') {
         cutBars.forEach(bar=>{
             const i=Number(bar.dataset.cut),c=ctx.project.cuts[i];set(bar,c.time,ctx.project.cuts[i+1]?.time??ctx.project.duration);

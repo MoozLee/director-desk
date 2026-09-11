@@ -1,3 +1,4 @@
+import { editorPreferences } from './preferences.ts';
 import { Vector3 } from 'three';
 import type { AppContext } from '../app-context.ts';
 
@@ -25,7 +26,7 @@ export function bindNavigation(ctx: AppContext) {
             if (!keys.size) return;
             const camera = ctx.engine.editorCamera, orbit = ctx.engine.orbit;
             const axis = (positive: string, negative: string) => Number(keys.has(positive)) - Number(keys.has(negative));
-            const yaw = axis('KeyQ', 'KeyE') * delta * 1.25;
+            const yaw = axis('KeyQ', 'KeyE') * delta * 1.25 * editorPreferences.current.rotationSpeed;
             if (yaw) {
                 const direction = orbit.target.clone().sub(camera.position).applyAxisAngle(new Vector3(0, 1, 0), yaw);
                 orbit.target.copy(camera.position).add(direction);
@@ -35,7 +36,7 @@ export function bindNavigation(ctx: AppContext) {
             const right = forward.clone().cross(new Vector3(0, 1, 0));
             const movement = forward.multiplyScalar(axis('KeyW', 'KeyS')).addScaledVector(right, axis('KeyD', 'KeyA'));
             movement.y = axis('KeyR', 'KeyF');
-            movement.normalize().multiplyScalar(delta * (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 10 : 3));
+            movement.normalize().multiplyScalar(delta * editorPreferences.current.navigationSpeed * (keys.has('ShiftLeft') || keys.has('ShiftRight') ? editorPreferences.current.navigationBoost : 1));
             camera.position.add(movement);
             orbit.target.add(movement);
             orbit.update();

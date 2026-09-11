@@ -2,9 +2,11 @@ const { app, ipcMain, dialog } = require('electron');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { createFileHost } = require('./file-host.cjs');
+const { installFilePermissions } = require('./file-permissions.cjs');
 
 function attachFiles(window) {
     const session = window.webContents.session;
+    installFilePermissions(session, window.webContents);
     const trusted = event => event.sender === window.webContents && event.senderFrame?.url === 'director://app/';
     const host = createFileHost({ directory: app.getPath('userData'), defaults: {
         projects: path.join(app.getPath('documents'), 'DirectorDesk', 'Projects'),

@@ -17,7 +17,8 @@ test('task snapshots follow stable system/history prefixes and timing separates 
     });
     await new Promise(r => server.listen(0, '127.0.0.1', r));
     try {
-        const host = createAIHost({ directory, safeStorage: { isEncryptionAvailable: () => false }, ...toolPolicy, send() {}, callTool: async () => {
+        const host = createAIHost({ directory, safeStorage: { isEncryptionAvailable: () => false }, ...toolPolicy, send() {}, callTool: async (name, args) => {
+            assert.equal(name, 'director_read'); assert.deepEqual(args, { sections: ['entities'] });
             await new Promise(r => setTimeout(r, 10)); return { ok: true, data: { revision } };
         } });
         const [profile] = await host.configure({ baseUrl: `http://127.0.0.1:${server.address().port}/v1`, protocol: 'chat', model: 'mock', stream: false, maxTokens: 1000 });
@@ -41,6 +42,28 @@ async function cleanup(directory) {
     assert.match(path.basename(resolved), /^director-(?:config|rounds)-/);
     await fs.rm(resolved, { recursive: true, force: true });
 }
+
+test('selected-range tasks read the live scope once and retain it with the task history', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'director-rounds-')), bodies = [], calls = [];
+    const selection = { entityIds: ['actor-a'], objects: [{ id: 'actor-a', name: '人物 A' }], clips: [{ kind: 'action', entityId: 'actor-a', id: 'walk-a', start: 2, end: 5 }], timeRange: { start: 2, end: 5 }, scope: 'clips' };
+    const server = http.createServer(async (req, res) => {
+        let raw = ''; for await (const chunk of req) raw += chunk; bodies.push(JSON.parse(raw));
+        res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '已收到范围' } }] }));
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    try {
+        const host = createAIHost({ directory, safeStorage: { isEncryptionAvailable: () => false }, ...toolPolicy, send() {},
+            callTool: async (name, args) => { calls.push({ name, args }); return { ok: true, data: { revision: calls.length, ...(args.sections.includes('selection') ? { selection } : { entities: [] }) } }; } });
+        const [profile] = await host.configure({ baseUrl: `http://127.0.0.1:${server.address().port}/v1`, protocol: 'chat', model: 'mock', stream: false, maxTokens: 1000 });
+        await host.run({ profileId: profile.id, prompt: '只调整这里', useSelection: true });
+        assert.deepEqual(calls[0], { name: 'director_read', args: { sections: ['selection'] } });
+        assert.match(bodies[0].messages.at(-1).content, /walk-a/); assert.match(bodies[0].messages.at(-1).content, /仅对本次任务有效/);
+        await host.run({ profileId: profile.id, prompt: '再看整个戏段', useSelection: false });
+        assert.deepEqual(calls[1].args, { sections: ['entities'] });
+        assert.doesNotMatch(bodies[1].messages.at(-1).content, /walk-a/);
+        assert.match(JSON.stringify(bodies[1].messages), /walk-a/); assert.equal(calls.length, 2);
+    } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); await cleanup(directory); }
+});
 
 test('enabled skill catalog is lazy, disabling takes effect next task without deleting history', async () => {
     const { createSkillStore } = require('../desktop/skills/store.cjs');

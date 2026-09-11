@@ -23,7 +23,7 @@ try {
         const before = await call('director_read');
         const empty = await call('director_assets');
         const missing = await call('director_assets', { query: 'dog' });
-        const all = await call('director_assets', { group: '全部' });
+        const all = await call('director_assets', { group: '全部', limit: 50 });
         const built = await call('director_apply', { revision: before.revision, requestId: 'geometry-browser-build', operations: [
             { operation: 'add', asset: 'shape-capsule', id: 'geometry-role', name: '角色甲', position: [0,0,0], patch: {
                 color: '#44AA66', assetParameters: { width: .6, height: 1.8, depth: .6 },
@@ -37,7 +37,7 @@ try {
         return { empty, missing, all, guide: before.geometry, built, world: root.position.toArray() };
     });
     assert.deepEqual(report.empty.assets, []); assert.equal(report.missing.found, false);
-    assert.equal(report.all.assets.length, 6); assert.equal(report.guide.assets.length, 6);
+    assert.equal(report.all.assets.length, 16); assert.equal(report.guide.assets.length, 16);
     assert.equal(report.built.committed, true); assert.deepEqual(report.world, [2.5,0,0]);
     // Isolate a synthetic subject to inspect the actual encoded output.
     await page.evaluate(() => {
@@ -112,7 +112,7 @@ try {
     assert.equal(await page.locator('[data-creation-mode="geometry"]').getAttribute('aria-pressed'), 'true');
     assert.equal(await page.locator('#reference-labels').isChecked(), true);
     await page.locator('[data-side="assets"]').click();
-    assert.equal((await page.locator('#library-count').textContent()).trim(), '6 项');
+    assert.equal((await page.locator('#library-count').textContent()).trim(), '16 项');
     await page.screenshot({ path: 'tmp/creation-mode/wide.png' });
     await page.setViewportSize({ width: 1000, height: 720 });
     for (const selector of ['#creation-mode','#reference-labels']) {
@@ -123,5 +123,5 @@ try {
     assert.equal(await page.locator('.shot-panel .panel-topline').evaluate(el => el.scrollWidth > el.clientWidth), false);
     await page.screenshot({ path: 'tmp/creation-mode/narrow.png' });
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ ok: true, changedVideoChannels: changed, checks: ['mode retains scene', 'undo/redo', 'six shapes', 'targeted search', 'direct commit', 'actual path', 'labels in encoded MP4', 'labels off restores clean frame', 'save/reopen', 'narrow toolbar'] }));
+    console.log(JSON.stringify({ ok: true, changedVideoChannels: changed, checks: ['mode retains scene', 'undo/redo', 'sixteen shapes', 'targeted search', 'direct commit', 'actual path', 'labels in encoded MP4', 'labels off restores clean frame', 'save/reopen', 'narrow toolbar'] }));
 } finally { await browser.close(); }

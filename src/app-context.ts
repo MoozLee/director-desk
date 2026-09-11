@@ -42,7 +42,7 @@ export interface AppContext {
     change(fn: () => void, rebuild?: boolean): boolean;
     changed(rebuild?: boolean): void;
     extendDuration(): void;
-    selectEntity(id: string): void;
+    selectEntity(id: string, preserveTimelineSelection?: boolean): void;
     renderPanels(): void;
     renderSidebar(): void;
     renderInspector(): void;

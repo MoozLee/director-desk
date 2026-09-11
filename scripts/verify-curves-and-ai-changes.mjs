@@ -20,10 +20,13 @@ try {
         return { actor: actor.id, camera: camera.id, scene: (await window.__director.callTool('director_read')).data.sceneContext.sceneId };
     });
     const fits = async () => {
-        const outside = await page.locator('#inspector-content').evaluate(root => { const b = root.getBoundingClientRect(); return [...root.querySelectorAll('button,select,svg')].filter(e => e.getClientRects().length).filter(e => { const r = e.getBoundingClientRect(); return r.bottom > b.bottom + 1 || r.right > b.right + 1 || r.left < b.left - 1; }).map(e => e.id || e.textContent); });
+        const outside = await page.locator('#inspector-content').evaluate(root => { const b = root.getBoundingClientRect(); return [...root.querySelectorAll('button,select,svg')].filter(e => e.getClientRects().length).filter(e => { const r = e.getBoundingClientRect(); return r.right > b.right + 1 || r.left < b.left - 1; }).map(e => e.id || e.textContent); });
         assert.deepEqual(outside, []);
     };
-    await page.locator('[data-inspect="curves"]').click(); await fits();
+    await page.locator('[data-timeline-view="curves"]').click(); await fits();
+    assert.equal(await page.locator('#scrubber').count(), 0);
+    assert.equal(await page.locator('#timeline-curves #curve-graph').count(), 1);
+    assert.equal(await page.locator('#inspector-content #curve-graph').count(), 0);
     const drag = async () => {
         const handle = await page.locator('[data-curve-handle="0"]').boundingBox(), point = await page.locator('#curve-graph').evaluate(svg => { const p = new DOMPoint(220, 146).matrixTransform(svg.getScreenCTM()); return { x: p.x, y: p.y }; });
         await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2); await page.mouse.down(); await page.mouse.move(point.x, point.y, { steps: 8 }); await page.mouse.up();
@@ -31,17 +34,17 @@ try {
     await drag();
     const getCurve = () => page.evaluate(id => window.__director.getProject().entities.find(e => e.id === id).path.points[1].easing, ids.actor);
     assert.ok((await getCurve()).bezier[0] > .7);
-    await page.locator('[data-act="undo"]').click(); assert.equal(await getCurve(), undefined);
-    await page.locator('[data-act="redo"]').click(); assert.ok((await getCurve()).bezier);
-    await page.locator('[data-inspect="curves"]').click(); await page.screenshot({ path: 'tmp/curve-changes/curve.png' });
+    await page.locator('[data-menu="edit"]').click();await page.locator('[data-act="undo"]').click(); assert.equal(await getCurve(), undefined);
+    await page.locator('[data-menu="edit"]').click();await page.locator('[data-act="redo"]').click(); assert.ok((await getCurve()).bezier);
+    await page.locator('[data-timeline-view="curves"]').click(); await page.screenshot({ path: 'tmp/curve-changes/curve.png' });
     // Cancellation must not create an edit.
-    await page.locator('[data-act="curve-pause"]').click(); assert.equal(await page.evaluate(id=>window.__director.getProject().entities.find(e=>e.id===id).path.points.length,ids.actor),3); await page.locator('[data-act="undo"]').click(); await page.locator('[data-inspect="curves"]').click();
+    await page.locator('[data-act="curve-pause"]').click(); assert.equal(await page.evaluate(id=>window.__director.getProject().entities.find(e=>e.id===id).path.points.length,ids.actor),3); await page.locator('[data-menu="edit"]').click();await page.locator('[data-act="undo"]').click(); await page.locator('[data-timeline-view="curves"]').click();
     const previous = await getCurve(), handle = await page.locator('[data-curve-handle="1"]').boundingBox();
     await page.mouse.move(handle.x + 5, handle.y + 5); await page.mouse.down(); await page.mouse.move(handle.x - 50, handle.y + 15); await page.keyboard.press('Escape'); await page.mouse.up(); assert.deepEqual(await getCurve(), previous);
     // Camera channel curves use the same editor and survive editing another key property.
     await page.evaluate(id => window.__director.callTool('director_view', { time: 5, entityId: id }), ids.camera);
-    await page.locator('[data-inspect="curves"]').click(); await page.locator('#curve-channel').selectOption('camera:focal'); await drag();
-    await page.locator('[data-inspect="effects"]').click(); await page.locator('[data-cinema-tab="channels"]').click(); await page.locator('#cinema-key').selectOption('1');
+    await page.locator('[data-timeline-view="curves"]').click(); await page.locator('#curve-channel').selectOption('camera:focal'); await drag();
+    await page.locator('[data-inspect="path"]').click(); await page.locator('#cinema-key').selectOption('1');
     assert.equal(await page.locator('#cinema-ease').inputValue(), 'custom'); await page.locator('#cinema-value').fill('55'); await page.locator('[data-act="cinema-key-save"]').click();
     assert.ok(await page.evaluate(id => window.__director.getProject().entities.find(e => e.id === id).camera.effects.channels.focal.keys[1].easing.bezier, ids.camera));
     const result = await page.evaluate(async ids => {
