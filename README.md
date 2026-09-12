@@ -94,7 +94,23 @@ npm ci
 npm run dev
 ```
 
-按终端显示的地址打开网页。构建网页和 Windows 桌面版：
+按终端显示的地址打开网页。要启动 **Electron 桌面开发版**（包含内置 AI、MCP 和桌面文件功能），执行：
+
+```bash
+npm run desktop:dev
+```
+
+这个命令复用 `desktop:prepare`，先构建网页与独立桌面运行目录，再启动 Electron，无需制作安装包。Windows 和 macOS 使用同一命令。首次使用需安装本机 Chrome，或通过 `CHROME_PATH` 指定 Chrome 路径。
+
+开发版默认将配置、会话和自动恢复数据保存在 `.local/desktop-dev-profile/`，与安装版分开，重启后保留。源码修改后重新运行 `desktop:dev`；此入口不提供热更新。如果没有改代码，只想再次打开已经准备好的版本，可以运行：
+
+```bash
+npm run desktop:start
+```
+
+可通过 `npm run desktop:dev '--' --remote-debugging-port=9222` 传入 Electron 调试参数；网页开发仍使用支持热更新的 `npm run dev`。
+
+验证后构建网页或 Windows 安装包：
 
 ```bash
 npm run build

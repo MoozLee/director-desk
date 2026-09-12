@@ -35,6 +35,7 @@ release/
 !/scripts/build-builtin-skill.mjs
 !/scripts/offline-project-entry.ts
 !/scripts/prepare-desktop.mjs
+!/scripts/desktop-dev.mjs
 !/scripts/check-release-privacy.mjs
 !/scripts/package-portable.ps1
 !/scripts/smoke.mjs
