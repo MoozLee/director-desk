@@ -137,3 +137,7 @@ npm run desktop:pack:mac
 ## 许可证
 
 项目自有代码采用 [MIT](LICENSE) 许可证。第三方依赖和动作素材保留各自许可，内置动作来源见 [NOTICE](src/animation/library/NOTICE.txt)。
+
+## 友情链接
+
+[Linux.do](https://linux.do/)
