@@ -1,11 +1,12 @@
 const path = require('node:path');
+const { publicFiles: publicSkillFiles } = require('../scripts/builtin-skill-files.cjs');
 module.exports = {
     appId: 'app.directordesk.desktop', productName: '导演台', copyright: 'Copyright © 2026 DirectorDesk',
     directories: { app: '.audit/desktop-app', output: 'release', buildResources: 'desktop' },
-    files: ['package.json', 'LICENSE', 'desktop/main.cjs', 'desktop/files.cjs', 'desktop/preload.cjs', 'desktop/integration.cjs', 'desktop/updates.cjs', 'desktop/tools-contract.cjs', 'desktop/icon.ico', 'skills/director-desk/SKILL.md', 'skills/director-desk/LICENSE', 'skills/director-desk/references/project-format.md', 'skills/director-desk/references/online-workflow.md', 'skills/director-desk/scripts/project-tool.mjs', 'skills/director-desk/assets/minimal.director', 'dist/index.html', 'dist/favicon.svg', 'dist/assets/*.js', 'dist/assets/*.css', 'THIRD-PARTY-LICENSES.txt', '!node_modules{,/**/*}'],
+    files: ['package.json', 'LICENSE', 'desktop/main.cjs', 'desktop/files.cjs', 'desktop/preload.cjs', 'desktop/integration.cjs', 'desktop/updates.cjs', 'desktop/tools-contract.cjs', 'desktop/icon.ico', ...publicSkillFiles.map(file => 'skills/director-desk/' + file), 'dist/index.html', 'dist/favicon.svg', 'dist/assets/*.js', 'dist/assets/*.css', 'THIRD-PARTY-LICENSES.txt', '!node_modules{,/**/*}'],
     // Shareable skill beside the executable, copied only from the audited staging payload.
     extraFiles: [{ from: '.audit/desktop-app/skills/director-desk', to: 'skills/director-desk',
-        filter: ['SKILL.md', 'LICENSE', 'references/project-format.md', 'references/online-workflow.md', 'scripts/project-tool.mjs', 'assets/minimal.director'] },
+        filter: publicSkillFiles },
         { from: '.audit/desktop-app/LICENSE', to: 'LICENSE' }],
     onNodeModuleFile: () => false,
     extraResources: [{ from: '.audit/desktop-app/desktop/mcp-stdio.cjs', to: 'mcp/stdio-bridge.cjs' }],

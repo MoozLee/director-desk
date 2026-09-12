@@ -24,7 +24,7 @@ export interface PathSurfaceReport {
 }
 const surfaceKey = (project: Project) => JSON.stringify([project.room, project.entities.filter(e => e.kind === 'prop').map(e => [e.id, e.visible, e.asset, e.position, e.rotation, e.scale, e.parameters, e.assetParameters, e.external, e.path, e.clips, e.handBinding])]);
 export function pathSurfaceSamples(path: MotionPath) {
-    const curve = { smooth: path.smooth, points: path.points }, ranges = path.sections?.map(s => [s.from, s.to]) ?? [[path.points[0].time, path.points.at(-1)!.time]];
+    const curve = { smooth: path.smooth, interpolation: path.interpolation, points: path.points }, ranges = path.sections?.map(s => [s.from, s.to]) ?? [[path.points[0].time, path.points.at(-1)!.time]];
     const times = new Set<number>();
     for (const [start, end] of ranges) {
         const critical = [start, ...path.points.filter(p => p.time > start && p.time < end).map(p => p.time), end];

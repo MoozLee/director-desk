@@ -29,7 +29,7 @@ test('default and selected detailed reads omit unrequested production and global
     assert.deepEqual(data.sections, ['entities']); assert.equal(data.entities.length, 1);
     assert.deepEqual(data.entities[0].rotation, ctx.project.entities[0].rotation);
     assert.deepEqual(data.missingIds, ['missing']);
-    for (const key of ['production', 'cuts', 'room', 'resources', 'media', 'resourceStatistics', 'mediaRuntime']) assert.equal(Object.hasOwn(data, key), false, key);
+    for (const key of ['production', 'cuts', 'room', 'resources', 'media', 'resourceStatistics', 'mediaRuntime', 'selection', 'geometry']) assert.equal(Object.hasOwn(data, key), false, key);
     assert.equal(data.revision, (base.data as any).revision);
     assert.equal(data.duration, ctx.project.duration); assert.match(data.omitted, /不代表内容为空/);
     assert.equal(JSON.stringify(ctx.project), original);
@@ -54,6 +54,8 @@ test('metadata-only, scene, resources and empty selection keep distinct omission
     const { ctx, service } = fixture();
     const core = await service.call('director_read', { sections: [] });
     assert.equal(core.ok, true, core.error ?? 'read failed'); assert.equal(Object.hasOwn(core.data!, 'entities'), false);
+    assert.equal(Object.hasOwn(core.data!, 'selection'), false);
+    assert.equal(Object.hasOwn(core.data!, 'geometry'), false);
     const empty = await service.call('director_read', { ids: [] });
     assert.deepEqual((empty.data as any).entities, []);
     const scene = await service.call('director_read', { sections: ['scene', 'resources', 'references'] });
@@ -61,6 +63,15 @@ test('metadata-only, scene, resources and empty selection keep distinct omission
     assert.deepEqual((scene.data as any).room, ctx.project.room);
     assert.equal(Object.hasOwn(scene.data!, 'production'), false);
     assert.equal(Object.hasOwn(scene.data!, 'resources'), true);
+    const selection = await service.call('director_read', { sections: ['selection'] });
+    assert.equal(selection.ok, true, selection.error ?? 'selection read failed');
+    assert.equal(Object.hasOwn(selection.data!, 'selection'), true);
+    assert.equal(Object.hasOwn(selection.data!, 'entities'), false);
+    ctx.project.creationMode = 'geometry';
+    const geometry = await service.call('director_read', { sections: [] });
+    assert.equal(geometry.ok, true, geometry.error ?? 'geometry read failed');
+    assert.equal(Object.hasOwn(geometry.data!, 'geometry'), true);
+    assert.equal(Object.hasOwn(geometry.data!, 'selection'), false);
     const missing = await service.call('director_read', { resourceId: 'missing' });
     assert.equal(missing.ok, false); assert.match(missing.error!, /模型资源不存在/);
 });

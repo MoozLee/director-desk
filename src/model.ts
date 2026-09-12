@@ -15,7 +15,9 @@ import { assertProductionShape } from './production/validation.ts';
 import { assertCameraLookPath, type CameraLookPath } from './animation/camera-look.ts';
 import { assertZones, type SceneZone } from './building/zones.ts';
 import { assertEasing, type Easing } from './animation/channels.ts';
+import { assertPathInterpolation } from './animation/continuous-path.ts';
 import { assertCameraEffects, type CameraEffects } from './cinematography/camera-effects.ts';
+import { assertCameraAimResponse, type CameraAimResponse } from './cinematography/aim-response.ts';
 import { assertLightEntity, assertLighting, type LightConfig, type LightingConfig } from './lighting/model.ts';
 import {assertWarp,type WarpConfig} from './visuals/warps.ts';
 import { SURFACE_VISUALS,assertVisual,assertField,assertDeform,type VisualConfig,type FieldConfig,type DeformConfig } from './visuals/model.ts';
@@ -30,11 +32,13 @@ export type Action = 'idle' | 'walk' | 'run' | 'sit' | 'standup' | 'crouch' | 'c
 export type Joint = JointName;
 export type Pose = Partial<Record<Joint, number>>;
 export interface Waypoint {
+    stop?: boolean;
     easing?: Easing;
     time: number;
     position: Vec3;
 }
 export interface MotionPath {
+    interpolation?: 'continuous';
     smooth: boolean;
     points: Waypoint[];
     sections?: { start: number; end: number; from: number; to: number }[];
@@ -58,6 +62,7 @@ export interface PoseKey {
     pose: Pose;
 }
 export interface CameraConfig {
+    aimResponse?: CameraAimResponse;
     effects?: CameraEffects;
     targetPath?: CameraLookPath | null;
     aim: 'target' | 'manual';
@@ -298,6 +303,7 @@ export function assertProject(input: unknown): asserts input is Project {
                 fail('路径至少需要一个位置点');
             e.path.points.forEach((w, i) => { if (!w || !v3(w.position) || !n(w.time) || w.time < 0 || (i > 0 && w.time <= e.path!.points[i - 1].time))
                 fail('路径时间必须递增'); assertEasing(w.easing); });
+            assertPathInterpolation(e.path);
             if (e.path.sections !== undefined) {
                 if (!Array.isArray(e.path.sections) || !e.path.sections.length || e.path.sections.some(s=>!s)) fail('路径片段不能为空');
                 const parts = [...e.path.sections].sort((a,b)=>a.start-b.start);
@@ -310,6 +316,7 @@ export function assertProject(input: unknown): asserts input is Project {
             if (!c || !['target', 'manual'].includes(c.aim) || !n(c.focal) || c.focal < 8 || c.focal > 300 || !v3(c.target) || !v3(c.offset) || !n(c.targetHeight) || typeof c.targetId !== 'string' || !['free', 'follow', 'pov'].includes(c.mode) || typeof c.inheritRotation !== 'boolean' || !Array.isArray(c.hideWalls) || c.hideWalls.some(w => !['north', 'south', 'east', 'west', 'ceiling'].includes(w)))
                 fail('摄影机参数错误');
             assertCameraLookPath(c!.targetPath);
+            assertCameraAimResponse(c!.aimResponse);
             assertCameraEffects(c!.effects, id => p.entities.some(e => e.id === id && e.kind !== 'camera'));
         }
     }

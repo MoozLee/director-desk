@@ -44,9 +44,12 @@ export function createToolService(ctx: AppContext) {
     async function execute(name: string, args: Record<string, unknown>) {
         validateToolInput(name, args);
         if (name === 'director_skill') {
-            if (args.action === 'list') return { skills: [{ id: 'builtin', name: readBuiltinSkill().name, version: readBuiltinSkill().version, enabled: true, builtin: true }] };
-            if (args.id && args.id !== 'builtin' || args.path && args.path !== 'SKILL.md') throw Error('网页版仅提供内置操作说明；自定义技能请在桌面版管理');
-            return readBuiltinSkill(args.knownVersion as string | undefined);
+            if (args.action === 'list') {
+                const { name, version, files } = readBuiltinSkill();
+                return { skills: [{ id: 'builtin', name, version, files, enabled: true, builtin: true }] };
+            }
+            if (args.id && args.id !== 'builtin') throw Error('网页版仅提供内置操作说明；自定义技能请在桌面版管理');
+            return readBuiltinSkill(args.knownVersion as string | undefined, args.path as string | undefined);
         }
         if(name==='director_media'){
             if(args.action==='list')return {revision:currentRevision(),media:(ctx.project.media??[]).map(({data:_data,...r})=>r),runtime:ctx.engine.surfaces.textures.statistics()};

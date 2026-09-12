@@ -100,3 +100,8 @@ file-locations.json
 !/scripts/verify-workspace-controls.mjs
 
 !/scripts/verify-timeline-multiselect.mjs
+!/scripts/verify-camera-motion-design.mjs
+
+!/scripts/builtin-skill-files.cjs
+
+!/scripts/verify-file-permissions-desktop.mjs

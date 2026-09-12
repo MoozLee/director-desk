@@ -17,7 +17,7 @@ await fs.writeFile(path.join(source, 'references/guide.md'), '附件内容：先
 const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
 let application, page, client;
 const launch = async () => {
-    application = await _electron.launch({ executablePath: createRequire(import.meta.url)('electron'), args: [path.resolve('.audit/desktop-app'), `--director-test-profile=${profile}`], env });
+    application = await _electron.launch({ executablePath: createRequire(import.meta.url)('electron'), args: [path.resolve(process.env.DIRECTOR_TEST_APP || '.audit/desktop-app'), `--director-test-profile=${profile}`], env });
     page = await application.firstWindow(); await page.waitForSelector('#ai-toggle');
     await page.locator('#ai-toggle').click(); await page.locator('#ai-skills-toggle').click();
     await page.waitForFunction(() => document.querySelector('#skill-select').options.length > 0);
@@ -59,6 +59,14 @@ try {
     client = new Client({ name: 'skill-verification', version: '1.0.0' });
     await client.connect(new StreamableHTTPClientTransport(new URL(connection.data.url), { requestInit: { headers: { Authorization: 'Bearer ' + token } } }));
     const tool = async args => JSON.parse((await client.callTool({ name: 'director_skill', arguments: args })).content[0].text);
+    const builtin = (await tool({})).data;
+    assert.ok(builtin.files.includes('references/camera.md'));
+    assert.equal((await tool({knownVersion: builtin.version})).data.unchanged, true);
+    const cameraGuide = (await tool({path:'references/camera.md',knownVersion:builtin.version})).data;
+    assert.equal(cameraGuide.unchanged, false);
+    assert.equal(cameraGuide.instructions, (await fs.readFile('skills/director-desk/references/camera.md','utf8')).replace(/\r\n/g,'\n'));
+    assert.equal(Object.hasOwn(cameraGuide, 'references'), false);
+    assert.equal((await tool({path:'../SKILL.md'})).ok, false);
     assert.ok((await tool({ action: 'list' })).data.skills.some(e => e.id === id));
     assert.match((await tool({ id })).data.instructions, /第二版/);
     await page.locator('#skill-enabled').uncheck(); await page.waitForFunction(() => !document.querySelector('#skill-enabled').disabled);

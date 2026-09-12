@@ -14,7 +14,7 @@ node scripts/project-tool.mjs validate finished.director
 
 上述是可用命令示例，不是每次必走的步骤。`query.json` 可写 `{"query":"桌","details":true}`；多种物件用 `{"queries":["desk","chair","blackboard"],"details":true}` 一次查询所需参数。query 内空格词取交集，queries 取并集；其他筛选条件仍取交集。空请求不返回目录，默认最多 8 条；found:false、missingQueries/missingIds 表示没有匹配。已知 ID 和参数直接 apply。只有用户明确要浏览整库才使用 `catalog`，不例行扫描或翻完全部页。
 
-仅几何体模式通过 `{operation:"project",patch:{creationMode:"geometry"}}` 开启；`full` 恢复完整资产，省略时默认 full。模式按戏段保存，不转换、删除已有物体。几何模式无需查目录：直接用 `shape-box`、`shape-sphere`、`shape-cylinder`、`shape-cone`、`shape-capsule`、`shape-wedge`，均为 prop；尺寸写 `patch.assetParameters:{width,height,depth}`（米，每轴 0.02—500，默认 1），底面中心为 position，rotation 弧度，scale 默认 [1,1,1]，color 为 #RRGGBB。人物用单个胶囊命名上色加 path，不加人形动作；notes.actorId 留空，正文注明角色名。家具建筑组合静态形状，门洞留真实空隙；多个形状不会自动绑定移动。摄影机仍用 asset:camera。模块也导出 `geometryCreationGuide()` 供程序按需读取同一约定。
+仅几何体模式通过 `{operation:"project",patch:{creationMode:"geometry"}}` 开启；`full` 恢复完整资产，省略时默认 full。模式按戏段保存，不转换、删除已有物体。几何模式复用 16 种形状：`shape-box`、`shape-sphere`、`shape-cylinder`、`shape-cone`、`shape-capsule`、`shape-torus`、`shape-pyramid`、`shape-plane`、`shape-wedge`、`shape-ramp`、`shape-arch`、`shape-hemisphere`、`shape-tube`、`shape-l`、`shape-u`、`shape-arc`，均为 prop。已知 ID 与尺寸时直接添加；圆弧 angle、截面 thickness、细分 segments 等参数未知时，使用 assets 命令以 `{ids:["具体ID"],details:true}` 定向查询，不扫描全库或人形动作。基本尺寸写 `patch.assetParameters:{width,height,depth}`（米，每轴 0.02—500，通常默认 1；shape-plane 的默认高度为 0.04），底面中心为 position，rotation 弧度，scale 默认 [1,1,1]，color 为 #RRGGBB。人物用单个胶囊命名上色加 path，不加人形动作；notes.actorId 留空，正文注明角色名。家具建筑组合静态形状，门洞留真实空隙；多个形状不会自动绑定移动。摄影机仍用 asset:camera。模块也导出 `geometryCreationGuide()` 供程序按需读取同一约定。
 
 create/apply/scene 写文件均不覆盖已有输出文件；修改现有工程先读用户提供的文件，另存新文件。create 支持 blank、room、park、street、courtyard、bedroom；改变模板总时长时，模板内现有路径、动作及切镜时间同比缩放。`catalog` 输出真实资产、动作、关节、场景模板和默认对象字段；`inspect` 提供对象完整信息，但不输出参考图图片字节。
 
@@ -30,13 +30,13 @@ create/apply/scene 写文件均不覆盖已有输出文件；修改现有工程�
 ]
 ```
 
-可用操作为 add、update、remove、project、cuts、notes、motion、replace-prop、resource、resource-remove、clear-inherited-pose，含义见 SKILL.md 和在线工具契约。`motion` 操作可查询模块导出的 `motionPresets()` 获得真实预设 ID；涉及内置素材资源的操作使用异步 `applyOperationsWithResources`。嵌套对象／数组通常整体替换；patch.camera 按顶层字段合并，内部数组仍整体替换。新增摄影机使用 `asset:"camera"`，绑定和切镜引用实际 ID。用 inspect 获取初始机位 ID 后可修改或替换切镜。锁定对象仍受到保护。
+可用操作为 add、update、remove、project、cuts、notes、motion、replace-prop、resource、resource-remove、clear-inherited-pose、camera-motion、lighting-preset。基本编辑见[编辑约定](editing.md)，镜头／灯光见[参数说明](camera.md)，实际校验复用在线工具契约。`motion` 操作可查询模块导出的 `motionPresets()` 获得真实预设 ID；涉及内置素材资源的操作使用异步 `applyOperationsWithResources`。嵌套对象／数组通常整体替换；patch.camera 按顶层字段合并，内部数组仍整体替换。新增摄影机使用 `asset:"camera"`，绑定和切镜引用实际 ID。用 inspect 获取初始机位 ID 后可修改或替换切镜。锁定对象仍受到保护。
 
 需要程序化大量建模时，可以导入该模块的 `createScene`、`entity`、`clip`、`applyOperations`、`assertProject`、`ASSETS` 等命名导出，生成后先 assertProject，再写 `.director` 文件。不要让用户安装整个源码工程。
 
 ## v3 多戏段工程与离线编辑
 
-同一戏段的命名区域 `zones` 和摄影机视线关键帧 `camera.targetPath` 也可通过离线 apply 写入，沿用[在线说明](online-workflow.md#多戏段检查与交付)的同一格式。zones 属于当前戏段状态，标记不进入视频；targetPath 使用独立的世界注视点时间表，不能当作摄影机位置路径或人物绑定。
+同一戏段的命名区域 `zones` 和摄影机视线关键帧 `camera.targetPath` 也可通过离线 apply 写入；区域见[编辑约定](editing.md#多戏段检查与交付)，视线见[镜头说明](camera.md#独立视线路径)，在线与离线共用格式。zones 属于当前戏段状态，标记不进入视频；targetPath 使用独立的世界注视点时间表，不能当作摄影机位置路径或人物绑定。
 
 所有模型沿用实体 `color:"#RRGGBB"`，不需要调色板专属数据。导入模型显色还需 `external.appearance:"color"`；设为 `original` 恢复原材质，`white` 为白模。更新 external 时先读现值并保留 resourceId、比例、骨架及其他设置，不能只用 appearance 覆盖整个 external。
 
@@ -50,7 +50,7 @@ node scripts/project-tool.mjs validate revised.director
 
 其中 `copy.json` 为 `{"action":"copy","name":"第二场","newSceneId":"scene-b"}`，`list.json` 为 `{"action":"list"}`。复制使旧文件迁移为 v3 并选中新段；apply 仅修改当前段，保留其他段与前情快照。`scene` 查询 list/read 不带输出文件；写入支持 create/copy/switch/rename/reorder/remove，必须带新的输出文件名。create 可指定 template，默认 blank；switch/rename/remove 指定 sceneId；reorder 的 sceneIds 必须包含全部戏段 ID 各一次。离线不需要 revision/requestId。
 
-v3 外层只有 `{format:"director-desk",version:3,name,activeSceneId,resources,scenes}`。scenes 每项为 `{id,name,state,origin?}`。state 存放该段 duration/fps/aspect/room/entities/cuts/references，以及可选 creationMode/referenceLabels/production/zones/floors/editorView；不嵌套 format/version/name/resources 或另一整份工程。外部源文件由外层 resources 共享；人物和道具实例、路径、动作、切镜、参考图和备注分别属于各段。段内实体 ID 唯一，跨段沿用同一人物的 ID 以保持身份。
+v3 外层为 `{format:"director-desk",version:3,name,activeSceneId,resources,media?,scenes}`；可选 media 是多戏段共享的图片／视频源数组。scenes 每项为 `{id,name,state,origin?}`。state 存放该段 duration/fps/aspect/room/entities/cuts/references，以及可选 creationMode/referenceLabels/production/zones/floors/editorView/lighting；不嵌套 format/version/name/resources 或另一整份工程。外部源文件由外层 resources 共享；人物和道具实例、路径、动作、切镜、参考图和备注分别属于各段。段内实体 ID 唯一，跨段沿用同一人物的 ID 以保持身份。
 
 优先用模块导出的 `readSceneDocument`、`projectForScene`、`updateDocumentScene` 和 `editIndependentScene` 完成转换和编辑；不要对 v3 外层调用只接收单段的 `assertProject`，命令行 validate 会验证整份文档及源段快照。
 
@@ -75,7 +75,7 @@ v3 外层只有 `{format:"director-desk",version:3,name,activeSceneId,resources,
 | entities / cuts / references | 对象数组、切镜数组、参考图数组；无参考图时 `[]` |
 | production（可选） | `{fixedPrompt,sceneReferenceIds,notes}`；每条备注 `{id,start,end,actorId,story,emotion,dialogue,action}`；未绑定演员用空 actorId |
 
-production 可附 `promptText` 字符串（最长 100000 字），保存该段完整视频提示词，旧工程可省略。它与 fixedPrompt（项目风格固定头）、notes（按时间保存的剧情素材）不同。按[配套提示词格式](online-workflow.md#编排后的配套提示词)写作并另附逐场 TXT；编辑 notes 时保留未改的 promptText。新接拍段保留风格头，但不照搬前段成稿。
+production 可附 `promptText` 字符串（最长 100000 字），保存该段完整视频提示词，旧工程可省略。它与 fixedPrompt（项目风格固定头）、notes（按时间保存的剧情素材）不同。按[配套提示词格式](prompt-writing.md)写作并另附逐场 TXT；编辑 notes 时保留未改的 promptText。新接拍段保留风格头，但不照搬前段成稿。
 
 `notes` 编辑操作的 `value` 是整个 production 对象（不是数组或 patch），其中各字段必须齐全；未填写的文字用 ""，没有图片用 sceneReferenceIds:[]。数组整体替换，保留不打算修改的旧备注与固定提示词。错误会指出具体 production 字段；无效输入不会静默清空已有备注。
 
@@ -155,17 +155,7 @@ reference 字段引用 references 中的 ID。图片项为 `{id,name,data}`，da
 
 ## 镜头与灯光
 
-这些字段可选；省略保持旧工程的默认照明和镜头。`camera.effects`、实体 `light`、工程 `lighting` 作为嵌套对象整体替换，先读取原值并保留无关参数。
-
-- **运镜预设**：`{operation:"camera-motion",id:"机位ID",asset:"arc-push",time:0,duration:5,patch:{amplitude:2,angle:70,side:1,easing:"smooth"}}`。预设有 push、pull、truck、rise、descend、arc、arc-push、crane-reveal、ground-rise、whip-pan、push-pause、dolly-zoom、roll-recover、reframe。路径预设替换整条机位路径；倾斜、构图、甩镜改对应通道。POV 先改为独立机位才能应用路径预设。
-- **速度**：路径和视线途经点可加 `easing`，控制从前一点到该点的进度：linear、smooth、ease-in、ease-out、hold、whip。hold 为到时跳变；普通停顿用相同位置的两个点。路径 `smooth` 仍控制空间曲线。
-- **镜头通道**：`camera.effects.channels` 可含 focal（8–300 mm）、roll/pan/tilt（度）、offsetX/Y/Z（机身局部米）、frameX/Y（−0.9–0.9，中心 0，左右三分位 ±0.333，正值右／上）、focusDistance（0.05–2000 m）、blur/distortion（0–1）、bloom（0–2）。每个值为常数，或 `{keys:[{time:0,value:28},{time:5,value:70,easing:"smooth"}]}`；时间严格递增，端点外保持。
-- **镜头设置**：effects 可加 `distortionType:"barrel"|"pincushion"|"fisheye"`、`focusTargetId`（空串改用对焦距离）、`followLag`（跟随机位位置延迟，0–5 秒）、`shake:{preset:"breath"|"walk"|"run"|"impact"|"pov",amount:1,frequency:1,seed:1,start:0,end:5}`。晃动强度 0–5，频率倍率 0.1–10；null 关闭。`dollyZoom:{distance:参考距离米,focal:参考焦距mm}` 优先于焦距通道，距离变化时反向配合焦距，超出 8–300 mm 会钳制；null 关闭。
-- **环境预设**：`{operation:"lighting-preset",asset:"dusk"}`；可选 daylight、dusk、moonlight、interior-warm、interior-cool、silhouette。只替换全局环境，保留用户独立灯具。
-- **独立灯具**：add 的 asset 可用 light-point、light-spot、light-area、light-sun，kind 省略。沿用实体 position、rotation、path、color；光朝局部 −Z。默认参数随资产生成，读取后可改 `light:{intensity:100,range:20,angle:40,penumbra:0.3,width:3,height:2,shadows:true}`。面光需要 shadows:false。可选 throughWalls:boolean 默认 false；开启后仅忽略内置墙顶和建筑外壳对该灯的挡光，保留人物、家具阴影。普通几何体和导入模型不自动归为墙体。intensity 为 0–100000；可为动画值。可加 temperature（1000–15000 K 的动画值）、colorKeys（`[{time,color,easing?}]`）、flicker（`{strength:0.3,frequency:4,seed:1,start:0}`）。灯具标记不进参考视频，实际照明会进入。
-- **场景环境**：`lighting:{defaultLights:true,ambient:2.5,exposure:1.05,background:"#c6c8c6",groundColor:"#88847e",quality:"medium"}`；quality 为 off/low/medium/high。ambient（0–20）、exposure（0.05–10）支持动画值；可加 sunColor、sunIntensity（0–100）、sunDirection（非零 XYZ 向量），以及 `fog:{color:"#cccccc",density:0.02}`（density 0–0.5，可动画）。设 defaultLights:false 可只用环境光与自建灯具。
-
-畸变后的空间入画范围是包围边界采样估计，遮挡射线用同一畸变的逆投影；景深模糊不算几何遮挡。离线校验只检查格式和引用，不能代替实际渲染。灯光和镜头参数随戏段独立保存，接拍冻结实际末帧，不重播前段效果动画。
+需要设计机位、视线、连续运动、速度曲线、镜头效果或灯光时，读取[镜头与灯光参数](camera.md)。在线与离线共用这些字段，省略新参数保持旧行为。
 
 ## 导入与校验边界
 
@@ -177,22 +167,8 @@ reference 字段引用 references 中的 ID。图片项为 `{id,name,data}`，da
 
 ### 自定义速度曲线与修改定位
 
-关键帧／路径点的 `easing` 除现有预设名外，也可为 `{bezier:[x1,y1,x2,y2]}`，四个控制值均为 0—1，横轴为归一化时间，纵轴为归一化进度；控制相邻前一帧到此帧的插值，不改变空间路线。UI 选中对象的「曲线」可拖动控制柄。真正停留用同位置关键帧或恒定参数；hold 是保持后跳变。UI「起点停留 1 秒」复制区间起点值，并顺延本通道后续关键帧，不移动其他轨道；带时间重排片段的路径需在时间轴安排停留。
-
-在线提交成功后，软件自动生成「AI 改动」定位记录并保存在本机，不进入工程或素材包；内置助手与 MCP 共用。返回的 changeId 是本批记录标识，无需为了记录再调用工具或生成总结。预检、失败和已提交请求的重试不会新增记录。相关时段包含插值邻域，记录不代表后续修改后的最新状态。
+速度曲线见[镜头与灯光](camera.md#自定义速度曲线与修改定位)。在线提交自动生成本机「AI 改动」记录，返回 changeId；无需另调工具，记录不进入工程。
 
 ## 媒体与抽象元素
 
-图片／视频导入：`node scripts/project-tool.mjs import-media 输入.director 素材.mp4 输出.director [承载对象ID]`。PNG/JPEG/WebP/MP4/WebM；不包含声音。源随工程内嵌，不写本机路径。v3 文档顶层可有 media 数组，多戏段共享；单戏段投影 Project.media 相同格式。资源为 `{id:"media-<sha256>",name,mime,data:"data:<mime>;base64,...",width,height,duration}`。同一 ID 的内容不原地修改。
-
-模块方式可 import `mediaFromBytes(name,mime,Uint8Array)`、`defaultSurfaceLayer(resourceId)`、`defaultVisual(preset)`，再用同一 applyOperations 和 assertProject。对象 `surface:{layers:[defaultSurfaceLayer(id)]}`，`surface:null` 恢复原材质；层 crop 为左上起点归一化 `[x,y,w,h]`，mesh/material=-1 全部，mapping 为 uv/plane/box/sphere/cylinder，face 为 all/front/back/left/right/top/bottom。offset=[0,0]、repeat=[1,1] 是贴图尺寸、rotation 为度、tile 为重复开关，fit=stretch/contain/cover。opacity 可关键帧，unlit 控制屏幕自发光；start/trimIn/trimOut/speed/loop 控制视频时钟。trimOut=0 全长，loop=false 保持末帧。层最多 8 个，light-spot 只用一层投影；其他灯不支持媒体。roughness、metalness、transmission、opacity 为 0—1，emissive 0—20，均可关键帧；ior 为 1—2.5。
-
-视觉元素直接以目录中 `visual-*` 资产新建，完整 defaults.visual 可复制再修改。`count` 1—50000，seed 固定分布，lifetime 控制粒子周期／轨迹带保留秒数，size/spread/speed/amplitude/frequency/opacity 支持数字或 `{keys:[{time,value,easing?}]}`；start/end 控制出现时段（end=0 到戏段结束）。文字用 text，颜色用实体 color + secondaryColor，混合用 additive，质量 draft/normal/high。portal.cameraId 指定同场景另一摄影机，其内部渲染不叠加镜头后期和名称标签；镜面与传送门不相互递归取景。图片／视频背景可用 visual-panorama 的内向球面 + surface，或 visual-screen 平面。
-
-影响区域 `field-*` 用 field={type,radius,strength,falloff,targets:[],start:0,end:0}；type 为 wind/attract/repel/vortex/turbulence/wave，strength 可关键帧，空 targets 作用于视觉元素，非空指定对象 ID。风沿局部 +Z。粒子逐点响应，其他对象做整体位移。空间扭曲 `warp-*` 用 warp={type,radius,strength,frequency,speed}，type=lens/heat/swirl/blackhole/ripple，strength 可关键帧且范围 -2—2。最多同时显示 8 个 field 和 8 个 warp。
-
-对象形变用 deform={type,amount,axis:"y",frequency:2,speed:1,seed:42} 或 null；type=bend/twist/inflate/squeeze/stretch/wave/collapse/shatter，amount 可关键帧 -10—10。变形修改真实网格顶点；三角面破碎不做碰撞刚体模拟，低面数模型不自动变成精细曲面。
-
-性能与结果：完整预览和导出纹理最长边 2048，流畅预览最长边 1024，原文件不降采样；相同媒体时钟共享纹理，连续播放复用解码器，没有换帧就不重复上传纹理，支持的编码优先低延迟软件解码（GPU 渲染保持启用），不支持时沿用平台选择，草稿粒子绘制 1/4 数量；镜面／传送门 512/1024/2048 分档。烟火水流为视觉近似，光束／光斑是透明形体，不是体积散射；发光材质本身不照亮其他物体。网格映射按局部部件，不自动无缝展开。粒子包围盒和屏幕扭曲不代表精确空间碰撞；这些限制不要表述成物理仿真。所有效果使用工程时间和固定种子，导出等待所需视频帧。
-
-接拍相位：surface.layers、visual、field、deform、warp 的可选 timeOffset 默认为 0，用于保留前段结束时的播放或程序动画相位；通常由接拍操作自动填写。
+导入图片／视频或设置表面、粒子、影响区域、形变和扭曲时，读取[媒体与抽象元素](media.md)。其中包含离线 import-media 命令和共用字段；不包含声音。

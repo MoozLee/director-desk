@@ -1,5 +1,6 @@
 import { MathUtils, Vector3 } from 'three';
 import { eased } from './animation/channels.ts';
+import { continuousPathPosition } from './animation/continuous-path.ts';
 import type { Entity, MotionPath, Pose, Project, Vec3 } from './model.ts';
 export function pathPosition(path: MotionPath | null, base: Vec3, time: number): Vector3 {
     if (path) time=pathSourceTime(path,time);
@@ -27,6 +28,7 @@ function sourcePathPosition(path:MotionPath|null,base:Vec3,time:number):Vector3 
         return new Vector3(...points[0].position);
     if (time >= points.at(-1)!.time)
         return new Vector3(...points.at(-1)!.position);
+    if (path.interpolation === 'continuous') return continuousPathPosition(points, time);
     let i = 0;
     while (i < points.length - 2 && time >= points[i + 1].time)
         i++;

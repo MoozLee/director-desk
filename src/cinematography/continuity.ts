@@ -4,6 +4,11 @@ import { numberAt } from '../animation/channels.ts';
 /** Preserve actual ending optics and pose without replaying the previous scene's animation. */
 export function freezeEndingCamera(entity: Entity, camera: PerspectiveCamera, time: number, target?: Object3D) {
     const c = entity.camera!, effects = c.effects;
+    if (c.aimResponse?.duration && (c.aim !== 'manual' || c.mode === 'follow' && c.targetId) && c.mode !== 'pov') {
+        // A new scene has no response history. Preserve the captured view instead of
+        // snapping back to the exact target when sampling its new zero-second origin.
+        c.mode = 'free'; c.aim = 'manual'; c.targetPath = null; c.targetId = '';
+    }
     if (!effects) return;
     const channels = effects.channels ??= {};
     for (const key of Object.keys(channels) as (keyof typeof channels)[]) channels[key] = numberAt(channels[key], time);

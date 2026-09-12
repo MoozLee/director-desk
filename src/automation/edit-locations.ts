@@ -24,6 +24,9 @@ function interval(a: unknown, b: unknown, duration: number): [number, number] {
     }
     if (a && b && typeof a === 'object' && typeof b === 'object') {
         const old = a as Record<string, unknown>, next = b as Record<string, unknown>;
+        // Continuous tangents depend on neighbouring segments; a point edit reaches beyond
+        // the immediate key pair. Use the scene span instead of reporting a falsely narrow range.
+        if (old.interpolation === 'continuous' || next.interpolation === 'continuous') return [0, duration];
         // Path sections remap source key times; show their scheduled span instead.
         if ((old.sections || next.sections) && !equal(old, next)) {
             const sections = [...(old.sections as { start: number; end: number }[] ?? []), ...(next.sections as { start: number; end: number }[] ?? [])];

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { chromium } from 'playwright-core';
 import { build } from 'esbuild';
+import { publicFiles as publicSkillFiles } from './builtin-skill-files.cjs';
 import './build-offline-skill.mjs';
 
 const check = spawnSync(process.execPath, ['scripts/check-release-privacy.mjs'], { stdio: 'inherit' });
@@ -45,12 +46,12 @@ try {
 } finally { await browser.close(); }
 await fs.copyFile('desktop/main.cjs', path.join(desktopRoot, 'desktop/main.cjs'));
 await fs.copyFile('desktop/preload.cjs', path.join(desktopRoot, 'desktop/preload.cjs'));
-await build({ entryPoints: ['src/automation/contract.ts'], outfile: path.join(desktopRoot, 'desktop/tools-contract.cjs'), bundle: true, platform: 'node', format: 'cjs', sourcemap: false, minify: true });
+await build({ entryPoints: ['src/automation/contract.ts'], outfile: path.join(desktopRoot, 'desktop/tools-contract.cjs'), bundle: true, platform: 'node', format: 'cjs', charset: 'utf8', sourcemap: false, minify: true });
 const bundled = await build({ entryPoints: ['desktop/integration.cjs'], outfile: path.join(desktopRoot, 'desktop/integration.cjs'), bundle: true, platform: 'node', format: 'cjs', external: ['electron', './tools-contract.cjs'], sourcemap: false, minify: true, metafile: true });
 await build({ entryPoints: ['desktop/files.cjs'], outfile: path.join(desktopRoot, 'desktop/files.cjs'), bundle: true, platform: 'node', format: 'cjs', external: ['electron'], sourcemap: false, minify: true });
 const updatesBundle = await build({ entryPoints: ['desktop/updates.cjs'], outfile: path.join(desktopRoot, 'desktop/updates.cjs'), bundle: true, platform: 'node', format: 'cjs', external: ['electron'], sourcemap: false, minify: true, metafile: true });
 const bridgeBundle = await build({ entryPoints: ['desktop/mcp-stdio.cjs'], outfile: path.join(desktopRoot, 'desktop/mcp-stdio.cjs'), bundle: true, platform: 'node', format: 'cjs', sourcemap: false, minify: true, metafile: true });
-for (const file of ['SKILL.md', 'LICENSE', 'references/project-format.md', 'references/online-workflow.md', 'scripts/project-tool.mjs', 'assets/minimal.director']) {
+for (const file of publicSkillFiles) {
     const relative = path.join('skills/director-desk', file), destination = path.join(desktopRoot, relative);
     await fs.mkdir(path.dirname(destination), { recursive: true }); await fs.copyFile(relative, destination);
 }

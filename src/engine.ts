@@ -10,6 +10,7 @@ import { SceneRenderCache } from './editor/scene-render-cache.ts';
 import { ReferenceLabels } from './production/reference-labels.ts';
 import { cameraLookAt } from './animation/camera-look.ts';
 import { applyCameraEffects, cameraFocal, cameraFocusDistance } from './cinematography/camera-effects.ts';
+import { cameraAimResponseQuaternion } from './cinematography/aim-response.ts';
 import { ShotEffects } from './cinematography/shot-effects.ts';
 import { addZoneHelpers } from './editor/zone-helpers.ts';
 import { InitialPoseRuntime } from './scenes/initial-pose-runtime.ts';
@@ -354,6 +355,8 @@ export class Engine {
                 camera.rotation.set(...e.rotation);
             else
                 camera.lookAt(this.targetPosition(e));
+            const aimResponse = cameraAimResponseQuaternion(e, this.project, time, target ? this.models.get(target.id) : undefined);
+            if (aimResponse) camera.quaternion.copy(aimResponse);
             configureCamera(camera, cameraFocal(c.effects, time, c.focal, camera.position.distanceTo(this.targetPosition(e))), aspectNumber(this.project.aspect));
             applyCameraEffects(camera, c.effects, time);
             camera.updateMatrixWorld(true);
@@ -468,7 +471,7 @@ export class Engine {
                 const pts: T.Vector3[] = [];
                 const first = e.path.points[0].time, last = e.path.points.at(-1)!.time;
                 for (let i = 0; i <= 100; i++)
-                    pts.push(pathPosition({smooth:e.path.smooth,points:e.path.points}, e.position, first + (last - first) * i / 100).add(new T.Vector3(0, .016, 0)));
+                    pts.push(pathPosition({smooth:e.path.smooth,interpolation:e.path.interpolation,points:e.path.points}, e.position, first + (last - first) * i / 100).add(new T.Vector3(0, .016, 0)));
                 const line = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({ color: e.kind === 'camera' ? '#e3d7bd' : e.color }));
                 this.pathHelpers.add(line);
                 e.path.points.forEach((p, i) => { const point = new T.Mesh(new T.SphereGeometry(.055, 12, 8), new T.MeshBasicMaterial({ color: i === this.selectedPoint ? '#ffffff' : '#87add9', depthTest: false })); point.position.fromArray(p.position); point.position.y += .025; point.userData.pointIndex = i; point.userData.entityId = e.id; point.renderOrder = 3; this.pathHelpers.add(point); });

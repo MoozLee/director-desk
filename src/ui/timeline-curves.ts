@@ -13,7 +13,7 @@ export function createTimelineCurves(ctx: AppContext) {
         curves.bind();
         const graph = host.querySelector<SVGSVGElement>('#curve-graph');
         graph?.setAttribute('preserveAspectRatio', 'none');
-        host.querySelector('#curve-canvas')?.setAttribute('title', '区间速度曲线：横轴为所选关键帧区间的时间进度，纵轴为变化进度；上方时间尺仍定位整场戏。');
+        host.querySelector('#curve-canvas')?.setAttribute('title', '横轴为所选区间的时间，纵轴为变化进度；连贯运动显示实际路程，上方时间尺仍定位整场戏。');
         if (ctx.current()?.locked) host.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#curve-preset,[data-act="curve-pause"]').forEach(el => el.disabled = true);
     }
     function setMode(mode: string) {

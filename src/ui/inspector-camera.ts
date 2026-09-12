@@ -9,7 +9,9 @@ export function cameraInspector(ctx: AppContext, e: Entity, navigation: Inspecto
     const lens = `<div class="button-row">${button('preview-selected', '查看画面', 'eye', 'subtle')}${button('cut-selected', '设为此处镜头', '', 'primary')}</div><div class="field-pair camera-lens-fields">${num('焦距 / mm', 'camera.focal', c.focal, '1', 'min="8" max="300"')}${num('目标高度 / m', 'camera.targetHeight', c.targetHeight, '.05')}</div><div class="action-grid" aria-label="景别辅助构图">${['全景', '中景', '近景', '特写'].map(s => `<button data-framing="${s}">${s}</button>`).join('')}</div>`;
     const target = select('机位方式', 'camera.mode', [['free', '独立机位 / 路径'], ['follow', '跟随对象'], ['pov', '绑定对象 / POV']], c.mode)
         + select('看向 / 绑定对象', 'camera.targetId', [['', '固定空间目标'], ...ctx.project.entities.filter(x => x.kind !== 'camera').map(x => [x.id, x.name] as [string, string])], c.targetId)
-        + (c.mode === 'free' ? select('机位朝向', 'camera.aim', [['target', '看向目标 / 注视点'], ['manual', '手动旋转']], c.aim) : select('继承目标转向', 'camera.inheritRotation', [['true', '继承转向 / 头部动作'], ['false', '跟随位置 / 稳定头部']], String(c.inheritRotation)));
+        + (c.mode === 'free' ? select('机位朝向', 'camera.aim', [['target', '看向目标 / 注视点'], ['manual', '手动旋转']], c.aim) : select('继承目标转向', 'camera.inheritRotation', [['true', '继承转向 / 头部动作'], ['false', '跟随位置 / 稳定头部']], String(c.inheritRotation)))
+        + num('目标响应 / 秒', 'camera.aimResponse.duration', c.aimResponse?.duration ?? 0, '.05', `min="0" max="2" ${c.mode === 'pov' || c.mode === 'free' && c.aim !== 'target' ? 'disabled' : ''}`)
+        + `<p class="panel-help">${c.mode === 'pov' || c.mode === 'free' && c.aim !== 'target' ? '目标响应适用于看向目标的独立或跟随机位。' : '0 秒立即对准；增大时长后，视线柔和追随目标。'}</p>`;
     const coordinate = c.mode === 'free' ? c.aim === 'target'
         ? `<div class="section-label">固定注视点<span>米</span></div><div class="triple">${['X', 'Y', 'Z'].map((a, i) => num(a, 'target.' + i, c.target[i])).join('')}</div><p class="panel-help">选择对象目标后，摄影机会持续看向对象。</p>`
         : `<div class="section-label">机位旋转<span>度</span></div><div class="triple">${['X', 'Y', 'Z'].map((a, i) => num(a, 'rot.' + i, T.MathUtils.radToDeg(e.rotation[i]), '1')).join('')}</div>`

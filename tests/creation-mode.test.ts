@@ -43,6 +43,27 @@ test('geometry discovery is scoped and its shape guide creates valid actual geom
     assert.deepEqual(missing.missingIds, ['person']); assert.equal(missing.assets.length, 1);
 });
 
+test('geometry mode reads only requested shape parameters and applies structural values', async () => {
+    const project = { ...demoProject(), creationMode: 'geometry' as const };
+    const service = createToolService({ project } as AppContext);
+    const result = await service.call('director_assets', { ids: ['shape-arc'], details: true });
+    assert.equal(result.ok, true, result.error ?? 'targeted shape query failed');
+    const data = result.data as ReturnType<typeof queryAssetCatalog>;
+    assert.deepEqual(data.assets.map(asset => asset.id), ['shape-arc']);
+    assert.equal(data.total, 1); assert.equal(data.nextOffset, null);
+    const arc = data.assets[0];
+    assert.equal(arc.parameterPatchField, 'assetParameters');
+    assert.deepEqual(arc.capabilities.actions, []);
+    assert.ok('parameters' in arc && arc.parameters);
+    for (const key of ['angle', 'thickness', 'segments']) assert.ok(arc.parameters[key], key);
+    const parameters = { width: 4, height: 3, depth: .5, angle: 120, thickness: .2, segments: 36 };
+    const edited = applyOperations(project, [{ operation: 'add', asset: arc.id, id: 'arc', patch: { assetParameters: parameters } }]);
+    const entity = edited.entities.find(item => item.id === 'arc')!;
+    assert.equal(entity.kind, 'prop');
+    for (const [key, value] of Object.entries(parameters)) assert.equal(entity.assetParameters![key], value);
+    assert.equal(project.entities.some(item => item.id === 'arc'), false);
+});
+
 test('read then direct batch builds geometric blocking, camera and saved prompt without catalog or preview', async () => {
     let revision=0;
     const ctx = { project: { ...demoProject(), creationMode: 'geometry' }, get revision(){return revision;}, playing: false, busy: false, draft: null,

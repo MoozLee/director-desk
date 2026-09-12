@@ -3,15 +3,22 @@ import type { AppContext } from '../app-context.ts';
 import type { Entity } from '../model.ts';
 import { button, num, options, select } from './common.ts';
 import type { InspectorNavigation } from './inspector-navigation.ts';
+import { continuousMotionHelp, pathMotionChoices, setPathMotionMode, waypointMotionChoices, waypointMotionValue } from './path-motion-controls.ts';
 
 export function createPathInspector(ctx: AppContext, navigation: InspectorNavigation, refresh: () => void) {
     let previousOwner = '', previousPoint = -1, sectionIndex = 0;
     const content = document.querySelector<HTMLElement>('#inspector-content')!;
     content.addEventListener('change', event => {
         const input = event.target as HTMLSelectElement;
-        if (input.id === 'path-point-easing') {
-            event.stopPropagation(); const e = ctx.current(); if (!e?.path || e.locked) return;
-            ctx.change(() => { e.path!.points[Math.max(0, Math.min(e.path!.points.length - 1, ctx.engine.selectedPoint))].easing = chosenEasing(input.value, e.path!.points[Math.max(0, Math.min(e.path!.points.length - 1, ctx.engine.selectedPoint))].easing); }, false); refresh(); return;
+        if (['path-interpolation', 'path-point-stop', 'path-point-easing'].includes(input.id)) {
+            event.stopPropagation();
+            const e = ctx.current(); if (!e?.path || e.locked || ctx.busy) return;
+            if (ctx.draft || ctx.history.pending) { ctx.toast('请先完成或取消当前绘制／拖动操作'); refresh(); return; }
+            const point = e.path.points[Math.max(0, Math.min(e.path.points.length - 1, ctx.engine.selectedPoint))];
+            if (input.id === 'path-interpolation') ctx.change(() => setPathMotionMode(e.path!, input.value), false);
+            else if (input.id === 'path-point-stop' && e.path.interpolation === 'continuous') ctx.change(() => { point.stop = input.value === 'stop'; }, false);
+            else if (input.id === 'path-point-easing' && e.path.interpolation !== 'continuous') ctx.change(() => { point.easing = chosenEasing(input.value, point.easing); }, false);
+            refresh(); return;
         }
         if (input.id === 'path-section-choice') { event.stopPropagation(); sectionIndex = Number(input.value); refresh(); return; }
         if (input.id !== 'path-point-choice') return;
@@ -42,13 +49,17 @@ export function createPathInspector(ctx: AppContext, navigation: InspectorNaviga
         const index = Math.max(0, Math.min(path.points.length - 1, ctx.engine.selectedPoint)), p = path.points[index];
         if (previousOwner !== e.id || previousPoint !== ctx.engine.selectedPoint && ctx.engine.selectedPoint >= 0) navigation.select(key, 'points');
         previousOwner = e.id; previousPoint = ctx.engine.selectedPoint;
-        const frozen = path.sections ? 'disabled' : '';
+        const frozen = path.sections ? 'disabled' : '', continuous = path.interpolation === 'continuous';
         const points = `<div class="inspector-picker point-picker"><button data-step-point="-1" aria-label="上一个途经点" ${index === 0 ? 'disabled' : ''}>‹</button><select id="path-point-choice" aria-label="选择途经点">${options(path.points.map((point, i) => [String(i), `途经点 ${i + 1} / ${path.points.length} · ${point.time.toFixed(2)} 秒`]), String(index))}</select><button data-step-point="1" aria-label="下一个途经点" ${index === path.points.length - 1 ? 'disabled' : ''}>›</button><button class="icon-button" data-act="remove-point" data-index="${index}" ${frozen} title="删除此途经点" aria-label="删除此途经点">×</button></div>`
             + `<div class="waypoint single-waypoint"><div class="point-coords"><label class="point-time"><span>时间 / 秒</span><input type="number" data-point="${index}" data-axis="time" ${frozen} value="${p.time.toFixed(2)}" step=".1" min="0"/></label>${p.position.map((v, axis) => `<label>${['X', 'Y', 'Z'][axis]} / 米<input type="number" data-point="${index}" data-axis="${axis}" value="${v.toFixed(2)}" step=".05"/></label>`).join('')}</div></div>`
-            + `<label class="field"><span>到达此点的速度变化</span><select id="path-point-easing" ${index === 0 ? 'disabled' : ''}>${options(easingChoices(p.easing), easingChoice(p.easing))}</select></label>`
+            + `<div class="field-pair"><label class="field"><span title="${continuousMotionHelp}">运动方式 ⓘ</span><select id="path-interpolation" title="${continuousMotionHelp}">${options(pathMotionChoices, path.interpolation ?? 'segmented')}</select></label>`
+            + (continuous
+                ? `<label class="field"><span>此点运动</span><select id="path-point-stop" title="经过：连续通过此点；停住：到此点速度降为零。端点选择经过可保留进出镜速度。">${options(waypointMotionChoices, waypointMotionValue(path.points, index))}</select></label>`
+                : `<label class="field"><span>到达此点的速度变化</span><select id="path-point-easing" ${index === 0 ? 'disabled' : ''}>${options(easingChoices(p.easing), easingChoice(p.easing))}</select></label>`)
+            + '</div>'
             + `<div class="button-row">${button('append-point', '添加点', 'plus', 'subtle', frozen)}${button('hold-point', '停留 1 秒', '', 'subtle', frozen)}</div>`;
         const timing = (path.points.length > 1 ? `<div class="field-pair">${num('开始 / 秒', 'path-start', path.points[0].time, '.1', 'min="0" ' + frozen)}${num('结束 / 秒', 'path-end', path.points.at(-1)!.time, '.1', 'min="0" ' + frozen)}</div>` : '')
-            + select('路线形状', 'path-smooth', [['true', '平滑曲线'], ['false', '直线 / 途经停顿']], String(path.smooth))
+            + (continuous ? '' : select('路线形状', 'path-smooth', [['true', '平滑曲线'], ['false', '直线 / 途经停顿']], String(path.smooth)))
             + button('surface-open', '检查承托面 / 校正高度', '', 'wide subtle');
         const facing = select('身体朝向', 'face', [['path', '沿路线前进'], ['fixed', '保持设定朝向'], ['target', '面向指定对象']], e.face)
             + (e.face === 'target' ? select('面向目标', 'faceTarget', [['', '选择对象'], ...ctx.project.entities.filter(t => t.id !== e.id).map(t => [t.id, t.name] as [string, string])], e.faceTarget) : '')

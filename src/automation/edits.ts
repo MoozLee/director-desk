@@ -23,7 +23,7 @@ function patchEntity(target: Entity, value: Record<string, unknown> | undefined)
     if (value && Object.hasOwn(value, 'camera') && target.kind === 'camera') {
         const camera = value.camera;
         if (!camera || typeof camera !== 'object' || Array.isArray(camera)) throw Error('patch.camera 必须是摄影机参数对象');
-        const allowedCamera = new Set(['aim', 'focal', 'target', 'targetId', 'targetHeight', 'mode', 'offset', 'inheritRotation', 'targetPath', 'hideWalls', 'hiddenEntityIds', 'effects']);
+        const allowedCamera = new Set(['aim', 'aimResponse', 'focal', 'target', 'targetId', 'targetHeight', 'mode', 'offset', 'inheritRotation', 'targetPath', 'hideWalls', 'hiddenEntityIds', 'effects']);
         for (const key of Object.keys(camera)) if (!allowedCamera.has(key)) throw Error('不支持摄影机字段：patch.camera.' + key);
         value = { ...value, camera: { ...target.camera, ...camera } };
     }

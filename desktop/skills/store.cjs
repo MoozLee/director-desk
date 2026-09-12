@@ -14,7 +14,7 @@ function createSkillStore({ directory, builtin }) {
         state = parsed;
     }).catch(error => { if (error.code !== 'ENOENT') throw Error('无法读取本机技能目录，原文件已保留'); });
     const validId = id => typeof id === 'string' && /^[0-9a-f-]{36}$/.test(id);
-    const builtinEntry = () => ({ id: 'builtin', name: builtin.name, description: '导演台操作、空间规则与配套提示词', version: builtin.version, enabled: state.builtinEnabled, builtin: true, source: '随软件内置', files: ['SKILL.md'] });
+    const builtinEntry = () => ({ id: 'builtin', name: builtin.name, description: '导演台操作、空间规则与配套提示词', version: builtin.version, enabled: state.builtinEnabled, builtin: true, source: '随软件内置', files: ['SKILL.md', ...Object.keys(builtin.references ?? {})] });
     const list = async (enabledOnly = false) => {
         await ready; await changes;
         return [builtinEntry(), ...state.entries.map(({ folder: _folder, ...e }) => ({ ...e, builtin: false }))].filter(e => !enabledOnly || e.enabled);
@@ -66,11 +66,11 @@ function createSkillStore({ directory, builtin }) {
         await ready; await changes;
         const entry = id === 'builtin' ? builtinEntry() : entryFor(id);
         if (!entry.enabled && !allowDisabled) throw Error('此技能已停用，请遵循用户当前启用的技能');
-        const file = relativeFile(requested || entry.entry || 'SKILL.md');
+        const file = relativeFile(requested ?? entry.entry ?? 'SKILL.md');
         if (!entry.files.includes(file)) throw Error('技能中没有这个文件');
-        const unchanged = knownVersion === entry.version && !requested;
+        const unchanged = knownVersion === entry.version && requested === undefined;
         if (unchanged) return { id, name: entry.name, version: entry.version, enabled: entry.enabled, unchanged: true, files: entry.files };
-        let text = builtin.instructions;
+        let text = file === 'SKILL.md' ? builtin.instructions : builtin.references?.[file];
         if (id !== 'builtin') {
             const folder = await fs.realpath(path.join(root, entry.folder));
             const target = await fs.realpath(path.join(folder, file));

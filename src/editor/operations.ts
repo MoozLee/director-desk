@@ -244,6 +244,12 @@ export function createEditingTools(ctx: AppContext) {
                 case 'targetHeight':
                     c.targetHeight = n;
                     break;
+                case 'aimResponse.duration':
+                    if (c.mode === 'pov' || c.mode === 'free' && c.aim !== 'target') break;
+                    if (!Number.isFinite(n) || n < 0 || n > 2) throw new Error('目标响应时长应在 0 到 2 秒之间');
+                    if (n === 0) delete c.aimResponse;
+                    else c.aimResponse = { duration: n };
+                    break;
                 case 'targetId':
                     if (!value && c.mode !== 'free') freezeCamera(ctx.engine, e);
                     c.targetId = value;

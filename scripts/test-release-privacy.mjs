@@ -2,18 +2,19 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { publicFiles as publicSkillFiles, referenceFiles } from './builtin-skill-files.cjs';
 
 const scanner = path.resolve('scripts/check-release-privacy.mjs');
 const parent = path.resolve('tmp'); await fs.mkdir(parent, { recursive: true });
 const fixture = await fs.mkdtemp(path.join(parent, 'privacy-test-'));
-const run = () => spawnSync(process.execPath, [scanner], { cwd: fixture, encoding: 'utf8' });
+const run = (...args) => spawnSync(process.execPath, [scanner, ...args], { cwd: fixture, encoding: 'utf8' });
 try {
     await fs.mkdir(path.join(fixture, 'dist/assets'), { recursive: true });
     // The release gate now requires the bundled motion payload and desktop/helper inputs as well as web files.
     for (const relative of ['src/animation/library/humanoid-v1.json', 'src/animation/library/humanoid-v1-manifest.json',
         'desktop/main.cjs', 'desktop/preload.cjs', 'desktop/integration.cjs', 'desktop/media-import.cjs', 'desktop/file-host.cjs', 'desktop/files.cjs', 'desktop/ai-host.cjs', 'desktop/ai-conversation.cjs', 'desktop/providers.cjs', 'desktop/update-config.cjs', 'desktop/update-host.cjs', 'desktop/updates.cjs',
-        'desktop/model-limits.cjs', 'desktop/director-prompt.cjs', 'desktop/mcp-server.cjs', 'desktop/mcp-config.cjs', 'desktop/mcp-host.cjs', 'skills/director-desk/SKILL.md', 'skills/director-desk/references/project-format.md', 'skills/director-desk/references/online-workflow.md',
-        'skills/director-desk/scripts/project-tool.mjs', 'skills/director-desk/assets/minimal.director']) {
+        'desktop/model-limits.cjs', 'desktop/director-prompt.cjs', 'desktop/mcp-server.cjs', 'desktop/mcp-config.cjs', 'desktop/mcp-host.cjs', 'desktop/mcp-connection.cjs', 'desktop/mcp-stdio.cjs',
+        ...publicSkillFiles.map(file => 'skills/director-desk/' + file)]) {
         const destination = path.join(fixture, relative); await fs.mkdir(path.dirname(destination), { recursive: true });
         await fs.copyFile(relative, destination);
     }
@@ -34,6 +35,30 @@ try {
         assert.ok(result.stderr.includes('local-private-term')); assert.ok(!result.stderr.includes(term));
     }
     await fs.writeFile(js, 'export const value = 1;'); assert.equal(run().status, 0);
+    // Every on-demand reference is scanned in its source and staged offline copy.
+    const stagedRoot = path.join(fixture, '.audit/desktop-app');
+    for (const file of publicSkillFiles) {
+        const destination = path.join(stagedRoot, 'skills/director-desk', file);
+        await fs.mkdir(path.dirname(destination), { recursive: true });
+        await fs.copyFile(path.join(fixture, 'skills/director-desk', file), destination);
+    }
+    await fs.mkdir(path.join(stagedRoot, 'desktop'), { recursive: true });
+    for (const file of ['mcp-stdio.cjs', 'files.cjs', 'integration.cjs', 'tools-contract.cjs', 'updates.cjs'])
+        await fs.writeFile(path.join(stagedRoot, 'desktop', file), 'module.exports = {};');
+    assert.equal(run('--desktop').status, 0);
+    for (const file of referenceFiles) {
+        for (const prefix of ['', '.audit/desktop-app/']) {
+            const relative = prefix + 'skills/director-desk/' + file, target = path.join(fixture, relative);
+            const original = await fs.readFile(target);
+            await fs.writeFile(target, 'sk-' + 'r'.repeat(24));
+            const result = run('--desktop');
+            assert.equal(result.status, 1, relative);
+            assert.ok(result.stderr.includes(relative)); assert.ok(result.stderr.includes('credential-token'));
+            assert.ok(!result.stderr.includes('r'.repeat(24)), 'Reference diagnostics must not echo private matches');
+            await fs.writeFile(target, original);
+        }
+    }
+    assert.equal(run('--desktop').status, 0);
     await fs.writeFile(path.join(fixture, 'examples/generic.director'), JSON.stringify({ entities: [{ kind: 'actor', name: '人物 · privacy-fixture-role' }] }));
     await fs.writeFile(js, '人物'); assert.equal(run().status, 0, 'A derived generic role prefix is public vocabulary');
     await fs.writeFile(js, '人物 · privacy-fixture-role'); assert.equal(run().status, 1, 'Full actor names remain protected');

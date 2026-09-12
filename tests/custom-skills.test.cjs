@@ -6,6 +6,7 @@ const os = require('node:os');
 const { skillPackage, localPackage, relativeFile } = require('../desktop/skills/package.cjs');
 const { createSkillStore } = require('../desktop/skills/store.cjs');
 const { githubSource, githubPackage } = require('../desktop/skills/github.cjs');
+const { referenceFiles } = require('../scripts/builtin-skill-files.cjs');
 const builtin = { name: 'director-desk', version: 'builtin-v1', instructions: 'BUILTIN_BODY' };
 const pack = text => skillPackage([{ path: 'SKILL.md', bytes: Buffer.from('---\nname: 自定义创作\ndescription: >-\n  按要求创作\n  和调整表演\n---\n' + text) },
     { path: 'references/example.md', bytes: Buffer.from('附属说明') }, { path: 'scripts/helper.cjs', bytes: Buffer.from('throw Error("must never execute")') }]);
@@ -16,6 +17,30 @@ async function temporary(fn) {
         await fs.rm(directory, { recursive: true, force: true });
     }
 }
+test('built-in references stay in memory, bypass only root version skipping, and honor the enabled switch', () => temporary(async directory => {
+    const references = Object.fromEntries(referenceFiles.map(file => [file, 'REFERENCE: ' + file]));
+    const embedded = { ...builtin, references }, store = createSkillStore({ directory, builtin: embedded });
+    const files = ['SKILL.md', ...referenceFiles];
+    assert.deepEqual((await store.list())[0].files, files);
+    assert.equal((await store.read({ knownVersion: builtin.version })).unchanged, true);
+    for (const file of files) {
+        const result = await store.tool({ path: file, knownVersion: builtin.version });
+        assert.equal(result.unchanged, false); assert.equal(result.path, file);
+        assert.equal(result.instructions, file === 'SKILL.md' ? builtin.instructions : references[file]);
+        assert.equal(Object.hasOwn(result, 'references'), false);
+    }
+    await assert.rejects(fs.stat(path.join(directory, 'skills')), { code: 'ENOENT' }, 'Reading built-in references creates no local copies');
+    for (const file of ['', '../secret', 'references/../SKILL.md', '/absolute', 'C:/secret', 'references\\camera.md', 'references/Camera.md', '__proto__', 'constructor', 'scripts/project-tool.mjs'])
+        await assert.rejects(store.tool({ path: file, knownVersion: builtin.version }), /路径|没有这个文件/, file);
+    await store.enable('builtin', false);
+    assert.deepEqual((await store.tool({ action: 'list' })).skills, []);
+    await assert.rejects(store.tool({ path: referenceFiles[0], knownVersion: builtin.version }), /停用/);
+    assert.equal((await store.read({ path: referenceFiles[0] }, true)).instructions, references[referenceFiles[0]]);
+    const reloaded = createSkillStore({ directory, builtin: embedded });
+    await assert.rejects(reloaded.read({ path: 'SKILL.md' }), /停用/);
+    await reloaded.enable('builtin', true);
+    assert.equal((await reloaded.read()).instructions, builtin.instructions);
+}));
 test('skills import, enable/disable, version reload and removal persist independently of the source', () => temporary(async directory => {
     let store = createSkillStore({ directory, builtin });
     await store.install(pack('正文v1'));

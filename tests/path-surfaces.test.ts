@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Group, Vector3 } from 'three';
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { entity, demoProject, clone } from '../src/model.ts';
+import { pathPosition } from '../src/timeline.ts';
 import { makeProp, makeRoom, disposeTree } from '../src/assets.ts';
 import { applyPathSurfaceCorrections, checkPathSurfaces, pathSurfaceSamples, pathSurfaceModels, ROOM_FLOOR_SURFACE } from '../src/spatial/path-surfaces.ts';
 
@@ -78,4 +79,29 @@ test('built-in room floor is checked as finite real geometry and disappears when
         f.project.room.enabled = false;
         assert.throws(() => checkPathSurfaces(f.project, models, { entityId: f.actor.id, surfaceId: ROOM_FLOOR_SURFACE }), /未找到/);
     } finally { disposeTree(room.group); f.dispose(); }
+});
+
+test('surface checks follow continuous bends in retained source ranges instead of the legacy straight route', () => {
+    const project = demoProject(); project.room.enabled = false; project.duration = 12;
+    const surface = entity('prop', 'cube', 'finite platform'), actor = entity('actor', 'human-adult', 'walker');
+    actor.path = { smooth: false, interpolation: 'continuous', points: [
+        { time: 0, position: [0, 0, 0] }, { time: 1, position: [1, 0, 0] }, { time: 3, position: [1, 0, 1] },
+    ], sections: [{ start: 10, end: 11, from: 0, to: 1 }] };
+    project.entities.push(surface, actor);
+    const root = new Group(), platform = new Mesh(new BoxGeometry(2, .2, 2), new MeshBasicMaterial());
+    platform.position.set(.5, -.1, 1); root.add(platform);
+    const models = new Map([[surface.id, root]]);
+    try {
+        const report = checkPathSurfaces(project, models, { entityId: actor.id, surfaceId: surface.id });
+        assert.ok(report.points.every(point => point.sourceTime >= 0 && point.sourceTime <= 1), 'section playback times do not replace source sampling times');
+        const bend = report.points.find(point => Math.abs(point.sourceTime - .5) < 1e-8)!;
+        assert.ok(bend, 'the retained segment includes an intermediate surface check');
+        assert.equal(bend.status, 'no-surface', 'the continuous bend leaves the edge of the finite platform');
+        assert.ok(bend.position[2] < -.01, 'interior velocity rounds the corner outside the straight segment');
+        assert.deepEqual(bend.position, pathPosition(actor.path, actor.position, 10.5).toArray(), 'the checked location equals the actual playback location');
+        assert.ok(report.points.filter(point => point.waypointIndex !== null).every(point => point.status === 'on-surface'));
+        delete actor.path.interpolation;
+        const legacy = checkPathSurfaces(project, models, { entityId: actor.id, surfaceId: surface.id });
+        assert.ok(legacy.points.every(point => point.status === 'on-surface'), 'the same points with legacy straight interpolation stay on the platform');
+    } finally { disposeTree(root); }
 });
