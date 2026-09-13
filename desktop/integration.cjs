@@ -4,6 +4,7 @@ const { randomUUID } = require('node:crypto');
 const path = require('node:path');
 const { createAIHost } = require('./ai-host.cjs');
 const { createMcpHost } = require('./mcp-host.cjs');
+const { releaseVersion } = require('./release-version.cjs');
 const { createSkillStore } = require('./skills/store.cjs');
 const { createSkillHost } = require('./skills/host.cjs');
 const { TOOL_DEFINITIONS, MCP_TOOL_DEFINITIONS, DISCUSSION_TOOLS, isDiscussionToolCall, BUILTIN_SKILL } = require('./tools-contract.cjs');
@@ -22,7 +23,7 @@ function attachIntegration(window) {
         pending.set(id, { resolve, timer }); window.webContents.send('director-tool-call', { id, name, args });
     });
     };
-    const mcp = createMcpHost({ directory: app.getPath('userData'), safeStorage, definitions: MCP_TOOL_DEFINITIONS, call: callTool, version: app.getVersion(),
+    const mcp = createMcpHost({ directory: app.getPath('userData'), safeStorage, definitions: MCP_TOOL_DEFINITIONS, call: callTool, version: releaseVersion(app.getVersion()),
         bridgeRuntime: { command: process.execPath, bridgePath: app.isPackaged ? path.join(process.resourcesPath, 'mcp', 'stdio-bridge.cjs') : path.join(app.getAppPath(), 'desktop', 'mcp-stdio.cjs') } });
     const host = createAIHost({ directory: app.getPath('userData'), safeStorage, definitions: TOOL_DEFINITIONS, discussionTools: DISCUSSION_TOOLS, isDiscussionToolCall, callTool,
         skill: BUILTIN_SKILL, skills,

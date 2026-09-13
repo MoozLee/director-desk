@@ -1,5 +1,5 @@
 import type { Project } from '../model.ts';
-import { version } from '../../package.json';
+import { shortVersion as version } from '../../package.json';
 import { ASPECTS, FRAME_RATES } from '../model.ts';
 import { $, button, icon, options } from './common.ts';
 export function mountLayout(project: Project) {

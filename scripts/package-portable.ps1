@@ -1,8 +1,9 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $releaseRoot = Join-Path $projectRoot 'release'
-$version = (Get-Content -LiteralPath (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json).version
-if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version' }
+$metadata = Get-Content -LiteralPath (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json
+$version = $metadata.shortVersion
+if ($version -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$' -or $version -ne ($metadata.version -replace '\+revision\.', '.')) { throw 'Invalid release version' }
 $payloadRoot = (Resolve-Path -LiteralPath (Join-Path $releaseRoot 'win-unpacked')).Path
 if ((Split-Path $payloadRoot -Parent) -ne $releaseRoot) { throw 'Invalid payload directory' }
 $zipPath = Join-Path $releaseRoot "DirectorDesk-Portable-$version-win-x64.zip"

@@ -5,9 +5,9 @@ const { createUpdateHost } = require('../desktop/update-host.cjs');
 const { githubRelease, GITHUB_RELEASE_PAGE } = require('../desktop/github-release.cjs');
 const { validateConfig } = require('../desktop/update-config.cjs');
 
-function fixture({ source = 'auto', website = '1.1.0', github = '1.2.0', metadata = true, feedVersion = github, mode = 'installed' } = {}) {
+function fixture({ source = 'auto', website = '1.1.0', github = '1.2.0', metadata = true, feedVersion = github, mode = 'installed', current = '1.0.0' } = {}) {
     const calls = [], states = []; let opened;
-    const host = createUpdateHost({ version: '1.0.0', mode,
+    const host = createUpdateHost({ version: current, mode,
         config: { ready: Promise.resolve(), read: () => ({ source }), feed: () => ({ url: 'https://website.test/' }), page: () => 'https://website.test/', save: async () => {} },
         getGithubRelease: async () => {
             calls.push('github'); if (github instanceof Error) throw github;
@@ -81,7 +81,30 @@ test('GitHub discovery accepts stable releases with or without metadata and uses
     assert.equal(manual.page, 'https://github.com/mangfufu/director-desk/releases/tag/v1.2.3');
     release.assets = ['latest.yml', 'DirectorDesk-Setup-1.2.3.exe'].map(name => ({ name, state: 'uploaded' }));
     assert.equal((await githubRelease(fetcher)).feed.url, 'https://github.com/mangfufu/director-desk/releases/download/v1.2.3/');
+    release.tag_name = 'v0.4.7.1';
+    release.assets = ['latest.yml', 'DirectorDesk-Setup-0.4.7.1.exe'].map(name => ({ name, state: 'uploaded' }));
+    const revision = await githubRelease(fetcher);
+    assert.equal(revision.version, '0.4.7.1');
+    assert.equal(revision.feed.url, 'https://github.com/mangfufu/director-desk/releases/download/v0.4.7.1/');
+    release.prerelease = true; await assert.rejects(githubRelease(fetcher)); release.prerelease = false;
     for (const tag of ['no-version', 'v2.0.0-rc.1']) { release.tag_name = tag; await assert.rejects(githubRelease(fetcher)); }
     await assert.rejects(githubRelease(async () => new Response('', { status: 403 })));
     assert.throws(() => validateConfig({ url: 'https://example.com/', automatic: true, source: 'untrusted' }));
+});
+
+test('revision releases compare numerically across sources and match SemVer transport metadata for download', async () => {
+    const f = fixture({ current: '0.4.7+revision.1', website: '0.4.7.2', github: '0.4.7.10', feedVersion: '0.4.7+revision.10' });
+    await f.host.check();
+    assert.equal(f.host.read().currentVersion, '0.4.7.1');
+    assert.equal(f.host.read().version, '0.4.7.10');
+    assert.equal(f.host.read().source, 'github');
+    await f.host.download(); assert.equal(f.host.read().phase, 'downloaded');
+    const next = fixture({ current: '0.4.7.10', website: '0.4.8', github: '0.4.7.11' });
+    await next.host.check(); assert.equal(next.host.read().version, '0.4.8');
+    const same = fixture({ current: '0.4.7.1', website: '0.4.7+revision.1', github: '0.4.7' });
+    await same.host.check(); assert.equal(same.host.read().phase, 'current');
+    const mismatch = fixture({ current: '0.4.7', website: '0.4.7', github: '0.4.7.2', feedVersion: '0.4.7+revision.1' });
+    await mismatch.host.check(); await mismatch.host.download();
+    assert.equal(mismatch.host.read().phase, 'error');
+    assert.equal(mismatch.calls.some(call => call.startsWith('download:')), false);
 });

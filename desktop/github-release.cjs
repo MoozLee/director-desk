@@ -1,4 +1,4 @@
-const semver = require('semver');
+const { parseReleaseVersion } = require('./release-version.cjs');
 const GITHUB_REPOSITORY = 'mangfufu/director-desk';
 const GITHUB_RELEASE_PAGE = `https://github.com/${GITHUB_REPOSITORY}/releases/latest`;
 
@@ -11,8 +11,8 @@ async function githubRelease(fetcher = fetch) {
     const chunks = []; let bytes = 0;
     for await (const chunk of response.body) { bytes += chunk.length; if (bytes > 2_000_000) throw Error('Release response too large'); chunks.push(Buffer.from(chunk)); }
     const release = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    const version = semver.valid(release.tag_name);
-    if (!version || release.draft || release.prerelease || semver.prerelease(version)) throw Error('Invalid stable release');
+    const version = parseReleaseVersion(release.tag_name)?.version;
+    if (!version || release.draft || release.prerelease) throw Error('Invalid stable release');
     const tag = encodeURIComponent(release.tag_name), page = `https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}`;
     const names = new Set((release.assets || []).filter(asset => asset.state === 'uploaded').map(asset => asset.name));
     const canDownload = names.has('latest.yml') && names.has(`DirectorDesk-Setup-${version}.exe`);

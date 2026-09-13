@@ -4,11 +4,14 @@ import { spawnSync } from 'node:child_process';
 import { chromium } from 'playwright-core';
 import { build } from 'esbuild';
 import { publicFiles as publicSkillFiles } from './builtin-skill-files.cjs';
+import { releaseVersion, parseReleaseVersion } from '../desktop/release-version.cjs';
 import './build-offline-skill.mjs';
 
 const check = spawnSync(process.execPath, ['scripts/check-release-privacy.mjs'], { stdio: 'inherit' });
 if (check.status !== 0) process.exit(check.status || 1);
 const metadata = JSON.parse(await fs.readFile('package.json', 'utf8'));
+const publicVersion = releaseVersion(metadata.version);
+if (metadata.shortVersion !== publicVersion) throw Error('Public release version does not match package version');
 const manifest = JSON.parse(await fs.readFile('.audit/release-web-manifest.json', 'utf8'));
 const desktopRoot = path.resolve('.audit/desktop-app');
 // Always start from a clean, verified staging directory; never package the workspace root.
@@ -57,7 +60,7 @@ for (const file of publicSkillFiles) {
 }
 await fs.copyFile('desktop/icon.ico', path.join(desktopRoot, 'desktop/icon.ico'));
 await fs.copyFile('LICENSE', path.join(desktopRoot, 'LICENSE'));
-await fs.writeFile(path.join(desktopRoot, 'package.json'), JSON.stringify({ name: 'director-desk', productName: '导演台', version: metadata.version,
+await fs.writeFile(path.join(desktopRoot, 'package.json'), JSON.stringify({ name: 'director-desk', productName: '导演台', version: metadata.version, shortVersion: publicVersion, shortVersionWindows: parseReleaseVersion(publicVersion).parts.join('.'),
     description: '导演台 · AI 短剧预演', main: 'desktop/main.cjs', author: 'DirectorDesk', license: metadata.license, private: true }, null, 2));
 const packages = new Set(['three', 'mediabunny']);
 for (const input of [...Object.keys(bundled.metafile.inputs), ...Object.keys(updatesBundle.metafile.inputs), ...Object.keys(bridgeBundle.metafile.inputs)]) { const match = input.match(/^node_modules\/(?:@[^/]+\/[^/]+|[^/]+)/); if (match) packages.add(match[0].slice(13)); }

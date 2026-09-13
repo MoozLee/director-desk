@@ -1,7 +1,8 @@
-const semver = require('semver');
+const { parseReleaseVersion, releaseVersion, compareReleaseVersions } = require('./release-version.cjs');
 const { configureUpdater, probeUpdater, releaseNotes } = require('./update-provider.cjs');
 /** Owns update state; Electron transport and local credentials are separate adapters. */
 function createUpdateHost({ version, mode, config, makeUpdater, getGithubRelease, send, confirmInstall, install, openPage }) {
+    version = releaseVersion(version);
     let updater, selected, flight = null, installing = false, disposed = false;
     let state = { currentVersion: version, mode, phase: 'idle', version: '', notes: '', percent: 0, message: '尚未检查更新', checkedAt: '', source: '', canDownload: false };
     const read = () => ({ ...state, config: config.read() });
@@ -39,18 +40,18 @@ function createUpdateHost({ version, mode, config, makeUpdater, getGithubRelease
             const results = await Promise.allSettled(sources.map(async source => {
                 if (source === 'github') {
                     const release = await getGithubRelease();
-                    return { ...release, source, available: semver.gt(release.version, version) };
+                    return { ...release, version: releaseVersion(release.version), source, available: compareReleaseVersions(release.version, version) > 0 };
                 }
                 const candidate = configureUpdater(makeUpdater, config.feed());
                 const { info, available } = await probeUpdater(candidate);
-                if (!semver.valid(info.version)) throw Error('Invalid update version');
-                return { source, version: info.version, available: available && semver.gt(info.version, version), notes: releaseNotes(info.releaseNotes), page: config.page(), updater: candidate };
+                const stable = parseReleaseVersion(info.version);
+                return { source, version: stable?.version ?? info.version, available: !!stable && available && compareReleaseVersions(info.version, version) > 0, notes: releaseNotes(info.releaseNotes), page: config.page(), updater: candidate };
             }));
             const valid = results.filter(r => r.status === 'fulfilled').map(r => r.value);
             if (!valid.length) { fail(results[0].reason); return; }
             const failures = sources.filter((_, i) => results[i].status === 'rejected').map(s => s === 'website' ? '网站' : 'GitHub');
             const suffix = failures.length ? `；${failures.join('、')}暂不可用，本次仅检查了另一来源` : '';
-            selected = valid.filter(r => r.available && !semver.prerelease(r.version)).sort((a, b) => semver.rcompare(a.version, b.version))[0];
+            selected = valid.filter(r => r.available).sort((a, b) => compareReleaseVersions(b.version, a.version))[0];
             if (!selected) {
                 publish({ phase: 'current', message: (failures.length ? '可用来源未发现新版本' : '当前已是最新版本') + suffix, checkedAt: new Date().toISOString() }); return;
             }
@@ -67,7 +68,7 @@ function createUpdateHost({ version, mode, config, makeUpdater, getGithubRelease
                 if (!updater) {
                     const candidate = configureUpdater(makeUpdater, selected.feed);
                     const { info, available } = await probeUpdater(candidate);
-                    if (!available || !semver.eq(info.version, selected.version)) throw Error('Update version mismatch');
+                    if (!available || compareReleaseVersions(info.version, selected.version) !== 0) throw Error('Update version mismatch');
                     bindDownload(candidate);
                 }
                 await updater.downloadUpdate();
