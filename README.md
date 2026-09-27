@@ -2,9 +2,13 @@
 
 面向 AI 短剧和视频创作的三维预演工具。搭场景、排走位、设计运镜，再导出参考视频。可以手动制作，也可以让内置 AI 助手或外部 MCP Agent 直接操作当前工程。
 
-[下载 Windows 版](https://github.com/mangfufu/director-desk/releases/latest) · [配套 skill](https://github.com/mangfufu/director-desk/releases/latest) · [MIT License](LICENSE)
+[下载 Windows 版](https://github.com/mangfufu/director-desk/releases/latest) · [配套 skill](https://github.com/mangfufu/director-desk/releases/latest) · [更新记录](https://github.com/mangfufu/director-desk/releases) · [MIT License](LICENSE)
 
 ![0.4.2 光影舞台：布景与摄影机并排预览，下方编排动作和切镜](docs/images/workspace.jpg)
+
+当前正式版为 **[0.4.9](https://github.com/mangfufu/director-desk/releases/tag/v0.4.9)**：新增深度画面与视频导出，改善深度边缘抗锯齿，精简界面文字，并同步内置助手、MCP 与离线 skill。
+
+现有界面截图主要摄于 0.4.2，抽象场景截图摄于 0.4.3，控件布局以当前版本为准。
 
 ## 场景与运镜演示
 
@@ -46,6 +50,7 @@
 | 时间轴与曲线 | Ctrl 多选、整组移动与延长、分割、删除和时间范围选择；用曲线控制加速、减速与停顿 |
 | 多场戏接拍 | 同工程管理独立戏段，从上一段末帧继承场景与人物状态 |
 | 导出 | 单场或批量导出视频、修改输出文件名，保存工程与素材包；可选人物名称标签 |
+| 深度视频（试验） | 预览和导出近亮远暗的灰度画面，调整近远范围、反转黑白；支持单场和批量导出 |
 | AI 协作 | 内置助手和 MCP Agent 按需查询空间、编辑当前工程；选中人物、片段或时间范围后交给 AI 局部调整 |
 | 提示词与技能 | 参考视频／纯文本提示词按戏段独立保存、切换和导出；导入、下载和启停自定义技能，支持离线生成工程 |
 
@@ -82,6 +87,18 @@
 “用户动作库”支持预览、命名、搜索和骨架映射，可跨工程使用。已应用动作的源素材随工程保存，删除本机收藏不影响已有工程。
 
 Windows 版启动时检查网站和 GitHub 的最新正式版本，也可手动检查。安装版支持下载后重启安装；免安装版下载新版 ZIP。
+
+## 深度视频
+
+直接从当前三维场景生成深度画面，沿用摄影机、走位、切镜、变焦和畸变，无需额外识图模型。
+
+1. 在“并排”或“拍摄”视图的摄影机画面下方，将“普通画面”切换为“深度画面”。
+2. 调整“近 / m”和“远 / m”：单位为米，默认近处亮、远处暗，可勾选“反转”。预览设置随戏段保存。
+3. 打开“导出”，将“画面类型”设为“深度视频 · 试验”，确认深度范围、分辨率和帧率后导出。批量导出时，所选戏段共用这次设置的深度范围。
+
+深度范围在整段内固定，不随每帧自动改变。画面不包含颜色、灯光和人物标签；镜面、透明物体与视频贴图按承载表面输出深度。导出结果是灰度视频，不是无损的米制深度数据。
+
+内置 AI 和 MCP 可调整深度设置，并通过 `director_export({kind:"depth-video"})` 导出。参数见 [深度画面与视频说明](skills/director-desk/references/camera.md#深度画面与视频试验)。
 
 ## 本地开发
 
