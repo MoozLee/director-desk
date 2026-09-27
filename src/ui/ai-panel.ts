@@ -10,7 +10,6 @@ export function mountAI(ctx: AppContext) {
     const bridge = window.directorDesktop;
     const { panel, find, open } = createAIPanel(Boolean(bridge));
     const scope = mountAISelection(ctx, panel, open);
-    find('ai-context').textContent = '默认编辑当前戏段；图片不自动上传。';
     find('ai-new').title = '仅重置 AI 对话，不新建或清空工程';
     find('ai-send').title = '发送任务 · Ctrl / Cmd + Enter';
     find('ai-scene-prompt').onclick = () => { void ctx.act('production-prompt', find('ai-scene-prompt')); };

@@ -30,7 +30,7 @@ export function createUserMotionPanel(ctx: AppContext) {
             <button id="user-motion-import" type="button">导入动作文件</button><button id="user-motion-folder" type="button">选择资源文件夹</button>
             <input id="user-motion-files" type="file" multiple hidden accept=".fbx,.glb,.gltf,.bin,.png,.jpg,.jpeg,.webp"/>
             <input id="user-motion-directory" type="file" multiple webkitdirectory hidden/>
-            <p class="panel-help">本机收藏可跨工程使用。删除收藏不影响已应用的工程。</p>
+
         </aside><div class="user-motion-detail"><div id="user-motion-preview"><p>选择或导入动作进行预览</p></div>
             <div class="user-motion-toolbar"><span id="user-motion-status">支持独立骨架或带模型的 FBX、GLB/glTF 动作</span><button id="user-motion-play" type="button">暂停预览</button></div>
             <div class="button-row" role="tablist">${[['action', '动作'], ['rig', '骨架映射'], ['source', '来源']].map(([id, name]) => `<button data-user-motion-tab="${id}" role="tab" aria-selected="${tab === id}">${name}</button>`).join('')}</div>
@@ -107,7 +107,7 @@ export function createUserMotionPanel(ctx: AppContext) {
         $('#user-motion-apply').textContent = target && canRetarget(target) ? `添加到 ${target.name}` : '请先选中人形人物';
         $('#user-motion-save').toggleAttribute('disabled', !motion);
         $('#user-motion-delete').toggleAttribute('disabled', !entries.some(m => m.id === motion?.id));
-        if (!motion || !loaded) { $('#user-motion-settings').innerHTML = '<p class="panel-help">支持 FBX、GLB/glTF。动作入库后可在不同工程重复使用。</p>'; return; }
+        if (!motion || !loaded) { $('#user-motion-settings').innerHTML = '<p class="panel-help">支持 FBX、GLB/glTF</p>'; return; }
         const m = motion, info = loaded.model.inspection, status = rigStatus(m.data.rig);
         $('#user-motion-status').textContent = `${m.duration.toFixed(2)} 秒 · ${info.bones.length} 个骨骼 · ${status.complete ? '映射完整' : `待映射 ${status.missing.length} 处`} · 源动作预览`;
         const choose = (id: string, label: string, pairs: [string, string][], val: string) => `<label class="field"><span>${label}</span><select id="${id}">${options(pairs, val)}</select></label>`;
@@ -117,12 +117,12 @@ export function createUserMotionPanel(ctx: AppContext) {
             ${choose('uml-loop', '播放方式', [['false', '播放一次'], ['true', '循环播放']], String(m.data.loop))}
             ${choose('uml-motion', '走位方式', [['path', '由导演路径控制'], ['source', '保留素材位移']], m.data.motion ? 'path' : 'source')}
             <label class="field"><span>应用时长 / 秒</span><input id="uml-duration" type="number" min=".01" step=".1" value="${m.duration.toFixed(3)}"/></label>
-            <p class="panel-help">从 ${ctx.time.toFixed(2)} 秒后的空闲位置添加，可在时间轴裁剪和调速。</p></div>`
-            : tab === 'source' ? `<label class="field"><span>来源网址或作者</span><input id="uml-source" maxlength="1000" value="${escape(loaded.resource.source)}"/></label><label class="field"><span>许可备注</span><input id="uml-license" maxlength="1000" value="${escape(loaded.resource.license)}"/></label><p class="panel-help">使用时源文件随工程保存；本机收藏不会进入软件安装包。</p>`
+            </div>`
+            : tab === 'source' ? `<label class="field"><span>来源网址或作者</span><input id="uml-source" maxlength="1000" value="${escape(loaded.resource.source)}"/></label><label class="field"><span>许可备注</span><input id="uml-license" maxlength="1000" value="${escape(loaded.resource.license)}"/></label>`
             : `<div class="field-pair">${choose('uml-part', '人体部位', Object.entries(HUMAN_BONES).map(([key, label]) => [key, label + (m.data.rig.bones[key as HumanBone] ? '' : ' · 未映射')]), bone)}
                 ${choose('uml-bone', '对应源骨骼', [['', '未映射'], ...info.bones.map(b => [b.path, b.name || b.path] as [string, string])], m.data.rig.bones[bone] ?? '')}
                 <label class="field"><span>单位倍率 · FBX 已换算为米</span><input id="uml-scale" type="number" min=".0001" step=".01" value="${m.data.unitScale}"/></label>
-                <label class="field"><span>朝向校正 Y / 度</span><input id="uml-facing" type="number" step="90" value="${m.data.orientation[1] * 180 / Math.PI}"/></label></div><p class="panel-help">${status.complete ? '映射完整。应用时仍会检查骨架比例和可用性。' : '需要补齐：' + status.missing.map(key => HUMAN_BONES[key]).join('、')}</p>`;
+                <label class="field"><span>朝向校正 Y / 度</span><input id="uml-facing" type="number" step="90" value="${m.data.orientation[1] * 180 / Math.PI}"/></label></div><p class="panel-help">${status.complete ? '映射完整' : '需要补齐：' + status.missing.map(key => HUMAN_BONES[key]).join('、')}</p>`;
         $('#user-motion-settings').onchange = event => {
             const input = event.target as HTMLInputElement;
             try {

@@ -39,7 +39,7 @@ export function createModelImport(ctx: AppContext) {
             if (!info.meshes && !libraryOnly) throw Error('这是独立动作文件，请从“用户动作库 → 导入动作”添加');
             if (libraryOnly) {
                 pending = clone(ctx.project.resources?.find(r => r.id === resource.id) ?? resource);
-                ctx.showModal('加入工程资源', `<label class="field"><span>资源名称</span><input id="model-name" maxlength="80" value="${escape(pending.name)}"/></label><p class="panel-help">${info.meshes} 个网格 · ${info.nodes.length} 个节点 · ${info.animations.length} 段动画。加入后可用于道具替换，不新建场景对象；相同内容仅保存一份。</p><label class="field"><span>许可备注</span><input id="model-license" maxlength="1000" value="${escape(pending.license)}"/></label><label class="field"><span>来源备注</span><input id="model-source" maxlength="1000" value="${escape(pending.source)}"/></label>`, button('model-cancel', '取消', '', 'subtle') + button('model-place', '加入工程资源', '', 'primary'));
+                ctx.showModal('加入工程资源', `<label class="field"><span>资源名称</span><input id="model-name" maxlength="80" value="${escape(pending.name)}"/></label><p class="panel-help">${info.meshes} 个网格 · ${info.nodes.length} 个节点 · ${info.animations.length} 段动画。</p><label class="field"><span>许可备注</span><input id="model-license" maxlength="1000" value="${escape(pending.license)}"/></label><label class="field"><span>来源备注</span><input id="model-source" maxlength="1000" value="${escape(pending.source)}"/></label>`, button('model-cancel', '取消', '', 'subtle') + button('model-place', '加入工程资源', '', 'primary'));
                 document.querySelector('.modal')!.addEventListener('director-before-close', () => { pending = null; prune(); }, { once: true });
                 return;
             }

@@ -7,6 +7,7 @@ import { SceneLighting } from './lighting/runtime.ts';
 import { installWallTransmission, isWallEntity } from './lighting/wall-transmission.ts';
 import { fitFeetToSurface } from './editor/foot-contact.ts';
 import { SceneRenderCache } from './editor/scene-render-cache.ts';
+import type { DepthRange } from './cinematography/depth-video.ts';
 import { ReferenceLabels } from './production/reference-labels.ts';
 import { cameraLookAt } from './animation/camera-look.ts';
 import { applyCameraEffects, cameraFocal, cameraFocusDistance } from './cinematography/camera-effects.ts';
@@ -544,13 +545,13 @@ export class Engine {
         }
         this.onFrame();
     }
-    renderOutput(time: number, width: number, height: number, cameraId = 'program') {
+    renderOutput(time: number, width: number, height: number, cameraId = 'program', depth: DepthRange | null = this.project.depthVideo?.enabled ? this.project.depthVideo : null) {
         this.sample(time);
         this.shotRenderer.setPixelRatio(1);
         this.shotRenderer.setSize(width, height, false);
         // Same physical gate as preview. Integer output pixels only affect resolution, never camera framing.
         this.prepareView(false, cameraId);
-        this.renderShot(cameraId);
+        this.renderShot(cameraId, depth);
         return this.shotRenderer.domElement;
     }
     private renderReferenceLabels(camera: T.PerspectiveCamera, id: string) {
@@ -566,10 +567,10 @@ export class Engine {
         const target = this.models.get(id); if (!target) return;
         this.focusBounds(new T.Box3().setFromObject(target));
     }
-    private renderShot(id: string) {
+    private renderShot(id: string, depth: DepthRange | null = this.project.depthVideo?.enabled ? this.project.depthVideo : null) {
         const camera = this.getShotCamera(id), effects = this.cameraEntity(id).camera!.effects;
         const focusTarget = effects?.focusTargetId ? this.models.get(effects.focusTargetId)?.getWorldPosition(new T.Vector3()) : undefined;
-        this.shotEffects.render(this.shotRenderer, this.scene, camera, effects, this.time, cameraFocusDistance(camera, effects, this.time, focusTarget), cam => this.renderReferenceLabels(cam, id),collectWarps(this.project.entities,this.models,camera,this.time));
+        this.shotEffects.render(this.shotRenderer, this.scene, camera, effects, this.time, cameraFocusDistance(camera, effects, this.time, focusTarget), cam => this.renderReferenceLabels(cam, id),collectWarps(this.project.entities,this.models,camera,this.time), depth);
     }
     focusBounds(bounds: T.Box3) {
         if (bounds.isEmpty()) return;

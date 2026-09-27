@@ -1,3 +1,4 @@
+import { DEFAULT_DEPTH_VIDEO } from '../cinematography/depth-video.ts';
 import { editorSelection } from '../editor/timeline-selection.ts';
 import type { AppContext } from '../app-context.ts';
 import { geometryCreationGuide } from '../assets/creation-mode.ts';
@@ -43,7 +44,7 @@ export function readScene(ctx: AppContext, revision: number, args: SceneReadOpti
             id: e.id, localPorts: structurePorts(e), worldPorts: !e.path && !e.handBinding && !e.clips.length ? worldStructurePorts(e) : [], link: e.structureLink ?? null,
         }));
     }
-    if (sections.has('scene')) Object.assign(result, { scenes: ctx.scenes?.list(), room: project.room, lighting: project.lighting,
+    if (sections.has('scene')) Object.assign(result, { scenes: ctx.scenes?.list(), room: project.room, lighting: project.lighting, depthVideo: project.depthVideo ?? DEFAULT_DEPTH_VIDEO,
         floors: project.floors ?? [], zones: project.zones ?? [], editorView: project.editorView });
     if (sections.has('cuts')) result.cuts = project.cuts;
     // Production remains complete so the existing whole-value notes operation can safely round-trip it.

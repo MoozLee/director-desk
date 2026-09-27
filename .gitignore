@@ -107,3 +107,5 @@ file-locations.json
 
 !/scripts/verify-file-permissions-desktop.mjs
 !/scripts/verify-prompt-modes.mjs
+!/scripts/test-depth-video.mjs
+!/scripts/test-depth-desktop.mjs

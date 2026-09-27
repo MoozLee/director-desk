@@ -3,7 +3,7 @@ import type { AppContext } from '../app-context.ts';
 import type { Entity } from '../model.ts';
 import { button, num, options, select } from './common.ts';
 import type { InspectorNavigation } from './inspector-navigation.ts';
-import { continuousMotionHelp, pathMotionChoices, setPathMotionMode, waypointMotionChoices, waypointMotionValue } from './path-motion-controls.ts';
+import { pathMotionChoices, setPathMotionMode, waypointMotionChoices, waypointMotionValue } from './path-motion-controls.ts';
 
 export function createPathInspector(ctx: AppContext, navigation: InspectorNavigation, refresh: () => void) {
     let previousOwner = '', previousPoint = -1, sectionIndex = 0;
@@ -39,12 +39,11 @@ export function createPathInspector(ctx: AppContext, navigation: InspectorNaviga
     });
     return { render(e: Entity, human: boolean) {
         const path = e.path, key = `${e.id}:path`;
-        if (e.handBinding) return '<p class="panel-help">道具全段跟随人物手部。到“手持”解除绑定后，可设置独立路径。</p>';
-        if (e.structureLink || ctx.project.entities.some(child => child.structureLink?.parentId === e.id)) return '<p class="panel-help">此模块参与建筑连接。先在“结构”解除上下游连接，再设置路径。</p>';
+        if (e.handBinding) return '<p class="panel-help">请先解除手持绑定</p>';
+        if (e.structureLink || ctx.project.entities.some(child => child.structureLink?.parentId === e.id)) return '<p class="panel-help">请先解除模块连接</p>';
         const draw = `<label class="field"><span>绘制落点</span><select id="path-surface-mode">${options([['surface', '物体表面 · 保留高度'], ['ground', '仅地面 · Y = 0']], ctx.engine.pathSurfaceMode)}</select></label>`
             + (ctx.draft ? '<div class="drawing-banner">正在画路线 · 点击场景添加途经点</div>' : `<div class="button-row">${button('draw-path', path ? '重画路线' : '画路线', 'plus')}${path ? button('clear-path', '清除', 'trash', 'subtle') : ''}</div>`)
-            + button('position-key', '记录当前位置 · K', '', 'wide subtle')
-            + '<p class="panel-help">可点选楼梯、平台等表面。开启“位置关键帧”后移动对象，即记录位置关键帧。</p>';
+            + button('position-key', '记录当前位置 · K', '', 'wide subtle');
         if (!path) return draw;
         const index = Math.max(0, Math.min(path.points.length - 1, ctx.engine.selectedPoint)), p = path.points[index];
         if (previousOwner !== e.id || previousPoint !== ctx.engine.selectedPoint && ctx.engine.selectedPoint >= 0) navigation.select(key, 'points');
@@ -52,9 +51,9 @@ export function createPathInspector(ctx: AppContext, navigation: InspectorNaviga
         const frozen = path.sections ? 'disabled' : '', continuous = path.interpolation === 'continuous';
         const points = `<div class="inspector-picker point-picker"><button data-step-point="-1" aria-label="上一个途经点" ${index === 0 ? 'disabled' : ''}>‹</button><select id="path-point-choice" aria-label="选择途经点">${options(path.points.map((point, i) => [String(i), `途经点 ${i + 1} / ${path.points.length} · ${point.time.toFixed(2)} 秒`]), String(index))}</select><button data-step-point="1" aria-label="下一个途经点" ${index === path.points.length - 1 ? 'disabled' : ''}>›</button><button class="icon-button" data-act="remove-point" data-index="${index}" ${frozen} title="删除此途经点" aria-label="删除此途经点">×</button></div>`
             + `<div class="waypoint single-waypoint"><div class="point-coords"><label class="point-time"><span>时间 / 秒</span><input type="number" data-point="${index}" data-axis="time" ${frozen} value="${p.time.toFixed(2)}" step=".1" min="0"/></label>${p.position.map((v, axis) => `<label>${['X', 'Y', 'Z'][axis]} / 米<input type="number" data-point="${index}" data-axis="${axis}" value="${v.toFixed(2)}" step=".05"/></label>`).join('')}</div></div>`
-            + `<div class="field-pair"><label class="field"><span title="${continuousMotionHelp}">运动方式 ⓘ</span><select id="path-interpolation" title="${continuousMotionHelp}">${options(pathMotionChoices, path.interpolation ?? 'segmented')}</select></label>`
+            + `<div class="field-pair"><label class="field"><span>运动方式</span><select id="path-interpolation">${options(pathMotionChoices, path.interpolation ?? 'segmented')}</select></label>`
             + (continuous
-                ? `<label class="field"><span>此点运动</span><select id="path-point-stop" title="经过：连续通过此点；停住：到此点速度降为零。端点选择经过可保留进出镜速度。">${options(waypointMotionChoices, waypointMotionValue(path.points, index))}</select></label>`
+                ? `<label class="field"><span>此点运动</span><select id="path-point-stop">${options(waypointMotionChoices, waypointMotionValue(path.points, index))}</select></label>`
                 : `<label class="field"><span>到达此点的速度变化</span><select id="path-point-easing" ${index === 0 ? 'disabled' : ''}>${options(easingChoices(p.easing), easingChoice(p.easing))}</select></label>`)
             + '</div>'
             + `<div class="button-row">${button('append-point', '添加点', 'plus', 'subtle', frozen)}${button('hold-point', '停留 1 秒', '', 'subtle', frozen)}</div>`;
@@ -68,7 +67,7 @@ export function createPathInspector(ctx: AppContext, navigation: InspectorNaviga
         if (!e.external && (e.kind === 'actor' || e.kind === 'crowd')) sections.push({ id: 'facing', label: '朝向', html: facing });
         if (path.sections) {
             sectionIndex = Math.max(0, Math.min(path.sections.length - 1, sectionIndex));
-            sections.push({ id: 'segments', label: '片段', html: `<label class="field"><span>已排路径片段</span><select id="path-section-choice">${options(path.sections.map((s, i) => [String(i), `片段 ${i + 1} · ${s.start.toFixed(2)} — ${s.end.toFixed(2)} 秒`]), String(sectionIndex))}</select></label><button class="wide subtle" data-edit-path-section="${sectionIndex}" data-owner="${e.id}">编辑此片段时间</button><p class="panel-help">各片段共用此路线的途经点。也可在时间轴双击片段编辑。</p>` });
+            sections.push({ id: 'segments', label: '片段', html: `<label class="field"><span>已排路径片段</span><select id="path-section-choice">${options(path.sections.map((s, i) => [String(i), `片段 ${i + 1} · ${s.start.toFixed(2)} — ${s.end.toFixed(2)} 秒`]), String(sectionIndex))}</select></label><button class="wide subtle" data-edit-path-section="${sectionIndex}" data-owner="${e.id}">编辑此片段时间</button>` });
         }
         return navigation.render(key, sections);
     } };

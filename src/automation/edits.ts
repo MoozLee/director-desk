@@ -77,7 +77,7 @@ export function applyOperations(original: Project, operations: EditOperation[], 
         }
         else if (op.operation === 'camera-motion') applyCameraMotion(project, op.id ?? '', op.asset ?? '', op.time ?? 0, op.duration ?? 5, op.patch as CameraMotionOptions | undefined);
         else if (op.operation === 'lighting-preset') project.lighting = lightingPreset(op.asset ?? '');
-        else if (op.operation === 'project') patch(project, op.patch, new Set(['name', 'duration', 'fps', 'aspect', 'room', 'floors', 'zones', 'editorView', 'creationMode', 'referenceLabels', 'lighting', 'media']));
+        else if (op.operation === 'project') patch(project, op.patch, new Set(['name', 'duration', 'fps', 'aspect', 'room', 'floors', 'zones', 'editorView', 'creationMode', 'referenceLabels', 'depthVideo', 'lighting', 'media']));
         else if (op.operation === 'cuts') project.cuts = clone(op.value) as Project['cuts'];
         else if (op.operation === 'notes') { assertProductionShape(op.value); project.production = clone(op.value); }
         else throw new Error('未知操作');
@@ -103,5 +103,5 @@ export function changeSummary(before: Project, after: Project) {
     return { hasChanges: JSON.stringify(before) !== JSON.stringify(after), added: after.entities.filter(e => !old.has(e.id)).map(e => ({ id: e.id, name: e.name })),
         updated: after.entities.filter(e => old.has(e.id) && JSON.stringify(old.get(e.id)) !== JSON.stringify(e)).map(e => ({ id: e.id, name: e.name })),
         removed: before.entities.filter(e => !fresh.has(e.id)).map((e: Entity) => ({ id: e.id, name: e.name })),
-        projectChanged: ['name', 'duration', 'fps', 'aspect', 'room', 'cuts', 'production', 'floors', 'zones', 'editorView', 'resources', 'creationMode', 'referenceLabels', 'lighting'].some(k => JSON.stringify(before[k as keyof Project]) !== JSON.stringify(after[k as keyof Project])) };
+        projectChanged: ['name', 'duration', 'fps', 'aspect', 'room', 'cuts', 'production', 'floors', 'zones', 'editorView', 'resources', 'creationMode', 'referenceLabels', 'depthVideo', 'lighting'].some(k => JSON.stringify(before[k as keyof Project]) !== JSON.stringify(after[k as keyof Project])) };
 }

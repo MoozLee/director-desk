@@ -172,3 +172,5 @@ reference 字段引用 references 中的 ID。图片项为 `{id,name,data}`，da
 ## 媒体与抽象元素
 
 导入图片／视频或设置表面、粒子、影响区域、形变和扭曲时，读取[媒体与抽象元素](media.md)。其中包含离线 import-media 命令和共用字段；不包含声音。
+
+深度预览的可选戏段字段为 `depthVideo:{enabled:boolean,near:number,far:number,invert:boolean}`，`0 <= near < far <= 2000` 米。完整规则与导出语义见 [摄影机说明](camera.md#深度画面与视频试验)。

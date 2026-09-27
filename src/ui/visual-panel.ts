@@ -37,7 +37,7 @@ export function createVisualPanel(ctx:AppContext){let deformOnly=false,parameter
     });
     return {render(e:Entity,onlyDeform=false){deformOnly=onlyDeform;if(deformOnly)e={...e,visual:undefined,field:undefined,warp:undefined};if(owner!==e.id+':'+deformOnly){owner=e.id+':'+deformOnly;parameter=e.visual?'size':e.field||e.warp?'strength':'amount';}const object=data();let html='<div class="surface-panel">';
         if(!e.visual&&!e.field&&!e.warp)html+=`<div class="field-pair"><label class="field"><span>形体变化</span><select id="deform-type">${options([['','关闭'],...Object.entries(DEFORM_TYPES)],e.deform?.type??'')}</select></label>${e.deform?`<label class="field"><span>作用轴</span><select data-visual-setting="axis">${options([['x','X'],['y','Y'],['z','Z']],e.deform.axis)}</select></label>`:''}</div>`;
-        if(!object)return html+'<p class="panel-help">为对象添加弯曲、扭转、膨胀或坍缩。幅度可记录关键帧。</p></div>';
+        if(!object)return html+'<p class="panel-help">未添加效果</p></div>';
         const parameters=e.visual?['size','spread','speed','amplitude','frequency','opacity']:e.field||e.warp?['strength']:['amount'];if(!parameters.includes(parameter))parameter=parameters[0];
         if(object){
             const minimum=e.warp?-2:parameter==='speed'||parameter==='strength'?-100:parameter==='amount'?-10:parameter==='size'||parameter==='spread'?.001:0;
@@ -53,9 +53,9 @@ export function createVisualPanel(ctx:AppContext){let deformOnly=false,parameter
             if(e.visual)html+=numeric('lifetime','循环寿命 / 秒',.1,1000);
             if(['text','data'].includes(e.visual.preset))html+=`<label class="field"><span>内容</span><input type="text" data-visual-setting="text" maxlength="500" value="${escape(e.visual.text)}"/></label>`;
             if(e.visual)html+=`<h3 class="parameter-divider">显示效果</h3><div class="field-pair"><label class="field"><span>辅助颜色</span><input type="color" data-visual-setting="secondaryColor" value="${e.visual.secondaryColor}"/></label><label class="field"><span>细节质量</span><select data-visual-setting="quality">${options([['draft','草稿 · 1/4 粒子'],['normal','标准'],['high','完整 · 视图 2048']],e.visual.quality)}</select></label></div>`;
-        }else if(e.warp){html+='<div class="field-pair">'+numeric('radius','影响半径 / 米',.01,1000)+numeric('frequency','频率',0,100)+'</div>'+numeric('speed','变化速度',-100,100)+'<p class="panel-help">在拍摄画面中作用于此区域，可与镜头畸变叠加。</p>';}else if(e.field){html+='<div class="field-pair">'+numeric('radius','作用半径 / 米',.01,1000)+numeric('falloff','边缘衰减',0,10)+'</div>';
+        }else if(e.warp){html+='<div class="field-pair">'+numeric('radius','影响半径 / 米',.01,1000)+numeric('frequency','频率',0,100)+'</div>'+numeric('speed','变化速度',-100,100)+'';}else if(e.field){html+='<div class="field-pair">'+numeric('radius','作用半径 / 米',.01,1000)+numeric('falloff','边缘衰减',0,10)+'</div>';
             html+=`<label class="field"><span>作用对象（可多选，留空影响视觉元素）</span><select id="field-targets" data-visual-setting="targets" multiple size="3">${ctx.project.entities.filter(t=>t.id!==e.id&&t.kind!=='camera'&&!t.field&&!t.warp).map(t=>`<option value="${t.id}" ${e.field!.targets.includes(t.id)?'selected':''}>${escape(t.name)}</option>`).join('')}</select></label><div class="field-pair">`+numeric('start','开始 / 秒',0,86400)+numeric('end','结束（0 全程）',0,86400)+'</div>';
-        }else{if(e.deform!.type==='wave')html+='<div class="field-pair">'+numeric('frequency','波动频率',0,100)+numeric('speed','波动速度',-100,100)+'</div>';html+='<p class="panel-help">在不同时间记录不同幅度，播放时自动过渡。</p>';}
+        }else{if(e.deform!.type==='wave')html+='<div class="field-pair">'+numeric('frequency','波动频率',0,100)+numeric('speed','波动速度',-100,100)+'</div>';html+='';}
         return html+'</div>';
     }};
 }

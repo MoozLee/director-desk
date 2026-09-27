@@ -26,9 +26,9 @@ export function mountModelControl(ctx: AppContext) {
         if (ctx.mode === 'shot') ctx.setView('split');
         panel.classList.remove('recording');
         panel.innerHTML = `<div class="model-control-title"><strong>${escape(e!.name)} · 操控录制</strong><button id="model-control-close" aria-label="关闭操控录制">×</button></div>
-            <p>从 ${ctx.time.toFixed(2)} 秒起重录后续走位${canRecordActions(e!) ? '与所选动作' : ''}，结束后可撤销。</p>
+            <p>从 ${ctx.time.toFixed(2)} 秒起重录后续走位${canRecordActions(e!) ? '与所选动作' : ''}。</p>
             <div class="model-control-options"><label>动作<select id="model-control-action"><option value="auto">自动走 / 跑 / 待机</option><option value="crawl">爬行</option><option value="keep">仅位移 · 保留原动作</option></select></label></div>
-            <p>WASD 移动 · Shift 跑动 · R/F 升降 · 鼠标拖动观察<br>空格暂停 / 继续 · Enter 完成 · Esc 取消。高度手动控制，不自动避障。</p>
+            <p>WASD 移动 · Shift 跑动 · R/F 升降 · 鼠标拖动观察<br>空格暂停 / 继续 · Enter 完成 · Esc 取消</p>
             <div class="model-control-buttons"><button id="model-control-start" class="primary">开始录制</button><button id="model-control-pause" hidden>暂停</button><button id="model-control-finish" hidden>完成</button><button id="model-control-cancel" hidden>取消</button></div>
             <output id="model-control-status" aria-live="polite">准备就绪</output>`;
         if (!canRecordActions(e!)) { find<HTMLSelectElement>('model-control-action').value = 'keep'; find<HTMLSelectElement>('model-control-action').disabled = true; }

@@ -1,4 +1,5 @@
 import { BufferTarget, CanvasSource, Mp4OutputFormat, Output, Quality, StreamTarget, WebMOutputFormat, canEncodeVideo } from 'mediabunny';
+import { assertDepthRange, type DepthRange } from './cinematography/depth-video.ts';
 import type { Engine } from './engine.ts';
 import { FRAME_RATES, getFrameCount } from './model.ts';
 export interface ExportOptions {
@@ -10,6 +11,7 @@ export interface ExportOptions {
     cameraId: string;
     format: 'mp4' | 'webm';
     monochrome: boolean;
+    depth?: DepthRange;
 }
 export async function exportVideo(engine: Engine, options: ExportOptions, signal: AbortSignal, progress: (p: number) => void, handle?: FileSystemFileHandle) {
     if (engine.exporting)
@@ -22,6 +24,7 @@ export async function exportVideo(engine: Engine, options: ExportOptions, signal
     if (options.cameraId !== 'program' && !engine.project.entities.some(e => e.id === options.cameraId && e.kind === 'camera')) throw new Error('导出摄影机不存在');
     if (options.end <= options.start || options.start < 0 || options.end > engine.project.duration + .00001)
         throw new Error('导出范围必须在场景时间内，且结束晚于开始');
+    if (options.depth !== undefined) assertDepthRange(options.depth);
     const codec = options.format === 'mp4' ? 'avc' : 'vp9';
     const quality = new Quality({ bitrate: Math.max(2000000, Math.round(options.width * options.height * options.fps * .13)) });
     signal.throwIfAborted();
@@ -36,7 +39,7 @@ export async function exportVideo(engine: Engine, options: ExportOptions, signal
             throw new Error(`当前浏览器不能编码此 ${options.format.toUpperCase()} 规格。请明确选择其他格式或较小分辨率后重试。`);
         signal.throwIfAborted();
         await engine.prepareOutput(options.start,signal);
-        const canvas = engine.renderOutput(options.start, options.width, options.height, options.cameraId);
+        const canvas = engine.renderOutput(options.start, options.width, options.height, options.cameraId, options.depth ?? null);
         writable = handle ? await handle.createWritable() : undefined;
         const target = writable ? new StreamTarget(writable) : new BufferTarget();
         output = new Output({ format: options.format === 'mp4' ? new Mp4OutputFormat() : new WebMOutputFormat(), target });
@@ -48,7 +51,7 @@ export async function exportVideo(engine: Engine, options: ExportOptions, signal
             if (signal.aborted)
                 throw new DOMException('已取消导出', 'AbortError');
             await engine.prepareOutput(options.start+i/options.fps,signal);
-            engine.renderOutput(options.start + i / options.fps, options.width, options.height, options.cameraId);
+            engine.renderOutput(options.start + i / options.fps, options.width, options.height, options.cameraId, options.depth ?? null);
             await source.add(i / options.fps, 1 / options.fps);
             if (i % 3 === 0 || i === total - 1) {
                 progress((i + 1) / total);

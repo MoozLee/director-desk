@@ -1,3 +1,4 @@
+import { assertDepthVideo, type DepthVideo } from './cinematography/depth-video.ts';
 import { ASSETS, findAsset, isAnimalAsset, assetJoints } from './asset-catalog.ts';
 import { JOINT_LABELS, type JointName } from './assets/joint-schema.ts';
 import { validatePropParameters, type PropParameters } from './parametric-props.ts';
@@ -135,6 +136,7 @@ export interface Project {
     lighting?: LightingConfig;
     creationMode?: 'full' | 'geometry';
     referenceLabels?: boolean;
+    depthVideo?: DepthVideo;
     zones?: SceneZone[];
     floors?: Floor[];
     editorView?: EditorView;
@@ -236,6 +238,7 @@ export function assertProject(input: unknown): asserts input is Project {
     const p = input as Project;
     const fail = (message: string): never => { throw new Error(`项目文件无效：${message}`); };
     if (p?.creationMode !== undefined && !['full', 'geometry'].includes(p.creationMode)) fail('创作模式无效');
+    if (p?.depthVideo !== undefined) assertDepthVideo(p.depthVideo);
     if (p?.referenceLabels !== undefined && typeof p.referenceLabels !== 'boolean') fail('参考视频标签开关无效');
     const n = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
     const v3 = (v: unknown) => Array.isArray(v) && v.length === 3 && v.every(n);

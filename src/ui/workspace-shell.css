@@ -124,3 +124,5 @@
 
 .reference-label-toggle{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer}.reference-label-toggle input{width:13px;height:13px;margin:0;accent-color:#eee}
 .shot-panel .panel-topline{flex-wrap:wrap;gap:4px 8px}.shot-panel .panel-topline>span:first-child{min-width:0;flex:1}.shot-panel .panel-topline b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.inspector :is(.panel-help,.inspect-subtitle,.color-feedback):empty { display: none; }

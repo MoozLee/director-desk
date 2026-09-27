@@ -12,7 +12,7 @@ export function mountAISkills(panel: HTMLElement, status: (message: string) => v
 <div class="skill-actions"><label class="ai-check"><input id="skill-enabled" type="checkbox"/>启用</label><button id="skill-reload">重新加载</button><button id="skill-folder">打开目录</button><button id="skill-remove">移除</button></div>
 <label>技能说明与附件<select id="skill-file" aria-label="技能文件"></select></label>
 <textarea id="skill-content" readonly aria-label="技能说明内容" placeholder="选择技能后查看说明。"></textarea>
-<p>带附件的技能请导入整个文件夹。修改目录后点重新加载；停用从下一次任务生效，已有对话保留。附属脚本保留在包内，当前助手不会执行脚本。</p>`;
+`;
     const find = <T extends HTMLElement = HTMLInputElement>(id: string) => section.querySelector<T>('#' + id)!;
     let entries: SkillEntry[] = [], working = false, reading = 0;
     const selected = () => entries.find(e => e.id === find('skill-select').value);

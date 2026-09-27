@@ -37,4 +37,3 @@
 .asset-parameter-editor select,.asset-parameter-editor input{width:100%;min-width:0;height:32px}
 .parameter-value-row{display:grid;grid-template-columns:minmax(0,1fr) 32px;gap:6px}
 .parameter-value-row button{padding:0;min-width:0}
-.parameter-hint{font-size:10px;color:#999;margin:0;line-height:1.4}

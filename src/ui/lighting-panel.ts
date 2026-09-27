@@ -35,19 +35,15 @@ export function createLightingPanel(ctx: AppContext) {
             + select('quality', '阴影质量', [['off', '关闭阴影'], ['low', '低 · 512'], ['medium', '中 · 2048'], ['high', '高 · 4096']], scene.quality);
         if (tab === 'main' && light) body = pair(num('intensity', '灯光强度', numberAt(light.intensity, ctx.time)), color('color', '灯光颜色', entity!.color))
             + pair(select('temperature-on', '色温', [['false', '仅使用颜色'], ['true', '颜色叠加色温']], String(light.temperature !== undefined)), num('temperature', '色温 / K', numberAt(light.temperature, ctx.time, 6500), 1000, 15000, '100'))
-            + pair(select('through-walls', '穿透墙体', entity!.asset === 'light-area' ? [['false', '面光无需穿墙']] : [['false', '关闭'], ['true', '开启']], String(light.throughWalls ?? false)), select('shadows', '投射阴影', entity!.asset === 'light-area' ? [['false', '面光不投影']] : [['true', '开启'], ['false', '关闭']], String(light.shadows)))
-            + '<p>穿透内置墙顶和建筑外壳，人物、家具仍挡光。普通几何体和导入模型不自动当作墙体。</p>';
+            + pair(select('through-walls', '穿透墙体', entity!.asset === 'light-area' ? [['false', '面光无需穿墙']] : [['false', '关闭'], ['true', '开启']], String(light.throughWalls ?? false)), select('shadows', '投射阴影', entity!.asset === 'light-area' ? [['false', '面光不投影']] : [['true', '开启'], ['false', '关闭']], String(light.shadows)));
         if (tab === 'shape' && !light) body = select('default', '默认太阳光和补光', [['true', '开启'], ['false', '关闭 · 仅使用自建灯具']], String(scene.defaultLights))
             + pair(color('sun-color', '太阳光颜色', scene.sunColor ?? '#fff7e9'), num('sun-intensity', '太阳光强度', numberAt(scene.sunIntensity, ctx.time, 3.5), 0, 100))
-            + '<p>太阳方向为从场景中心指向光源的向量。阴影覆盖会随当前场景的对象位置调整。</p>'
             + `<div class="cinema-pair">${(scene.sunDirection ?? [-3.7, 7, 4]).map((v, i) => num('direction-' + i, 'XYZ'[i], v, -1000, 1000)).join('')}</div>`;
         if (tab === 'shape' && light) body = num('range', '照射／阴影范围 / m', light.range, .1, 10000)
             + (entity!.asset === 'light-spot' ? pair(num('angle', '聚光半角 / 度', light.angle, 1, 89), num('penumbra', '聚光边缘柔化', light.penumbra, 0, 1, '.05')) : '')
-            + (entity!.asset === 'light-area' ? pair(num('width', '面光宽度 / m', light.width, .01, 500), num('height', '面光高度 / m', light.height, .01, 500)) : '')
-            + '<p>聚光角度用于聚光灯；面光尺寸用于面光源。面光源提供柔和照明，目前不投射阴影。</p>';
+            + (entity!.asset === 'light-area' ? pair(num('width', '面光宽度 / m', light.width, .01, 500), num('height', '面光高度 / m', light.height, .01, 500)) : '');
         if (tab === 'atmosphere' && !light) body = select('fog-on', '场景雾', [['false', '关闭'], ['true', '开启']], String(!!scene.fog))
-            + pair(color('fog-color', '雾颜色', scene.fog?.color ?? scene.background), num('fog-density', '雾密度', numberAt(scene.fog?.density, ctx.time), 0, .5, '.001'))
-            + '<p>雾随距离遮蔽远景，影响实际拍摄和导出。光束体积散射尚不包含在此效果中。</p>';
+            + pair(color('fog-color', '雾颜色', scene.fog?.color ?? scene.background), num('fog-density', '雾密度', numberAt(scene.fog?.density, ctx.time), 0, .5, '.001'));
         if (tab === 'atmosphere' && light) body = select('flicker-on', '闪烁', [['false', '关闭'], ['true', '开启']], String(!!light.flicker))
             + pair(num('strength', '变化强度', light.flicker?.strength ?? .3, 0, 1, '.05'), num('frequency', '频率 / Hz', light.flicker?.frequency ?? 4, .1, 100))
             + num('seed', '变化种子', light.flicker?.seed ?? 1, -2147483648, 2147483647, '1');
@@ -64,7 +60,7 @@ export function createLightingPanel(ctx: AppContext) {
                 + `<button data-act="lighting-key-remove" ${disabled || !keys.length ? 'disabled' : ''}>删除所选关键帧</button>`;
         }
         const layout = inspectorToolLayout(body);
-        html += `<section class="inspector-parameter-group" data-light-section="${tab}"><h3>${label} ${layout.help}</h3><div class="cinema-panel inspector-cinema">${layout.body}<div class="inspector-tool-actions">${layout.footer}</div></div></section>`;
+        html += `<section class="inspector-parameter-group" data-light-section="${tab}"><h3>${label}</h3><div class="cinema-panel inspector-cinema">${layout.body}<div class="inspector-tool-actions">${layout.footer}</div></div></section>`;
         }
         footer = !light ? `<select id="lighting-new-type" aria-label="新增灯光类型">${options(Object.entries(LIGHT_TYPES), 'light-spot')}</select><button data-act="lighting-add">添加灯光</button>` : '';
         return html;

@@ -21,7 +21,7 @@ export function createColorPalette(ctx: AppContext) {
         host.innerHTML = `<div class="color-swatches" role="group" aria-label="常用色板">${swatches.map(([name,value])=>`<button type="button" data-swatch="${value}" style="--swatch:${value}" title="${name}" aria-label="${name} ${value}" aria-pressed="${value === entity.color}"></button>`).join('')}</div>
           <div class="color-custom"><label class="field"><span>自定义颜色</span><input id="palette-picker" type="color" value="${entity.color}"/></label><label class="field"><span>HEX 色值</span><input id="palette-hex" value="${escape(entity.color)}" maxlength="7" spellcheck="false"/></label></div>
           ${entity.external ? `<label class="field"><span>模型材质</span><select id="palette-appearance">${options([['color','统一着色'],['original','原材质'],['white','白模']],entity.external.appearance)}</select></label>` : ''}
-          <p id="palette-feedback" class="color-feedback" aria-live="polite">选择即生效，可撤销</p>`;
+          <p id="palette-feedback" class="color-feedback" aria-live="polite"></p>`;
         $('#inspector-header').append(host);
         const commit = (color: string, appearance = 'color') => {
             if (ctx.busy || ctx.history.pending || ctx.draft || ctx.engine.exporting || owner !== key() || ctx.current()?.locked) return;

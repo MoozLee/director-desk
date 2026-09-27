@@ -14,7 +14,7 @@ export const toolSummaries: Record<string, string> = {
     director_stride: 'Advanced read-only humanoid stride estimate for entityId + retarget clipId. Requires supported loaded skeleton; query help before applying locomotion calibration. Not needed for ordinary blocking.',
     director_view: 'Set preview time, optional cameraId (program or existing ID) and selected entityId. Does not change the project or cut timeline.',
     director_history: 'Undo/redo one batch with current revision and action:"undo"|"redo". Respects normal editor history.',
-    director_export: 'Export kind:project|screenshot|video|bundle to local save flow. Video uses program cuts and project fps, optional start/end/size (640,1280,1920 long edge). Returns jobId for long work. save-requested means dialog requested, not disk save confirmed. No arbitrary filesystem paths.',
+    director_export: 'Export kind:project|screenshot|video|depth-video|bundle to local save flow. Depth-video uses project.depthVideo range (see references/camera.md); video stays normal regardless of preview mode. Video uses program cuts and project fps, optional start/end/size (640,1280,1920 long edge). Returns jobId for long work. save-requested means dialog requested, not disk save confirmed. No arbitrary filesystem paths.',
     director_job: 'Read job status/result by id; optional cancel:true. Do not repeatedly poll a running job without waiting.',
 };
 

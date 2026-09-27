@@ -12,7 +12,7 @@ export function createExportScenePicker(scenes: ExportScene[], currentId: string
         host.innerHTML = `<div class="export-scene-toolbar"><strong>已选 ${selected.size} / ${scenes.length} 场</strong><button type="button" data-pick="all">全选</button><button type="button" data-pick="none">清空</button></div>
             <div class="export-scene-rows">${scenes.slice(page * pageSize, (page + 1) * pageSize).map(scene => `<div class="export-scene-row">
                 <label class="export-scene-check"><input type="checkbox" data-scene-check="${escape(scene.id)}" ${selected.has(scene.id) ? 'checked' : ''}/><span title="${escape(scene.name)}">${escape(scene.name)}</span><small>${scene.duration}s · ${scene.aspect}</small></label>
-                <input data-scene-name="${escape(scene.id)}" aria-label="${escape(scene.name)}的输出文件名" maxlength="100" value="${escape(names.get(scene.id)!)}" placeholder="输出文件名（不含扩展名）"/>
+                <input data-scene-name="${escape(scene.id)}" aria-label="${escape(scene.name)}的文件名" maxlength="100" value="${escape(names.get(scene.id)!)}" placeholder="文件名"/>
             </div>`).join('')}</div>
             <div class="export-scene-pages"><button type="button" data-pick="prev" ${page === 0 ? 'disabled' : ''}>上一页</button><span>${page + 1} / ${Math.ceil(scenes.length / pageSize)}</span><button type="button" data-pick="next" ${(page + 1) * pageSize >= scenes.length ? 'disabled' : ''}>下一页</button></div>`;
     }

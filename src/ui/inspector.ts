@@ -89,13 +89,13 @@ export function createInspector(ctx: AppContext) {
         }
         if (!e || ctx.inspectorTab !== 'contacts' || e.kind !== 'prop') ctx.engine.showContactAnchor();
         if (ctx.inspectorTab === 'ai-changes') {
-            $('#inspector-header').innerHTML = '<div class="inspect-title"><h2>AI 修改定位</h2></div><div class="inspect-subtitle">内置助手与 MCP · 点击记录定位</div>';
+            $('#inspector-header').innerHTML = '<div class="inspect-title"><h2>AI 修改定位</h2></div>';
             $('#inspector-tabs').innerHTML = '';
             $('#inspector-content').innerHTML = editLocations.render(); editLocations.bind();
             $('#inspector-footer').innerHTML = '<div class="page-footer">'+button('inspector-return', '返回', '', 'subtle')+'</div>'; return;
         }
         if (ctx.inspectorTab === 'environment') {
-            $('#inspector-header').innerHTML = '<div class="inspect-title"><h2>灯光与场景</h2></div><div class="inspect-subtitle">调整直接作用于当前戏段</div>';
+            $('#inspector-header').innerHTML = '<div class="inspect-title"><h2>灯光与场景</h2></div>';
             $('#inspector-tabs').innerHTML = '';
             $('#inspector-content').innerHTML = sceneProperties.render() + lightingEditor.render(); lightingEditor.bind();
             $('#inspector-footer').innerHTML = `<div class="inspector-tool-actions">${lightingEditor.footer()}</div>`;
@@ -114,7 +114,7 @@ export function createInspector(ctx: AppContext) {
         const animal = isAnimalAsset(e.asset);
         const supportedActions = Object.entries(ACTIONS).filter(([key]) => !definition?.capabilities || definition.capabilities.actions.includes(key as keyof typeof ACTIONS));
         const colorButton = `<button data-act="color-open" class="model-color-button subtle" title="打开色板调色" ${e.locked ? 'disabled' : ''}><i class="model-color-chip" style="background:${e.color}"></i>调色</button>`;
-        $('#inspector-header').innerHTML = `<div class="inspect-title"><h2>${escape(e.name)}</h2><span class="type-badge">${e.light ? '灯光' : { actor: animal ? '动物' : '人物', camera: '摄影机', prop: '道具', crowd: '群演' }[e.kind]}</span>${colorButton}</div><div class="inspect-subtitle">${external ? `导入模型 · ${e.clips.some(c => c.retarget || c.action !== 'idle' && c.action !== 'native') ? '预设动作与路径调度' : hasAnimations ? '自带动画与路径调度' : '静态姿态与路径调度'}` : animal ? `动物白模 · 总高 ${e.height.toFixed(2)} m · 姿态可调` : e.kind === 'actor' ? `${e.gender === 'male' ? '男' : '女'} · 身高 ${e.height.toFixed(2)} m · 关节可调` : e.kind === 'camera' ? '同场景真实取景' : e.light ? '同场景真实照明' : '可编辑的三维白模'}</div>`;
+        $('#inspector-header').innerHTML = `<div class="inspect-title"><h2>${escape(e.name)}</h2><span class="type-badge">${e.light ? '灯光' : { actor: animal ? '动物' : '人物', camera: '摄影机', prop: '道具', crowd: '群演' }[e.kind]}</span>${colorButton}</div><div class="inspect-subtitle">${external ? `导入模型 · ${e.clips.some(c => c.retarget || c.action !== 'idle' && c.action !== 'native') ? '预设动作与路径调度' : hasAnimations ? '自带动画与路径调度' : '静态姿态与路径调度'}` : animal ? `动物白模 · 总高 ${e.height.toFixed(2)} m` : e.kind === 'actor' ? `${e.gender === 'male' ? '男' : '女'} · 身高 ${e.height.toFixed(2)} m` : ''}</div>`;
         colorPalette.render();
         const initialStatus = e.initialPose?.layout !== poseLayout(e) ? '模型已调整，继承姿态不再应用' : inheritedPoseAt(e, ctx.time) ? '当前保持接拍姿态' : '新动作接管，保留开头姿态';
         if (e.initialPose) $('#inspector-header .inspect-subtitle').innerHTML = `<button class="initial-pose-link" data-inspector-origin title="${initialStatus}">接拍姿态 · 查看详情</button>`;
@@ -146,7 +146,7 @@ export function createInspector(ctx: AppContext) {
                 sections.push({ id: 'placement', label: '辅助', html: (e.kind === 'actor' && !animal && !external ? button('seat', '放到座面', '', 'wide subtle') : '')
                     + (ref ? `<div class="reference-inline"><img src="${ref.data}" alt="${escape(ref.name)}"/><span>${escape(ref.name)}</span></div>` : '') });
             }
-            if (e.initialPose) sections.push({ id: 'initial', label: '接拍', html: `<p class="panel-help">${initialStatus}。</p><p class="panel-help">添加新动作后继续表演。清除后使用当前动作或默认姿态，不改变上一场。</p>` + button('initial-pose-clear', '清除本场继承姿态', '', 'wide subtle', e.locked ? 'disabled' : '') });
+            if (e.initialPose) sections.push({ id: 'initial', label: '接拍', html: `<p class="panel-help">${initialStatus}。</p>` + button('initial-pose-clear', '清除本场继承姿态', '', 'wide subtle', e.locked ? 'disabled' : '') });
             html = navigation.render(`${e.id}:base`, sections);
         }
         else if (part === 'retarget') html = retargetEditor.render(e);

@@ -1,10 +1,11 @@
+import { assertDepthRange, type DepthRange } from '../cinematography/depth-video.ts';
 import { FRAME_RATES, getFrameCount, outputSize, type Project } from '../model.ts';
 import { safeFilename } from '../production/notes.ts';
 import type { ExportOptions } from '../export.ts';
 
 export interface ExportScene { id: string; name: string; duration: number; fps: number; aspect: Project['aspect'] }
 export interface ExportSelection { sceneId: string; filename: string }
-export interface VideoSettings { size: number; fps: number | 'scene'; format: 'mp4' | 'webm'; monochrome: boolean }
+export interface VideoSettings { size: number; fps: number | 'scene'; format: 'mp4' | 'webm'; monochrome: boolean; depth?: DepthRange }
 export interface ExportJob { sceneId: string; sceneName: string; filename: string; options: ExportOptions }
 
 export function videoFilename(value: string, format: VideoSettings['format']) {
@@ -16,6 +17,7 @@ export function numberedFilename(filename: string, index: number) {
 /** A small export plan contains no model packages or mutable editor state. */
 export function planVideoExports(scenes: ExportScene[], selections: ExportSelection[], settings: VideoSettings,
     range?: { start: number; end: number; cameraId: string }): ExportJob[] {
+    if (settings.depth !== undefined) assertDepthRange(settings.depth);
     if (!selections.length) throw Error('请至少选择一个戏段');
     if (![640, 1280, 1920].includes(settings.size) || !['mp4', 'webm'].includes(settings.format)
         || (settings.fps !== 'scene' && !FRAME_RATES.includes(settings.fps))) throw Error('导出规格无效');
@@ -33,7 +35,7 @@ export function planVideoExports(scenes: ExportScene[], selections: ExportSelect
         const [width, height] = outputSize(scene.aspect, settings.size);
         const options: ExportOptions = { start: range?.start ?? 0, end: range?.end ?? scene.duration,
             cameraId: range?.cameraId ?? 'program', width, height, fps: settings.fps === 'scene' ? scene.fps : settings.fps,
-            format: settings.format, monochrome: settings.monochrome };
+            format: settings.format, monochrome: settings.monochrome, ...(settings.depth ? { depth: { ...settings.depth } } : {}) };
         if (![options.start, options.end].every(Number.isFinite) || options.start < 0 || options.end <= options.start || options.end > scene.duration)
             throw Error(`“${scene.name}”的起止时间必须在戏段范围内`);
         return { sceneId: scene.id, sceneName: scene.name, filename, options };

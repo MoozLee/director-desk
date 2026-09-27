@@ -3,7 +3,7 @@ import type { AppContext } from '../app-context.ts';
 import type { Entity, Vec3 } from '../model.ts';
 import { recordCameraLook } from '../animation/camera-look.ts';
 import { options } from './common.ts';
-import { continuousMotionHelp, pathMotionChoices, setPathMotionMode, waypointMotionChoices, waypointMotionValue } from './path-motion-controls.ts';
+import { pathMotionChoices, setPathMotionMode, waypointMotionChoices, waypointMotionValue } from './path-motion-controls.ts';
 import './native-animation-editor.css';
 
 export function createCameraLookPanel(ctx: AppContext) {
@@ -37,15 +37,15 @@ export function createCameraLookPanel(ctx: AppContext) {
         const point = points[index], at = point?.time ?? ctx.time, position = point?.position ?? ctx.engine.targetPosition(e).toArray();
         const disabled = readonly(e) ? 'disabled' : '';
         ctx.showModal('摄影机 · 视线关键帧', `<div class="native-editor" id="look-editor">
-            <p class="panel-help">机位沿原路径移动，视线按这些世界坐标过渡。取对象位置只记录该时刻坐标，不持续绑定对象。首帧前与末帧后保持端点；POV 使用绑定朝向。</p>
+
             <label>关键帧<select id="look-choice">${options(points.length ? points.map((p, i) => [String(i), `${i + 1} · ${p.time.toFixed(2)} 秒`]) : [['0', '尚未记录']], String(index))}</select></label>
             <div class="native-values"><label>时间 / 秒<input id="look-time" type="number" min="0" step=".1" value="${at.toFixed(3)}" ${disabled}/></label><label>视线运动<select id="look-interpolation" ${disabled}>${options(pathMotionChoices, draftInterpolation ?? 'segmented')}</select></label></div>
             <div id="look-motion-fields">${motionFields(e)}</div>
-            <p class="panel-help">${continuousMotionHelp}端点选择经过可保留进出镜速度。</p>
+
             <div class="native-values">${position.map((v, axis) => `<label>${'XYZ'[axis]} / 米<input id="look-${axis}" type="number" step=".1" value="${v.toFixed(3)}" ${disabled}/></label>`).join('')}</div>
             <div class="native-row"><label>取对象当前位置<select id="look-source" ${disabled}>${options([['', '当前机位注视点'], ...ctx.project.entities.filter(t => t.kind !== 'camera').map(t => [t.id, t.name] as [string, string])], '')}</select></label><button data-act="look-capture" ${disabled}>取当前帧</button></div>
             <div class="look-key-actions"><button data-act="look-save" ${disabled}>保存为关键帧</button><button data-act="look-seek" ${points.length ? '' : 'disabled'}>预览此帧</button><button data-act="look-remove" ${points.length ? disabled : 'disabled'}>删除此帧</button></div>
-            <p class="panel-help">同一帧再次保存会更新该点。改变时间会新增一个点，原点保留。可多次记录相同坐标来停留。</p>
+
         </div>`, `<button data-act="look-clear" ${disabled}>清除视线关键帧</button><button data-act="close-modal">关闭</button>`);
         document.getElementById('look-editor')!.addEventListener('change', event => {
             const target = event.target as HTMLSelectElement;

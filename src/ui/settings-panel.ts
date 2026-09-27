@@ -16,7 +16,7 @@ export function mountSettings(ctx:AppContext) {
         ctx.engine.render();
     };
     editorPreferences.subscribe(apply);apply();
-    const row=(label:string,description:string,control:string)=>`<div class="setting-row"><div><strong>${label}</strong><p>${description}</p></div><div class="setting-control">${control}</div></div>`;
+    const row=(label:string,control:string)=>`<div class="setting-row"><div><strong>${label}</strong></div><div class="setting-control">${control}</div></div>`;
     const input=(key:PreferenceKey)=>{
         const value=editorPreferences.current[key];
         if(typeof value==='boolean')return `<input type="checkbox" data-preference="${key}" aria-label="${key==='viewDamping'?'视角惯性':'布景操作提示'}" ${value?'checked':''}/>`;
@@ -25,21 +25,21 @@ export function mountSettings(ctx:AppContext) {
     };
     trigger.onclick=()=>{
         if(ctx.busy || ctx.history.pending || ctx.draft)return;
-        ctx.showModal('设置',`<div class="settings-list"><p class="settings-intro">操作偏好保存在本机，调整立即生效。</p>
+        ctx.showModal('设置',`<div class="settings-list">
             <div class="settings-navigation"><div class="settings-categories" role="group" aria-label="设置分类"><button data-settings-category="navigation" aria-pressed="true">操作与视角</button><button data-settings-category="editing">编辑辅助</button><button data-settings-category="files">保存与软件</button></div><button data-setting="help">操作与快捷键</button></div><section data-settings-panel="navigation">
-            ${row('键盘移动速度','WASD 与升降移动的速度，单位：米 / 秒',input('navigationSpeed'))}
-            ${row('加速倍率','按住 Shift 时的移动倍率',input('navigationBoost'))}
-            ${row('旋转灵敏度','鼠标环绕与 Q / E 转向',input('rotationSpeed'))}
-            ${row('平移灵敏度','鼠标右键拖动视角',input('panSpeed'))}
-            ${row('滚轮缩放灵敏度','滚轮拉近、拉远的响应幅度',input('zoomSpeed'))}
-            ${row('视角惯性','松开鼠标后平滑减速；关闭后立即停止',input('viewDamping'))}
+            ${row('键盘移动速度 / 米每秒',input('navigationSpeed'))}
+            ${row('加速倍率 / Shift',input('navigationBoost'))}
+            ${row('旋转灵敏度',input('rotationSpeed'))}
+            ${row('平移灵敏度',input('panSpeed'))}
+            ${row('滚轮缩放灵敏度',input('zoomSpeed'))}
+            ${row('视角惯性',input('viewDamping'))}
             </section><section data-settings-panel="editing" hidden>
-            ${row('变换手柄大小','调整移动、旋转和缩放手柄的屏幕大小',input('gizmoSize'))}
-            ${row('布景操作提示','显示布景窗口底部的键盘提示',input('showNavigationHint'))}
+            ${row('变换手柄大小',input('gizmoSize'))}
+            ${row('布景操作提示',input('showNavigationHint'))}
             </section><section data-settings-panel="files" hidden>
-            ${row('默认文件位置',locations?'新工程、视频和素材包的默认目录':'浏览器在保存或下载时选择位置',`<button data-setting="files" ${locations?'':'disabled'}>设置目录</button>`)}
-            ${row('软件更新','检查新版和设置更新来源',`<button data-setting="updates" ${window.directorDesktop?'':'disabled'}>更新设置</button>`)}
-            ${row('工作区布局','恢复面板默认宽高','<button data-setting="layout">恢复布局</button>')}
+            ${row('默认文件位置',`<button data-setting="files" ${locations?'':'disabled'}>设置目录</button>`)}
+            ${row('软件更新',`<button data-setting="updates" ${window.directorDesktop?'':'disabled'}>更新设置</button>`)}
+            ${row('工作区布局','<button data-setting="layout">恢复布局</button>')}
             </section><p id="settings-feedback" role="status"></p>
         </div>`, '<button data-setting="reset" class="subtle">恢复操作偏好默认值</button><button data-act="close-modal">完成</button>');
         document.querySelector('.modal')!.classList.add('preferences-modal');

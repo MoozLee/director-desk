@@ -27,7 +27,6 @@ export function createCameraEffectsPanel(ctx: AppContext) {
             + `<div class="cinema-pair">${input('preset-start', '开始 / 秒', ctx.time, 0, 1e6)}${input('duration', '时长 / 秒', 5, .01, 1e6)}</div>`
             + `<div class="cinema-pair">${input('amplitude', '移动幅度 / m', 2, .01, 1000)}${input('angle', '转动角度 / 度', 70, -720, 720)}</div>`
             + `<div class="cinema-pair">${select('side', '方向', [['1', '向右'], ['-1', '向左']], '1')}${select('preset-ease', '速度节奏', Object.entries(EASINGS), 'smooth')}</div>`
-            + '<p>路径预设替换原路径；倾斜、构图、甩镜改对应参数。生成后可继续编辑。</p>'
             + `<button data-act="cinema-generate" ${disabled}>应用预设</button>`;
         if (tab === 'channels') {
             const spec = CAMERA_CHANNELS[channel], value = effects.channels?.[channel], keys = typeof value === 'object' ? value.keys : [];
@@ -37,8 +36,7 @@ export function createCameraEffectsPanel(ctx: AppContext) {
                 + select('key', '已有关键帧', keys.length ? keys.map((k, i) => [String(i), `${i + 1} · ${k.time.toFixed(3)} 秒 · ${k.value.toFixed(3)}`]) : [['0', '恒定值 · 尚未记录关键帧']], String(selectedKey))
                 + `<div class="cinema-pair">${input('time', '时间 / 秒', time, 0, 1e6, '.001')}${input('value', spec.label, key?.value ?? numberAt(value, time, fallback), spec.min, spec.max, '.01')}</div>`
                 + select('ease', '到达此帧的变化', easingChoices(key?.easing), easingChoice(key?.easing, 'smooth'))
-                + `<div class="cinema-pair"><button data-act="cinema-key-now">取当前时间</button><button data-act="cinema-key-save" ${disabled}>记录 / 更新关键帧</button><button data-act="cinema-key-remove" ${disabled || !keys.length ? 'disabled' : ''}>删除所选关键帧</button><button data-act="cinema-constant" ${disabled}>改为全程恒定值</button></div>`
-                + '<p>画面中心为 0，三分位为 ±0.333。改变时间再保存会新增关键帧。</p>';
+                + `<div class="cinema-pair"><button data-act="cinema-key-now">取当前时间</button><button data-act="cinema-key-save" ${disabled}>记录 / 更新关键帧</button><button data-act="cinema-key-remove" ${disabled || !keys.length ? 'disabled' : ''}>删除所选关键帧</button><button data-act="cinema-constant" ${disabled}>改为全程恒定值</button></div>`;
         }
         if (tab === 'shake') {
             const s = effects.shake;
@@ -46,17 +44,15 @@ export function createCameraEffectsPanel(ctx: AppContext) {
                 + `<div class="cinema-pair">${input('amount', '强度', s?.amount ?? 1, 0, 5)}${input('frequency', '频率倍率', s?.frequency ?? 1, .1, 10)}</div>`
                 + `<div class="cinema-pair">${input('shake-start', '开始 / 秒', s?.start ?? ctx.time, 0, 1e6)}${input('end', '结束 / 秒', s?.end ?? Math.max(ctx.time + 1, ctx.project.duration), .01, 1e6)}</div>`
                 + input('seed', '变化种子', s?.seed ?? 1, -2147483648, 2147483647, '1')
-                + '<p>晃动叠加在机位路径或 POV 上，首尾渐入渐出。同一种子、同一时刻的画面固定，重播和导出一致。</p>'
                 ;
         }
         if (tab === 'lens') body = select('distortion', '镜头畸变类型', [['barrel', '桶形'], ['pincushion', '枕形'], ['fisheye', '鱼眼']], effects.distortionType ?? 'barrel')
             + select('focus', '自动对焦目标', [['', '使用对焦距离参数'], ...ctx.project.entities.filter(e => e.kind !== 'camera').map(e => [e.id, e.name] as [string, string])], effects.focusTargetId ?? '')
             + input('lag', '跟随机位延迟 / 秒', effects.followLag ?? 0, 0, 5, '.05')
-            + select('preview-quality', '预览精度 · 导出保持完整分辨率', [['full', '完整'], ['draft', '流畅 · 降低预览分辨率']], ctx.engine.previewQuality)
-            + `<p>畸变强度与景深在「参数」调整。跟随延迟仅改变机位位置。${effects.dollyZoom ? `希区柯克变焦已开启，参考距离 ${effects.dollyZoom.distance.toFixed(2)} m；其焦距优先于焦距通道。` : '希区柯克变焦可从运镜预设生成。'}</p>`
+            + select('preview-quality', '预览精度', [['full', '完整'], ['draft', '流畅 · 降低预览分辨率']], ctx.engine.previewQuality)
             + `<div class="cinema-pair"><button data-act="cinema-dolly-clear" ${disabled || !effects.dollyZoom ? 'disabled' : ''}>关闭希区柯克变焦</button></div>`;
         const layout = inspectorToolLayout(body);
-        html += `<section class="inspector-parameter-group" data-cinema-section="${tab}"><h3>${label} ${layout.help}</h3><div class="cinema-panel inspector-cinema">${layout.body}<div class="inspector-tool-actions">${layout.footer}</div></div></section>`;
+        html += `<section class="inspector-parameter-group" data-cinema-section="${tab}"><h3>${label}</h3><div class="cinema-panel inspector-cinema">${layout.body}<div class="inspector-tool-actions">${layout.footer}</div></div></section>`;
         }
         footer = ''; return html;
     }

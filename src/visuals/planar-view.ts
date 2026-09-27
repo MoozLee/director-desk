@@ -22,7 +22,7 @@ export function makePlanarView(e: Entity): T.Mesh {
     const viewport = new T.Vector4(), scissor = new T.Vector4();
     let rendering = false;
     mesh.onBeforeRender = function(renderer, scene, camera, geometry, material, group) {
-        if (rendering) return;
+        if (rendering || scene.overrideMaterial) return;
         const destination = this.userData.portalCamera as T.PerspectiveCamera | undefined;
         if (!mirror && !destination) return;
         const hidden: T.Object3D[] = [];

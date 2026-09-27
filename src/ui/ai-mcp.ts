@@ -13,10 +13,10 @@ export function mountAIMcp(panel: HTMLElement, status: (message: string) => void
     const client = panel.querySelector<HTMLSelectElement>('#ai-mcp-client')!;
     const help = panel.querySelector<HTMLElement>('#ai-mcp-client-help')!;
     const descriptions = {
-        http: '适合支持 Streamable HTTP 和请求头认证的本地或局域网 Agent。复制后合并到客户端的 MCP 配置。',
-        'claude-code': '适合 Claude Code CLI 与桌面 Code 的本地或局域网会话。配置含 type: http，可合并到 .mcp.json。',
-        'claude-desktop': '合并到 Claude Desktop 的 claude_desktop_config.json 后重启客户端。使用软件自带的本地桥接，无需安装 Node.js。不要填到云端远程连接器。',
-        stdio: '适合支持 command / args / env 的本地 Agent。软件自带 stdio 桥接，无需另装依赖；保持导演台开启并启用 MCP。',
+        http: '粘贴到客户端的 MCP 配置',
+        'claude-code': '配置文件：.mcp.json',
+        'claude-desktop': '配置文件：claude_desktop_config.json',
+        stdio: '粘贴到客户端的 MCP 配置',
     };
     type Client = keyof typeof descriptions;
     client.onchange = () => { help.textContent = descriptions[client.value as Client]; };

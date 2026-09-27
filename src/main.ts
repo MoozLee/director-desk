@@ -1,3 +1,4 @@
+import { renderDepthControls } from './ui/depth-controls.ts';
 import { setSelectedEntities } from './editor/timeline-selection.ts';
 import { mountApplicationMenu } from './ui/application-menu.ts';
 import { saveProjectFile } from './ui/project-save.ts';
@@ -150,6 +151,7 @@ else if (e.kind === 'camera')
 else if (!['base', 'path', 'actions', 'pose', 'structure'].includes(inspectorTab) || e.kind === 'prop' && ['actions', 'pose'].includes(inspectorTab))
     inspectorTab = 'base'; engine.select(id); renderPanels(); }
 function renderPanels() {
+    renderDepthControls(project);
     document.title = `${project.name} · 导演台${import.meta.env.DEV ? ' · 开发测试版' : ''}`;
     renderSceneSwitcher(uiContext);
     $('#aspect').value = project.aspect;
@@ -200,7 +202,7 @@ engine.onFrame = () => {
     const p = engine.getShotCamera().position, r = project.room;
     const outside = r.enabled && (Math.abs(p.x) > r.width / 2 || Math.abs(p.z) > r.depth / 2 || p.y > r.height || p.y < 0);
     const hiddenObjects = camera.camera!.hiddenEntityIds?.length ?? 0;
-    frameText('shot-warning', hiddenObjects ? `本机位隐藏 ${hiddenObjects} 个对象${camera.camera!.hideWalls.length ? `、${camera.camera!.hideWalls.length} 面房间墙体` : ''}` : outside && !camera.camera!.hideWalls.length ? '机位在房间外 · 墙体保留' : camera.camera!.hideWalls.length ? `已移除 ${camera.camera!.hideWalls.length} 面拍摄墙体` : '同场景真实取景');
+    frameText('shot-warning', hiddenObjects ? `本机位隐藏 ${hiddenObjects} 个对象${camera.camera!.hideWalls.length ? `、${camera.camera!.hideWalls.length} 面房间墙体` : ''}` : outside && !camera.camera!.hideWalls.length ? '机位在房间外 · 墙体保留' : camera.camera!.hideWalls.length ? `已移除 ${camera.camera!.hideWalls.length} 面拍摄墙体` : '');
     if (mode === 'shot') return;
     const labels = engine.getProjectedLabels(), ids = new Set(labels.map(l => l.id));
     for (const [id, node] of labelNodes)

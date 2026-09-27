@@ -1,3 +1,4 @@
+import { installDepthControls } from './depth-controls.ts';
 import { setSelectedEntities, selectedEntities } from '../editor/timeline-selection.ts';
 import { prepareDocumentModels } from '../scenes/document-models.ts';
 import { bindTimelineInput } from './timeline-input.ts';
@@ -9,6 +10,7 @@ import { readRecoverableDocument } from './resource-recovery-panel.ts';
 import { samplePose } from '../timeline.ts';
 import { $ } from '../ui/common.ts';
 export function bindEvents(ctx: AppContext) {
+    installDepthControls(ctx);
     document.addEventListener('click', event => {
         const target = event.target as HTMLElement;
         const action = target.closest<HTMLElement>('[data-act]');

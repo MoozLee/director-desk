@@ -1,3 +1,4 @@
+import { DEFAULT_DEPTH_VIDEO } from '../cinematography/depth-video.ts';
 import { readScene, type SceneReadOptions } from './read-scene.ts';
 import {importMedia} from '../media/source.ts';
 import {defaultSurfaceLayer} from '../media/model.ts';
@@ -195,15 +196,15 @@ export function createToolService(ctx: AppContext) {
             return { revision: currentRevision() };
         }
         if (name === 'director_export') {
-            const kind = String(args.kind); if (!['project', 'screenshot', 'video', 'bundle'].includes(kind)) throw new Error('未知导出格式');
+            const kind = String(args.kind); if (!['project', 'screenshot', 'video', 'depth-video', 'bundle'].includes(kind)) throw new Error('未知导出格式');
             if (kind === 'project') { ctx.saveProject(); return { status: 'save-requested' }; }
             if (kind === 'screenshot') { await ctx.snapshot(); return { status: 'save-requested' }; }
             const project = clone(ctx.project);
             return job(async (signal, progress) => {
                 if (kind === 'bundle') { const zip = await createZip(await productionEntries(project, undefined, ctx.scenes?.document()), signal, (a, b) => progress(a / b)); download(zip, safeFilename(project.name) + '-制作素材包.zip'); }
                 else { const { exportVideo } = await import('../export.ts'); const [width, height] = outputSize(project.aspect, Number(args.size ?? 1280));
-                    const blob = await exportVideo(ctx.engine, { start: Number(args.start ?? 0), end: Number(args.end ?? project.duration), fps: project.fps, width, height, cameraId: 'program', format: 'mp4', monochrome: false }, signal, progress);
-                    if (blob) download(blob, safeFilename(project.name) + '.mp4'); }
+                    const blob = await exportVideo(ctx.engine, { start: Number(args.start ?? 0), end: Number(args.end ?? project.duration), fps: project.fps, width, height, cameraId: 'program', format: 'mp4', monochrome: false, ...(kind === 'depth-video' ? { depth: project.depthVideo ?? DEFAULT_DEPTH_VIDEO } : {}) }, signal, progress);
+                    if (blob) download(blob, safeFilename(project.name) + (kind === 'depth-video' ? '-depth' : '') + '.mp4'); }
                 return { status: 'save-requested', note: '已生成并发起本地保存；最终保存路径由使用者选择。' };
             });
         }

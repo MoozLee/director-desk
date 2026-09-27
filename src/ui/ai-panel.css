@@ -13,7 +13,7 @@
 .ai-controls{display:grid;grid-template-columns:minmax(0,1fr) 82px;gap:8px}
 .ai-chat{display:flex;flex-direction:column;gap:8px}
 .ai-context-row{display:flex;align-items:center;gap:6px;min-width:0;flex-shrink:0}
-.ai-context-row p{flex:1}
+
 #ai-scene-prompt{flex-shrink:0;font-size:11px;min-height:30px;padding:4px 8px}
 #ai-panel textarea{min-width:0;width:100%;background:#111;color:#e8e8e8;border:1px solid #363636;border-radius:5px;padding:9px;font:12px/1.6 "Segoe UI","Microsoft YaHei",sans-serif;resize:none}
 #ai-transcript{flex:1;min-height:60px}

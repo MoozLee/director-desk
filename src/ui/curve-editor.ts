@@ -27,7 +27,7 @@ export function createCurveEditor(ctx: AppContext, refresh = () => ctx.renderIns
         if (owner !== e.id) { owner = e.id; channel = curves[0]?.id ?? 'path'; index = 1; }
         if (!curves.some(t => t.id === channel)) channel = curves[0]?.id ?? 'path';
         const curve = target();
-        if (!curve) return '<p class="panel-help">先在路径或镜头／灯光参数中记录至少两个关键帧，再调整它们之间的速度曲线。</p>';
+        if (!curve) return '<p class="panel-help">暂无可编辑的关键帧区间</p>';
         index = Math.max(1, Math.min(index, curve.keys.length - 1));
         const value = curve.keys[index].easing;
         if (curve.sampleContinuous) {
@@ -36,9 +36,9 @@ export function createCurveEditor(ctx: AppContext, refresh = () => ctx.renderIns
             const lengths = [0];
             for (let i = 1; i <= 100; i++) { const next = curve.sampleContinuous(a + (b - a) * i / 100); distance += previous.distanceTo(next); lengths.push(distance); previous = next; }
             const points = lengths.map((length, i) => (24 + i * 2.52) + ',' + (150 - (distance ? length / distance : 0) * 126)).join(' ');
-            return '<div class="curve-editor"><select id="curve-channel" aria-label="曲线参数">' + options(curves.map(t => [t.id, t.label]), channel) + '</select><select id="curve-segment" aria-label="关键帧区间">' + options(curve.keys.slice(1).map((k, i) => [String(i + 1), (i + 1) + " → " + (i + 2) + " · " + curve.keys[i].time.toFixed(2) + "—" + k.time.toFixed(2) + " 秒"]), String(index)) + '</select><div id="curve-canvas"><svg id="curve-graph" viewBox="0 0 300 180" aria-label="连贯运动实际路程进度，只读"><path class="curve-grid" d="M24 24V150H276 M24 87H276 M150 24V150"/><text x="24" y="14">路程进度</text><text x="248" y="172">时间</text><polyline class="curve-line" points="' + points + '"/></svg></div><small>连贯运动：此图显示实际路程进度。调整途经点时间改变快慢，选择经过或停住控制衔接；分段贝塞尔编辑请切回分段曲线。</small></div>';
+            return '<div class="curve-editor"><select id="curve-channel" aria-label="曲线参数">' + options(curves.map(t => [t.id, t.label]), channel) + '</select><select id="curve-segment" aria-label="关键帧区间">' + options(curve.keys.slice(1).map((k, i) => [String(i + 1), (i + 1) + " → " + (i + 2) + " · " + curve.keys[i].time.toFixed(2) + "—" + k.time.toFixed(2) + " 秒"]), String(index)) + '</select><div id="curve-canvas"><svg id="curve-graph" viewBox="0 0 300 180" aria-label="连贯运动实际路程进度，只读"><path class="curve-grid" d="M24 24V150H276 M24 87H276 M150 24V150"/><text x="24" y="14">路程进度</text><text x="248" y="172">时间</text><polyline class="curve-line" points="' + points + '"/></svg></div></div>';
         }
-        return `<div class="curve-editor"><select id="curve-channel" aria-label="曲线参数">${options(curves.map(t => [t.id, t.label]), channel)}</select><select id="curve-segment" aria-label="关键帧区间">${options(curve.keys.slice(1).map((k, i) => [String(i + 1), `${i + 1} → ${i + 2} · ${curve.keys[i].time.toFixed(2)}—${k.time.toFixed(2)} 秒`]), String(index))}</select><div id="curve-canvas">${graph(value)}</div><select id="curve-preset" aria-label="速度预设">${options(easingChoices(value), easingChoice(value))}</select><small>${curve.repeated ? '源路径曲线，应用于所有排布片段。' : '线越陡变化越快；松手生效，可撤销。'} 同位置关键帧表示停留。</small></div>`;
+        return `<div class="curve-editor"><select id="curve-channel" aria-label="曲线参数">${options(curves.map(t => [t.id, t.label]), channel)}</select><select id="curve-segment" aria-label="关键帧区间">${options(curve.keys.slice(1).map((k, i) => [String(i + 1), `${i + 1} → ${i + 2} · ${curve.keys[i].time.toFixed(2)}—${k.time.toFixed(2)} 秒`]), String(index))}</select><div id="curve-canvas">${graph(value)}</div><select id="curve-preset" aria-label="速度预设">${options(easingChoices(value), easingChoice(value))}</select></div>`;
     }
     function bind() {
         handleObserver?.disconnect();

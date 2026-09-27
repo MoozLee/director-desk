@@ -3,7 +3,6 @@ import type { AssetDefinition } from '../assets/catalog/types.ts';
 import type { Entity } from '../model.ts';
 import { assetParameters } from '../assets/parameters.ts';
 import { escape, options } from './common.ts';
-import { ASSET_PARAMETER_HELP } from './asset-parameter-help.ts';
 
 /** Shape controls share the object's property page and the existing field transactions. */
 export function createAssetParameterEditor(ctx: AppContext) {
@@ -32,10 +31,7 @@ export function createAssetParameterEditor(ctx: AppContext) {
                     : `<input type="number" ${attributes} value="${value}" min="${field.min}" max="${field.max}" step="${field.step}"/>`;
                 return `<div class="field"><span>${escape(label)}</span><div class="parameter-value-row">${control}<button data-reset-asset-parameter="${escape(key)}" aria-label="恢复${escape(field.label)}预设值" title="恢复预设值 ${field.default}">↺</button></div></div>`;
             }).join('');
-            const help = ASSET_PARAMETER_HELP[definition.family ?? ''];
-            const hint = entity.kind === 'prop' ? help?.detail ?? '参数改变实际白模几何，可通过空间查询核对边界。' : human ? '比例 1 表示当前体型预设，身高在上方调整。服装、帽盔和背包可组合；裙袍为关节上的简化轮廓，运动时仍可能穿插。' : '比例 1 表示当前物种预设；修改比例后仍保持上方设置的总高。动物使用静态姿态和路径位移，不自动生成自然步态。';
-            const summary = entity.kind === 'prop' ? help?.summary ?? '参数改变实际白模形状' : `比例与${human ? '身高' : '总高'}分别调整`;
-            return `<div class="asset-parameter-editor"><p class="parameter-hint" title="${escape(hint)}">${escape(summary)}</p><div class="shape-parameter-grid">${controls}</div></div>`;
+            return `<div class="asset-parameter-editor"><div class="shape-parameter-grid">${controls}</div></div>`;
         }
     };
 }
