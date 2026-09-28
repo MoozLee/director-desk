@@ -8,6 +8,9 @@ import { installWallTransmission, isWallEntity } from './lighting/wall-transmiss
 import { fitFeetToSurface } from './editor/foot-contact.ts';
 import { SceneRenderCache } from './editor/scene-render-cache.ts';
 import type { DepthRange } from './cinematography/depth-video.ts';
+import { DepthRangeSampler } from './cinematography/depth-range-sampler.ts';
+import { FreehandPathInput } from './editor/freehand-path-input.ts';
+import { pathDrawingPosition } from './editor/path-drawing-position.ts';
 import { ReferenceLabels } from './production/reference-labels.ts';
 import { cameraLookAt } from './animation/camera-look.ts';
 import { applyCameraEffects, cameraFocal, cameraFocusDistance } from './cinematography/camera-effects.ts';
@@ -52,6 +55,7 @@ interface Callbacks {
     select: (id: string) => void;
     point: (index: number) => void;
     ground: (point: Vec3) => void;
+    stroke?: (points: Vec3[]) => void;
     transformStart: () => void;
     transform: (position: Vec3, rotation: Vec3, scale: Vec3) => void;
     transformEnd: (cancel?:boolean) => void;
@@ -61,6 +65,7 @@ export class Engine {
     surfaces = new SurfaceRuntime(() => { this.needsRender = true; });
     async prepareOutput(time:number,signal?:AbortSignal) { this.sample(time); signal?.throwIfAborted(); await this.surfaces.prepare(); signal?.throwIfAborted(); }
     private shotEffects = new ShotEffects();
+    private depthRangeSampler?: DepthRangeSampler;
     private lighting: SceneLighting;
     private renderCache = new SceneRenderCache();
     private roomKey = '';
@@ -86,6 +91,11 @@ export class Engine {
     selected = '';
     selectedPoint = -1;
     drawingPath = false;
+    pathDrawMode: 'points' | 'freehand' = 'points';
+    pathDrawDuration = 5;
+    private freehandInput: FreehandPathInput;
+    get drawingStroke() { return this.freehandInput?.active ?? false; }
+    endPathStroke(cancel = false) { if (cancel) this.freehandInput.cancel(); else this.freehandInput.finish(); }
     positionKeying = false;
     dragging = false;
     pickingEnabled = true;
@@ -161,12 +171,39 @@ export class Engine {
         this.gizmo.addEventListener('mouseUp', () => this.finishTransform());
         const canvas = this.editorRenderer.domElement;
         const signal = this.events.signal;
+        let orbitBefore = { enabled: true, damping: true };
+        this.freehandInput = new FreehandPathInput({ canvas,
+            enabled: () => this.drawingPath && this.pathDrawMode === 'freehand' && this.pickingEnabled && !!this.cb.stroke,
+            start: () => [...this.project.entities.find(e => e.id === this.selected)!.path!.points.at(-1)!.position],
+            hit: samples => {
+                if (!samples.length) return [];
+                const rect = canvas.getBoundingClientRect(), ray = new T.Raycaster();
+                this.prepareView(true);
+                try {
+                    const surfaces = this.pathSurfaces();
+                    const e = this.project.entities.find(e => e.id === this.selected)!;
+                    return samples.map(([x,y]) => {
+                        ray.setFromCamera(new T.Vector2((x-rect.left)/rect.width*2-1, -(y-rect.top)/rect.height*2+1), this.editorCamera);
+                        const hit = this.pathPointFromRay(ray, surfaces); if (!hit) return null;
+                        const point = pathDrawingPosition(hit, e, workingElevation(this.project));
+                        return this.pathSurfaceMode === 'ground' ? this.snapPosition(point) : point;
+                    });
+                } finally { this.prepareView(false); }
+            },
+            commit: points => this.cb.stroke?.(points),
+            active: value => {
+                if (value) { orbitBefore = { enabled:this.orbit.enabled, damping:this.orbit.enableDamping }; this.orbit.enabled=false; this.orbit.enableDamping=false; this.orbit.update(); }
+                else { this.orbit.enabled=orbitBefore.enabled; this.orbit.enableDamping=orbitBefore.damping; }
+            },
+            invalidate: () => { this.needsRender=true; },
+        });
+        this.scene.add(this.freehandInput.line);
         canvas.addEventListener('pointercancel',()=>this.finishTransform(true), { signal });
         window.addEventListener('blur',()=>this.finishTransform(true), { signal });
         document.addEventListener('keydown',event=>{if(event.key==='Escape' && this.dragging){event.preventDefault();this.finishTransform(true);}}, { capture: true, signal });
         canvas.addEventListener('pointerdown', e => this.pointerDown = [e.clientX, e.clientY], { signal });
         canvas.addEventListener('pointerup', e => this.pick(e), { signal });
-        canvas.addEventListener('dblclick', () => { if (this.pickingEnabled) this.focus(this.selected); }, { signal });
+        canvas.addEventListener('dblclick', () => { if (this.pickingEnabled && !this.drawingPath) this.focus(this.selected); }, { signal });
         this.resizeObserver = new ResizeObserver(() => this.resizeNeeded = true);
         this.resizeObserver.observe(stage);
         this.resizeObserver.observe(shot);
@@ -174,6 +211,7 @@ export class Engine {
     }
     private renderer() { const r = new T.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true }); r.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap; r.outputColorSpace = T.SRGBColorSpace; r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; return r; }
     rebuild(project: Project) {
+        this.freehandInput?.cancel();
         this.externalModels.assertReady(project);
         this.referenceLabels.clear();
         this.gizmo.detach();
@@ -545,6 +583,22 @@ export class Engine {
         }
         this.onFrame();
     }
+    suggestDepthRange(time = this.time, cameraId = this.previewId, ids?: string[]) {
+        if (this.exporting) throw Error('导出期间无法取值');
+        if (!Number.isFinite(time) || time < 0 || time > this.project.duration) throw Error('取值时间超出戏段');
+        if (cameraId !== 'program' && !this.cameras.has(cameraId)) throw Error('机位不存在');
+        if (ids && (!ids.length || ids.some(id => !this.models.has(id) || this.project.entities.find(e => e.id === id)?.light))) throw Error('请选择可见模型');
+        const before = this.time, background = this.scene.background, visible = new Map<T.Object3D, boolean>();
+        this.scene.traverse(o => visible.set(o, o.visible));
+        try {
+            this.sample(time); this.prepareView(false, cameraId);
+            if (ids) { const selected = new Set(ids); this.roomGroup.visible = false; this.models.forEach((root, id) => { root.visible = root.visible && selected.has(id); }); }
+            this.depthRangeSampler ??= new DepthRangeSampler();
+            return this.depthRangeSampler.sample(this.shotRenderer, this.scene, this.getShotCamera(cameraId));
+        } finally {
+            this.sample(before); visible.forEach((value, object) => { object.visible = value; }); this.scene.background = background;
+        }
+    }
     renderOutput(time: number, width: number, height: number, cameraId = 'program', depth: DepthRange | null = this.project.depthVideo?.enabled ? this.project.depthVideo : null) {
         this.sample(time);
         this.shotRenderer.setPixelRatio(1);
@@ -581,7 +635,26 @@ export class Engine {
         if (direction.lengthSq() < .01) direction.set(1, .7, 1).normalize();
         this.editorCamera.position.copy(this.orbit.target).addScaledVector(direction, distance * 1.2); this.orbit.update();
     }
+    private pathSurfaces(): T.Object3D[] {
+        if (this.pathSurfaceMode !== 'surface') return [];
+        const surfaces = this.project.entities.filter(item => item.kind === 'prop' && !item.light && item.visible && item.id !== this.selected).flatMap(item => { const root=this.models.get(item.id); return root ? [root] : []; });
+        if (this.project.room.enabled) surfaces.push(this.roomGroup);
+        return surfaces;
+    }
+    private pathPointFromRay(ray: T.Raycaster, surfaces = this.pathSurfaces()): Vec3 | null {
+        if (this.pathSurfaceMode === 'surface') {
+            const surface = ray.intersectObjects(surfaces, true).find(hit => {
+                let node: T.Object3D | null = hit.object;
+                while (node) { if (!node.visible) return false; node = node.parent; }
+                return true;
+            });
+            if (surface) return surface.point.toArray() as Vec3;
+        }
+        const out = new T.Vector3();
+        return ray.ray.intersectPlane(new T.Plane(new T.Vector3(0,1,0), -workingElevation(this.project)), out) ? out.toArray() as Vec3 : null;
+    }
     pick(e: PointerEvent) {
+        if (this.drawingPath && this.pathDrawMode === 'freehand') return;
         if (!this.pickingEnabled || e.button !== 0 || this.dragging || this.gizmo.axis || Math.hypot(e.clientX - this.pointerDown[0], e.clientY - this.pointerDown[1]) > 5)
             return;
         const rect = this.editorRenderer.domElement.getBoundingClientRect();
@@ -592,19 +665,7 @@ export class Engine {
         this.prepareView(true);
         try {
         if (this.drawingPath) {
-            if (this.pathSurfaceMode === 'surface') {
-                const surfaces: T.Object3D[] = this.project.entities.filter(item => item.kind === 'prop' && !item.light && item.visible && item.id !== this.selected).map(item => this.models.get(item.id)!);
-                if (this.project.room.enabled) surfaces.push(this.roomGroup);
-                const surface = ray.intersectObjects(surfaces, true).find(hit => {
-                    let node: T.Object3D | null = hit.object;
-                    while (node) { if (!node.visible) return false; node = node.parent; }
-                    return true;
-                });
-                if (surface) { this.cb.ground(surface.point.toArray() as Vec3); return; }
-            }
-            const out = new T.Vector3();
-            if (ray.ray.intersectPlane(new T.Plane(new T.Vector3(0, 1, 0), -workingElevation(this.project)), out))
-                this.cb.ground(out.toArray() as Vec3);
+            const point = this.pathPointFromRay(ray); if (point) this.cb.ground(point);
             return;
         }
         const points = ray.intersectObjects(this.pathHelpers.children, false).find(x => x.object.userData.pointIndex !== undefined);
@@ -629,9 +690,10 @@ export class Engine {
     dispose() {
         if (this.disposed) return;
         this.disposed = true; this.events.abort(); this.resizeObserver.disconnect();
+        this.freehandInput.dispose();
         this.gizmo.detach(); this.gizmo.dispose(); this.orbit.dispose();
         this.surfaces.dispose();this.deformations.dispose();for(const root of this.models.values())disposeVisual(root);
-        this.referenceLabels.clear(); this.shotEffects.dispose(); this.lighting.dispose();
+        this.referenceLabels.clear(); this.shotEffects.dispose(); this.depthRangeSampler?.dispose(); this.lighting.dispose();
         for (const [id, root] of this.models) {
             if (!this.externalModels.removeInstance(id, this.crowdRigs.get(id)?.map((_, i) => `${id}:${i}`))) disposeTree(root);
         }

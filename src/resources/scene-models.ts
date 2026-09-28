@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { cloneModelPackage } from './model-data.ts';
 import { assertInitialPoseBindings } from '../scenes/pose-binding-validation.ts';
 import type { Entity, Project } from '../model.ts';
 import { geometryBounds } from '../spatial/geometry.ts';
@@ -48,9 +49,9 @@ export class SceneModels {
                 signal?.throwIfAborted(); const old = this.sources.get(resource.id);
                 if (old && sameModelPackage(old.package, resource.package)) continue;
                 if (old) throw Error('相同模型资源 ID 对应了不同内容');
-                if (await modelResourceId(resource.package) !== resource.id) throw Error('模型资源内容与标识不匹配');
+                if (await modelResourceId(resource.package,signal) !== resource.id) throw Error('模型资源内容与标识不匹配');
                 const { loadModelPackage } = await import('./model-loader.ts');
-                const model = await loadModelPackage(resource.package, signal); staged.set(resource.id, { model, package: structuredClone(resource.package) });
+                const model = await loadModelPackage(resource.package, signal); staged.set(resource.id, { model, package: cloneModelPackage(resource.package) });
             }
             signal?.throwIfAborted();
             for (const entity of project.entities) if (entity.external) {

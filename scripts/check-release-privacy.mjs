@@ -6,7 +6,7 @@ import { publicFiles as publicSkillFiles } from './builtin-skill-files.cjs';
 
 // Scan compiled web payload only. Never put this script or its local denylist in the installer.
 const root = path.resolve('dist');
-const allowed = /^(?:index\.html|favicon\.svg|assets\/[A-Za-z0-9_-]+\.(?:js|css)|assets\/three\.core-[A-Za-z0-9_-]+\.js)$/;
+const allowed = /^(?:index\.html|favicon\.svg|assets\/[A-Za-z0-9_-]+\.(?:js|css)|assets\/(?:three\.core|model-import\.worker)-[A-Za-z0-9_-]+\.js)$/;
 const rules = [
     ['absolute-windows-path', /[A-Za-z]:[\\/](?:[\w .-]+[\\/])/],
     ['user-home-path', /(?:\/Users\/|\/home\/|file:\/\/\/)[^\s"'<>]+/],

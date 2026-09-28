@@ -29,6 +29,20 @@ test('stdio bridge only accepts the local MCP endpoint and never includes reject
     assert.equal(connectionFromEnv({ DIRECTOR_MCP_URL: 'http://127.0.0.1:23456/mcp', DIRECTOR_MCP_TOKEN: token }).token, token);
 });
 
+test('LAN configuration rejects unsupported bridges and disabled LAN without breaking local clients', () => {
+    const connection = { url: 'http://127.0.0.1:23456/mcp', lanUrl: 'http://192.168.1.12:54321/mcp', token: randomBytes(32).toString('hex') };
+    const runtime = { command: process.execPath, bridgePath: path.resolve('desktop/mcp-stdio.cjs') };
+    for (const client of ['claude-desktop', 'stdio']) {
+        assert.throws(() => mcpConnection(connection, client, runtime, { useLan: true }), /仅支持本机桥接/);
+        const local = mcpConnection(connection, client, runtime).mcpServers['director-desk'];
+        assert.equal(connectionFromEnv(local.env).url.href, connection.url);
+    }
+    for (const client of ['http', 'claude-code']) {
+        assert.equal(mcpConnection(connection, client, runtime, { useLan: true }).mcpServers['director-desk'].url, connection.lanUrl);
+        assert.throws(() => mcpConnection({ ...connection, lanUrl: undefined }, client, runtime, { useLan: true }), /开启局域网/);
+    }
+});
+
 test('real stdio to HTTP transport preserves tools, arguments, results and domain errors; failed writes are never replayed', { timeout: 25000 }, async () => {
     const token = randomBytes(32).toString('hex'), calls = [];
     const definitions = ['director_read', 'director_apply', 'director_skill'].map(name => ({ name, description: name, inputSchema: { type: 'object', additionalProperties: true } }));

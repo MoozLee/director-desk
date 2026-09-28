@@ -27,13 +27,23 @@ try{
   const prepare=async()=>{runtime.sample(project,models,0);await runtime.prepare();runtime.sample(project,models,0);};
   await prepare();const projectedRed=render();projector.surface.layers[0].resourceId=blue.id;await prepare();const projectedBlue=render();
   const blocker=new T.Mesh(new T.BoxGeometry(.8,.8,.1),new T.MeshBasicMaterial({color:'#111111'}));blocker.position.set(1,0,2);blocker.castShadow=true;scene.add(blocker);const blocked=render();scene.remove(blocker);runtime.dispose();scene.remove(root,wall);
+  const {adoptModel}=await import('/src/resources/model-runtime.ts');
+  const sourceRoot=new T.Group();sourceRoot.add(new T.Mesh(new T.PlaneGeometry(2,2),new T.MeshStandardMaterial({color:'#00ff00',roughness:.85})));
+  const imported=adoptModel({scene:sourceRoot,scenes:[sourceRoot],animations:[],cameras:[]},'',[]),instance=imported.instantiate();scene.add(instance.root);
+  const model=entity('prop','cube','导入表面');model.surface={layers:[{...defaultSurfaceLayer(red.id),unlit:true}],roughness:.12};
+  project.entities=[model];const bound=new SurfaceRuntime(()=>{}),boundModels=new Map([[model.id,instance.root]]),appearancePixels=[];
+  for(const mode of ['original','white','color','original']){
+   instance.setAppearance(mode,'#123456');bound.sample(project,boundModels,0);await bound.prepare();bound.sample(project,boundModels,0);appearancePixels.push(render());
+  }
+  bound.dispose();instance.root.removeFromParent();imported.dispose();
   const mirror=entity('prop','visual-mirror','镜面');mirror.color='#ffffff';mirror.visual.opacity=1;const mirrorRoot=makeVisual(mirror);scene.add(mirrorRoot);camera.position.set(2,0,5);camera.lookAt(0,0,0);
   const redObject=new T.Mesh(new T.SphereGeometry(.5,20,12),new T.MeshBasicMaterial({color:'#ff0000'}));redObject.position.set(-1.2,0,3);scene.add(redObject);sampleVisual(mirror,mirrorRoot,0,false);const reflected=render();scene.remove(redObject);const emptyMirror=render();scene.remove(mirrorRoot);disposeVisual(mirrorRoot);
   const portal=entity('prop','visual-portal','门户');portal.color='#ffffff';portal.visual.opacity=1;const portalRoot=makeVisual(portal),destination=new T.PerspectiveCamera(45,1,.1,100);destination.position.set(10,0,5);destination.lookAt(10,0,0);portalRoot.children[0].userData.portalCamera=destination;scene.add(portalRoot);redObject.position.set(10,0,0);scene.add(redObject);camera.position.set(0,0,5);camera.lookAt(0,0,0);sampleVisual(portal,portalRoot,0,false);const portalPixel=render();scene.remove(portalRoot);disposeVisual(portalRoot);
   renderer.dispose();
-  return {projectedRed,projectedBlue,blocked,reflected,emptyMirror,portalPixel};
+  return {projectedRed,projectedBlue,blocked,appearancePixels,reflected,emptyMirror,portalPixel};
  });
  assert.ok(result.projectedRed[0]>result.projectedRed[2]+50,JSON.stringify(result));assert.ok(result.projectedBlue[2]>result.projectedBlue[0]+50,JSON.stringify(result));
  assert.ok(result.blocked[2]<result.projectedBlue[2]*.5,'projector shadow failed');assert.ok(result.reflected[0]>result.emptyMirror[0]+50,'mirror failed to reflect object');assert.ok(result.portalPixel[0]>150&&result.portalPixel[2]<50,'portal failed to show destination camera');
+ for(const pixel of result.appearancePixels)assert.ok(pixel[0]>150&&pixel[1]<50&&pixel[2]<50,'appearance switch detached the surface image: '+JSON.stringify(result.appearancePixels));
  assert.deepEqual(errors,[]);await fs.writeFile('tmp/media-optics/report.json',JSON.stringify(result,null,2));console.log(result);
 }finally{await browser.close();await server.close();}

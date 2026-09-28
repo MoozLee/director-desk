@@ -1,4 +1,5 @@
 import { clone, uid, type Project } from '../model.ts';
+import { sameModelPackage } from '../resources/package-validation.ts';
 import { assertResourceHeader, type ModelResource } from '../resources/project-resources.ts';
 import { assertRigDefinition, rigStatus } from '../resources/rig-definition.ts';
 import { canRetarget, type RetargetAnimation } from '../resources/retarget-animation.ts';
@@ -29,7 +30,7 @@ export function includeUserMotionResource(project: Project, asset: UserMotionAss
     if (asset.resource.id !== asset.motion.data.resourceId) throw Error('动作和源资源不匹配');
     project.version = 2; project.resources ??= [];
     const old = project.resources.find(r => r.id === asset.resource.id);
-    if (old && JSON.stringify(old.package) !== JSON.stringify(asset.resource.package)) throw Error('相同动作资源标识对应不同内容');
+    if (old && !sameModelPackage(old.package, asset.resource.package)) throw Error('相同动作资源标识对应不同内容');
     if (!old) project.resources.push(clone(asset.resource));
 }
 /** Same portable retarget clip as built-in materials; no dependency on the local library after insertion. */

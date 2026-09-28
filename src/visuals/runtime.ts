@@ -6,7 +6,7 @@ import { numberAt } from '../animation/channels.ts';
 import { seeded, type VisualConfig } from './model.ts';
 
 const vertex=`uniform int fieldCount;uniform vec4 fieldCenters[8];uniform vec4 fieldSettings[8];uniform vec4 fieldDirections[8];
-uniform float clock;uniform float lifetime;uniform float spread;uniform float size;uniform float amplitude;uniform float frequency;attribute vec4 randoms;varying float fade;
+uniform float clock;uniform float lifetime;uniform float spread;uniform float size;uniform float amplitude;uniform float frequency;attribute vec4 randoms;varying float fade;varying float displayDistance;
 void main(){vec3 p=position;float a=fract(randoms.w+clock/lifetime);fade=1.0;
 PRESET
  vec4 world=modelMatrix*vec4(p,1.);
@@ -16,7 +16,7 @@ PRESET
  else if(s.x<3.5){float a=k*s.w;world.xyz=f.xyz+vec3(cos(a)*d.x-sin(a)*d.z,d.y,sin(a)*d.x+cos(a)*d.z);}
  else if(s.x<4.5)world.xyz+=vec3(sin(s.w*1.7+d.x),sin(s.w*2.3+d.y),cos(s.w*1.3+d.z))*k;
  else world.y+=sin(dist*2.-s.w*2.)*k;}
- vec4 mv=viewMatrix*world;gl_Position=projectionMatrix*mv;gl_PointSize=clamp(size*300.0/max(.1,-mv.z),1.0,96.0);
+ vec4 mv=viewMatrix*world;displayDistance=-mv.z;gl_Position=projectionMatrix*mv;gl_PointSize=clamp(size*300.0/max(.1,-mv.z),1.0,96.0);
 }`;
 const fragment=`uniform vec3 color;uniform vec3 secondary;uniform float opacity;varying float fade;
 void main(){float d=length(gl_PointCoord-.5)*2.;if(d>1.)discard;float alpha=pow(1.-d,SOFTNESS)*opacity*fade;
@@ -52,7 +52,8 @@ export function makeVisual(entity:Entity){const group=new T.Group();const v=enti
             if(v.preset==='lattice'||v.preset==='crystal'){positions[i*3]=(i%side)/(side-1||1)-.5;positions[i*3+1]=(Math.floor(i/side)%side)/(side-1||1)-.5;positions[i*3+2]=Math.floor(i/(side*side))/(side-1||1)-.5;}}
         const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(positions,3));geometry.setAttribute('randoms',new T.BufferAttribute(randoms,4));
         const material=new T.ShaderMaterial({uniforms:uniforms(entity,v),vertexShader:vertex.replace('PRESET',formulas[v.preset]),fragmentShader:fragment.replace('SOFTNESS',['smoke','cloud','fire'].includes(v.preset)?'2.0':'.4'),transparent:true,depthWrite:false,blending:v.additive?T.AdditiveBlending:T.NormalBlending});
-        const points=new T.Points(geometry,material);points.frustumCulled=false;group.add(points);group.userData.visualMaterial=material;group.userData.visualPoints=points;return group;
+        material.userData.particleSoftness=['smoke','cloud','fire'].includes(v.preset)?2:.4;
+        const points=new T.Points(geometry,material);points.userData.directorParticle=true;points.frustumCulled=false;group.add(points);group.userData.visualMaterial=material;group.userData.visualPoints=points;return group;
     }
     if(['text','data','waveform','gradient'].includes(v.preset)){
         if(typeof document==='undefined'){group.add(new T.Mesh(new T.PlaneGeometry(4,2),new T.MeshBasicMaterial({color:entity.color})));return group;}

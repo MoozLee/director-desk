@@ -7,7 +7,7 @@ import { MediaTexturePool } from './texture-pool.ts';
 
 type Uniform = {value:unknown};
 interface MaterialBinding { original:T.Material; material:T.Material; uniforms:Record<string,Uniform>; layers:string[] }
-interface MeshBinding {mesh:T.Mesh; original:T.Material|T.Material[]; materials:MaterialBinding[]; index:number}
+interface MeshBinding {mesh:T.Mesh; original:T.Material|T.Material[]; assigned:T.Material|T.Material[]; materials:MaterialBinding[]; index:number}
 interface Instance {root:T.Group; signature:string; meshes:MeshBinding[]}
 const scalar = (m:T.Material,k:string) => (m as unknown as Record<string,unknown>)[k];
 const setScalar = (m:T.Material,k:string,v:unknown) => {(m as unknown as Record<string,unknown>)[k]=v;};
@@ -87,7 +87,7 @@ export class SurfaceRuntime {
     private projectors=new Map<string,{light:T.SpotLight;canvas:ProjectionTexture}>();
     constructor(invalidate:()=>void){this.textures=new MediaTexturePool(invalidate);}
     describe(root:T.Group){let i=0;const result:{index:number;name:string;materials:number;uv:boolean}[]=[];root.traverse(o=>{if((o as T.Mesh).isMesh){const m=o as T.Mesh;result.push({index:i++,name:m.name||'表面 '+i,materials:Array.isArray(m.material)?m.material.length:1,uv:!!m.geometry.getAttribute('uv')});}});return result;}
-    remove(id:string){const p=this.projectors.get(id);if(p){p.light.map=null;p.canvas.dispose();this.projectors.delete(id);}const instance=this.instances.get(id);if(!instance)return;for(const m of instance.meshes){m.mesh.material=m.original;m.materials.forEach(b=>b.material.dispose());}this.instances.delete(id);}
+    remove(id:string){const p=this.projectors.get(id);if(p){p.light.map=null;p.canvas.dispose();this.projectors.delete(id);}const instance=this.instances.get(id);if(!instance)return;for(const m of instance.meshes){if(m.mesh.material===m.assigned)m.mesh.material=m.original;m.materials.forEach(b=>b.material.dispose());}this.instances.delete(id);}
     sample(project:Project,models:Map<string,T.Group>,time:number){
         this.textures.begin();const live=new Set<string>();
         for(const entity of project.entities){const s=entity.surface,root=models.get(entity.id);if(!s||!root||!entity.visible||entity.kind==='camera')continue;live.add(entity.id);
@@ -95,10 +95,12 @@ export class SurfaceRuntime {
             const physical=s.transmission!==undefined||s.ior!==undefined;
             const signature=JSON.stringify([physical,s.layers.map(l=>[l.id,l.resourceId,l.mesh,l.material])]);
             let instance=this.instances.get(entity.id);
-            if(!instance||instance.root!==root||instance.signature!==signature){this.remove(entity.id);instance={root,signature,meshes:[]};let index=0;
+            // Imported appearance switches replace the base material without rebuilding geometry.
+            // Release only our own bindings, then wrap the newly selected base materials.
+            if(!instance||instance.root!==root||instance.signature!==signature||instance.meshes.some(m=>m.mesh.material!==m.assigned)){this.remove(entity.id);instance={root,signature,meshes:[]};let index=0;
                 root.traverse(o=>{if(!(o as T.Mesh).isMesh)return;const mesh=o as T.Mesh,meshIndex=index++,original=mesh.material;
                     const originals=Array.isArray(original)?original:[original];const materials=originals.map((material,slot)=>bindMaterial(material,mesh,s.layers.filter(l=>(l.mesh===-1||l.mesh===meshIndex)&&(l.material===-1||l.material===slot)),physical));
-                    mesh.material=Array.isArray(original)?materials.map(m=>m.material):materials[0].material;instance!.meshes.push({mesh,original,materials,index:meshIndex});
+                    mesh.material=Array.isArray(original)?materials.map(m=>m.material):materials[0].material;instance!.meshes.push({mesh,original,assigned:mesh.material,materials,index:meshIndex});
                 });this.instances.set(entity.id,instance);
             }
             for(const mesh of instance.meshes)for(const b of mesh.materials){

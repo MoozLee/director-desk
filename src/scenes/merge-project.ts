@@ -1,4 +1,5 @@
 import { assertProject, clone, type Project, type Vec3 } from '../model.ts';
+import { sameModelPackage } from '../resources/package-validation.ts';
 import { entityPosition, entityYaw } from '../timeline.ts';
 import { emptyEditorView } from '../building/floors.ts';
 import { portableRoom } from './portable-room.ts';
@@ -52,7 +53,7 @@ export function mergeScene(destination: Project, source: Project, options: Merge
     for (const r of incoming.resources ?? []) {
         p.resources ??= []; const existing = p.resources.find(other => other.id === r.id);
         if (existing) {
-            if (JSON.stringify(existing.package) !== JSON.stringify(r.package)) throw Error(`模型资源标识冲突：${r.name}`);
+            if (!sameModelPackage(existing.package, r.package)) throw Error(`模型资源标识冲突：${r.name}`);
             for (const key of ['copyright', 'license', 'source'] as const)
                 if (r[key] && existing[key] !== r[key] && !existing[key].split('\n').includes(r[key])) existing[key] = [existing[key], r[key]].filter(Boolean).join('\n');
             reusedResources++;
@@ -74,7 +75,7 @@ export function mergeScene(destination: Project, source: Project, options: Merge
 
         if (scheduling === 'reset') {
             e.position = initial!.get(e.id)!.position;
-            if ((e.kind === 'actor' || e.kind === 'crowd') && !e.faceTarget) { e.rotation[1] = initial!.get(e.id)!.yaw; e.face = 'fixed'; }
+            if ((e.kind === 'actor' || e.kind === 'crowd') && (!e.faceTarget || e.path?.points[0].heading !== undefined)) { e.rotation[1] = initial!.get(e.id)!.yaw; e.face = 'fixed'; e.faceTarget = ''; }
             e.path = null; e.clips = []; e.poseKeys = [];
         } else {
             e.clips.forEach(c => { c.id = fresh(); c.start += timeOffset; c.end += timeOffset; });

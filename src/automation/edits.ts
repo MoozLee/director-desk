@@ -1,3 +1,4 @@
+import { sameModelResources, sameProjectData } from '../resources/package-validation.ts';
 import { ASSETS } from '../asset-catalog.ts';
 import { assertProject, clone, entity, type Entity, type Project, type Vec3 } from '../model.ts';
 import { assertLockedEntitiesUnchanged } from '../editor/invariants.ts';
@@ -100,8 +101,8 @@ export async function applyOperationsWithResources(original: Project, operations
 }
 export function changeSummary(before: Project, after: Project) {
     const old = new Map(before.entities.map(e => [e.id, e])), fresh = new Map(after.entities.map(e => [e.id, e]));
-    return { hasChanges: JSON.stringify(before) !== JSON.stringify(after), added: after.entities.filter(e => !old.has(e.id)).map(e => ({ id: e.id, name: e.name })),
+    return { hasChanges: !sameProjectData(before, after), added: after.entities.filter(e => !old.has(e.id)).map(e => ({ id: e.id, name: e.name })),
         updated: after.entities.filter(e => old.has(e.id) && JSON.stringify(old.get(e.id)) !== JSON.stringify(e)).map(e => ({ id: e.id, name: e.name })),
         removed: before.entities.filter(e => !fresh.has(e.id)).map((e: Entity) => ({ id: e.id, name: e.name })),
-        projectChanged: ['name', 'duration', 'fps', 'aspect', 'room', 'cuts', 'production', 'floors', 'zones', 'editorView', 'resources', 'creationMode', 'referenceLabels', 'depthVideo', 'lighting'].some(k => JSON.stringify(before[k as keyof Project]) !== JSON.stringify(after[k as keyof Project])) };
+        projectChanged: ['name', 'duration', 'fps', 'aspect', 'room', 'cuts', 'production', 'floors', 'zones', 'editorView', 'resources', 'creationMode', 'referenceLabels', 'depthVideo', 'lighting'].some(k => k === 'resources' ? !sameModelResources(before.resources ?? [],after.resources ?? []) : JSON.stringify(before[k as keyof Project]) !== JSON.stringify(after[k as keyof Project])) };
 }

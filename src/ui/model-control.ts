@@ -44,7 +44,7 @@ export function mountModelControl(ctx: AppContext) {
         const e = ctx.current();
         if (e?.id !== targetId) { panel.hidden = true; ctx.toast('选中对象已变化，请重新打开操控录制'); return; }
         try {
-            const candidate = new ModelRecording(e, ctx.time, ctx.project.fps, find<HTMLSelectElement>('model-control-action').value as RecordingAction);
+            const candidate = new ModelRecording(e, ctx.time, ctx.project.fps, find<HTMLSelectElement>('model-control-action').value as RecordingAction, ctx.project);
             ctx.history.begin(ctx.project); take = candidate; ctx.busy = true; ctx.playing = false;
             oldMode = ctx.mode; oldCamera.copy(ctx.engine.editorCamera.position); oldTarget.copy(ctx.engine.orbit.target); oldPan = ctx.engine.orbit.enablePan;
             oldPicking = ctx.engine.pickingEnabled; ctx.engine.pickingEnabled = false;

@@ -104,8 +104,8 @@ export function bindEvents(ctx: AppContext) {
             ctx.engine.positionKeying=target.value==='key';ctx.engine.select(ctx.selected,-1);ctx.renderInspector();return;
         }
         if (target.id === 'path-surface-mode') {
+            if (ctx.draft) { ctx.renderInspector(); return; }
             ctx.engine.pathSurfaceMode = target.value as 'surface' | 'ground';
-            if (ctx.draft) $('#stage-hint').textContent = target.value === 'surface' ? '点击台阶、平台或地面添加路线点 · Enter 完成 · Esc 取消' : '按地面平面画路线 · Enter 完成 · Esc 取消';
             return;
         }
         if (ctx.draft || ctx.history.pending) { ctx.toast('请先完成或取消当前绘制／拖动操作'); ctx.renderInspector(); return; }

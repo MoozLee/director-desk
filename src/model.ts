@@ -1,4 +1,5 @@
 import { assertDepthVideo, type DepthVideo } from './cinematography/depth-video.ts';
+import { cloneProjectData } from './resources/model-data.ts';
 import { ASSETS, findAsset, isAnimalAsset, assetJoints } from './asset-catalog.ts';
 import { JOINT_LABELS, type JointName } from './assets/joint-schema.ts';
 import { validatePropParameters, type PropParameters } from './parametric-props.ts';
@@ -33,6 +34,8 @@ export type Action = 'idle' | 'walk' | 'run' | 'sit' | 'standup' | 'crouch' | 'c
 export type Joint = JointName;
 export type Pose = Partial<Record<Joint, number>>;
 export interface Waypoint {
+    /** Actor/crowd yaw offset from rotation[1], in radians; all points or none. */
+    heading?: number;
     stop?: boolean;
     easing?: Easing;
     time: number;
@@ -165,14 +168,8 @@ export const clipLabel = (c: Clip) => c.name ?? (c.action === 'retarget' ? built
 export const JOINTS = JOINT_LABELS;
 export const COLORS = ['#a7bdd7', '#b8c7b3', '#d1bfa0', '#c5b3c9', '#d0d2d0', '#bdaca4'];
 export const uid = () => crypto.randomUUID();
-/** Media strings are immutable; clone metadata without copying hundreds of MB per undo point. */
-export const clone = <T>(x:T):T => {
-    if(x&&typeof x==='object'&&!Array.isArray(x)&&Array.isArray((x as {media?:unknown}).media)){
-        const {media,...rest}=x as T&{media:MediaResource[]};
-        return {...structuredClone(rest),media:media.map(r=>({...r}))} as T;
-    }
-    return structuredClone(x);
-};
+/** Editable metadata stays isolated; immutable model/media strings need no duplicate buffers. */
+export const clone = cloneProjectData;
 export function entity(kind: Kind, asset: string, name: string, position: Vec3 = [0, 0, 0]): Entity {
     return { id: uid(), kind, asset, name, color: kind === 'actor' ? COLORS[0] : '#d5d5d0', position, rotation: [0, 0, 0], scale: [1, 1, 1], visible: true, locked: false,
         height: 1.75, build: 'normal', gender: 'male', path: null, face: 'path', faceTarget: '', clips: [], pose: {}, poseKeys: [],
@@ -305,6 +302,8 @@ export function assertProject(input: unknown): asserts input is Project {
         if (e.path) {
             if (typeof e.path.smooth !== 'boolean' || !Array.isArray(e.path.points) || e.path.points.length < 1)
                 fail('路径至少需要一个位置点');
+            const headings = e.path.points.some(w => w?.heading !== undefined);
+            if (headings && (e.kind !== 'actor' && e.kind !== 'crowd' || e.path.points.some(w => !n(w?.heading)))) fail('路径 heading 仅支持人物／群演，且每个途经点都需设置有限弧度');
             e.path.points.forEach((w, i) => { if (!w || !v3(w.position) || !n(w.time) || w.time < 0 || (i > 0 && w.time <= e.path!.points[i - 1].time))
                 fail('路径时间必须递增'); assertEasing(w.easing); });
             assertPathInterpolation(e.path);

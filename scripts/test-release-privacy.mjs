@@ -21,6 +21,7 @@ try {
     const motion = JSON.parse(await fs.readFile('src/animation/library/humanoid-v1.json', 'utf8'));
     await fs.writeFile(path.join(fixture, 'dist/assets/motion-test.js'), 'export default ' + JSON.stringify(motion));
     const vendor = path.join(fixture, 'dist/assets/three.core-test.js'); await fs.writeFile(vendor, 'export const vendor = true;');
+    const worker = path.join(fixture, 'dist/assets/model-import.worker-test.js'); await fs.writeFile(worker, 'self.onmessage = () => {};');
     await fs.writeFile(path.join(fixture, 'dist/index.html'), '<div>Public product</div>');
     const js = path.join(fixture, 'dist/assets/app-test.js');
     await fs.writeFile(js, 'export const value = 1;'); assert.equal(run().status, 0);
@@ -80,6 +81,8 @@ try {
     await fs.writeFile(js, 'export const value = 1;');
     await fs.writeFile(vendor, 'sk-' + 'z'.repeat(24)); assert.ok(run().stderr.includes('credential-token'));
     await fs.writeFile(vendor, 'export const vendor = true;');
+    await fs.writeFile(worker, 'sk-' + 'w'.repeat(24)); assert.ok(run().stderr.includes('credential-token'));
+    await fs.writeFile(worker, 'self.onmessage = () => {};');
     const forbidden = path.join(fixture, 'dist/private.director'); await fs.writeFile(forbidden, '{}');
     assert.equal(run().status, 1); await fs.unlink(forbidden);
     await fs.mkdir(path.join(fixture, '.audit'), { recursive: true });

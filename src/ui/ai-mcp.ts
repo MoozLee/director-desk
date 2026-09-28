@@ -15,11 +15,16 @@ export function mountAIMcp(panel: HTMLElement, status: (message: string) => void
     const descriptions = {
         http: '粘贴到客户端的 MCP 配置',
         'claude-code': '配置文件：.mcp.json',
-        'claude-desktop': '配置文件：claude_desktop_config.json',
-        stdio: '粘贴到客户端的 MCP 配置',
+        'claude-desktop': '本机连接 · claude_desktop_config.json',
+        stdio: '本机连接 · 粘贴到客户端的 MCP 配置',
     };
     type Client = keyof typeof descriptions;
-    client.onchange = () => { help.textContent = descriptions[client.value as Client]; };
+    const refreshLanCopy = () => {
+        const available = lanEnabled.checked && ['http', 'claude-code'].includes(client.value);
+        lanCopy.hidden = !available;
+        lanCopy.disabled = !available;
+    };
+    client.onchange = () => { help.textContent = descriptions[client.value as Client]; refreshLanCopy(); };
     client.onchange(new Event('change'));
     const check = <T>(result: DesktopResult<T>) => { if (!result.ok) throw Error(result.error || '操作失败'); return result.data!; };
     const safe = (task: () => Promise<unknown>) => { void task().catch(error => status(error.message)); };
@@ -30,10 +35,7 @@ export function mountAIMcp(panel: HTMLElement, status: (message: string) => void
         lanEnabled.checked = Boolean(state.enabled && state.lanEnabled);
         if (lanRow) lanRow.hidden = !lanEnabled.checked;
         if (lanStatus) lanStatus.textContent = state.lanUrl || '关闭';
-        if (lanCopy) {
-            lanCopy.hidden = !lanEnabled.checked;
-            lanCopy.disabled = !lanEnabled.checked;
-        }
+        refreshLanCopy();
         reset.disabled = copy.disabled = !state.enabled;
     };
     enabled.onchange = () => { if (bridge) safe(async () => {

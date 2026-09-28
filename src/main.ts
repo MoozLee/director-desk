@@ -68,7 +68,7 @@ let aborter: AbortController | null = null;
 let transformError: Error | undefined;
 mountLayout(project);
 const engine = new Engine(project, $('#stage-canvas'), $('#shot-canvas'), {
-    select: selectEntity, point: i => { engine.select(selected, i); inspectorTab = 'path'; renderInspector(); }, ground: addGroundPoint,
+    select: selectEntity, point: i => { engine.select(selected, i); inspectorTab = 'path'; renderInspector(); }, ground: addGroundPoint, stroke: points => editingTools.addFreehandStroke(points),
     transformStart: () => { transformError=undefined; playing = false; history.begin(project); const e = current(); if (e?.camera && e.camera.mode !== 'free') freezeCamera(engine, e); },
     transform: (p, r, s) => {
         const e = current();

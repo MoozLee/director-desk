@@ -6,6 +6,8 @@
 - 坐姿、走路等粗略动作优先查询 basic 预设。`motion` 操作用 time/duration 安排，省略 duration 会使用短默认时长；整场坐姿覆盖实际导出区间。插入会寻找空闲区间。无需手 K 面部、手指，也不用默认安排脚部校正。
 - 用户已导入的动作按需用 `director_motions({source:"user",query:"所需动作",limit:20})` 查询；只返回本机收藏摘要，无素材字节。`complete:true` 的结果可把 id 原样用作 `motion.asset`，仍复用当前工程事务、预检与撤销。应用时源资源自动嵌入工程，之后不依赖本机收藏；无需同时扫描内置和用户全库。未完成映射的素材先由用户在动作库校正。
 - 米/秒，世界 +Y 向上、人物 +Z 向前；rotation 为弧度、pose 为度。路径用 `{smooth:false,points:[{time,position:[x,y,z]}]}`。颜色为 #RRGGBB。duration 支持小数，不把 24.5 秒无故延长至 25 秒。
+- 操控录制的人物／群演路径可在每个点保存 `heading`（相对 `rotation[1]` 的弧度偏移）；修改走位时保留它，恢复全段 `face` 朝向规则时需删除全部点的 heading，不能仅删一个点。细则见 project-format.md 的路径说明。
+- 界面支持点选或手绘路线。手绘拖动投射到所选地面／可见物体表面，松手后简化为同一套 `path.points`，按路径长度分配指定时长；多笔续画共用总时长，绘制鼠标速度不作为运动速度。AI／离线读取、调整这些点仍用普通 path 补丁，无需模拟鼠标或另造手绘格式；高度与折角保留，手绘默认 `smooth:false`，不代表自动避障或脚部贴合。
 - `project.patch.referenceLabels:true/false` 开关参考视频中的名称标签，默认关闭；随戏段保存，摄影机预览、截图与视频共用。覆盖人物、群演组和胶囊占位，名称取实体 name；POV 不显示自身标签。标签仅作角色识别，配套生成提示词注明不要把标签变成成片字幕／文字。
 - cuts 的 value 为完整 `[{time:0,cameraId},...]`；notes 的 value 为完整 `{fixedPrompt:"",sceneReferenceIds:[],notes:[{id,start,end,actorId:"",story:"",emotion:"",dialogue:"",action:""}]}`。所有文字字段齐全，未写内容用空串。可附 promptText 保存本段完整提示词。保留原有备注、引用及未改的 promptText，不用 patch 替代 value。整段替换前，已有内容未知时用 `sections:["production"]` 读取完整 production；切镜同理用 `sections:["cuts"]`，已有当前数据则直接复用。
 - preview 不写入对象。预检成功后用 previewId、未变化的 revision 和新 requestId 提交，省略 operations；修改批次或预检失效时重新提供 operations。明确的小修改无需先预检。

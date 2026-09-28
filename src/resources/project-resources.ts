@@ -22,10 +22,9 @@ export interface ExternalModel {
 }
 export const isExternalModel = (entity: Entity) => entity.asset === 'external-model';
 
-export async function modelResourceId(data: ModelPackage): Promise<string> {
-    const bytes = new TextEncoder().encode(JSON.stringify(data));
-    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-    return 'model-' + [...digest].map(b => b.toString(16).padStart(2, '0')).join('');
+export async function modelResourceId(data: ModelPackage, signal?: AbortSignal): Promise<string> {
+    const { modelResourceIdAsync } = await import('./model-import-worker.ts');
+    return modelResourceIdAsync(data,signal);
 }
 export function assertResourceHeader(resource: ModelResource) {
     if (!resource || typeof resource.id !== 'string' || !/^model-[0-9a-f]{64}$/.test(resource.id)) throw Error('模型资源标识无效');

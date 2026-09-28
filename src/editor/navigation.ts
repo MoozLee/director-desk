@@ -10,7 +10,7 @@ export function bindNavigation(ctx: AppContext) {
     canvas.tabIndex = 0;
     canvas.title = '点击布景后：WASD 移动 · Q/E 转向 · R/F 升降 · Shift 加速';
     canvas.addEventListener('pointerdown', () => canvas.focus({ preventScroll: true }));
-    const enabled = () => document.activeElement === canvas && ctx.mode !== 'shot' && !ctx.busy && !ctx.engine.exporting && !ctx.engine.dragging && !document.querySelector('#modal-root')!.children.length;
+    const enabled = () => document.activeElement === canvas && ctx.mode !== 'shot' && !ctx.busy && !ctx.engine.exporting && !ctx.engine.dragging && !ctx.engine.drawingStroke && !document.querySelector('#modal-root')!.children.length;
     document.addEventListener('keydown', event => {
         if (!enabled() || event.ctrlKey || event.metaKey || event.altKey || !navigationKeys.has(event.code)) return;
         event.preventDefault();

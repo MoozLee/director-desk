@@ -1,4 +1,5 @@
 import { clone, type Project } from '../model.ts';
+import { sameModelResources } from '../resources/package-validation.ts';
 import { readSceneDocument, updateValidatedDocumentScene, type SceneDocument } from './sequence-project.ts';
 
 export interface SceneContext { sessionId: string; sceneId: string; revision: number }
@@ -61,7 +62,7 @@ export class SceneSession {
         const old = before.document;
         if (next.activeSceneId === old.activeSceneId && next.name === old.name
             && (next.media===old.media||JSON.stringify(next.media?.map(({data:_data,...r})=>r))===JSON.stringify(old.media?.map(({data:_data,...r})=>r)))
-            && (next.resources === old.resources || JSON.stringify(next.resources) === JSON.stringify(old.resources))
+            && sameModelResources(next.resources, old.resources)
             && next.scenes.length === old.scenes.length && next.scenes.every((scene, i) => scene === old.scenes[i] || JSON.stringify(scene) === JSON.stringify(old.scenes[i]))) return;
         this.#undo.push({ ...before, action, revealSceneId }); if (this.#undo.length > 35) this.#undo.shift(); this.#redo = [];
         this.#document = next; this.#revision++;

@@ -18,6 +18,8 @@ import { entityPosition, shiftPath } from '../timeline.ts';
 import { $ } from '../ui/common.ts';
 import { freezeCamera } from './camera-editing.ts';
 import { libraryPreferences } from '../assets/library-preferences.ts';
+import { simplifyFreehand, timeFreehand } from './freehand-path.ts';
+import { pathDrawingPosition } from './path-drawing-position.ts';
 export function createEditingTools(ctx: AppContext) {
     function addAsset(id: string, position?: Vec3) {
         const asset = ASSETS.find(a => a.id === id);
@@ -60,6 +62,7 @@ export function createEditingTools(ctx: AppContext) {
         ctx.engine.select(ctx.selected);
     }
     function startPath() {
+        if (ctx.busy || ctx.draft || ctx.history.pending) return;
         const e = ctx.current();
         if (!e || e.locked)
             return;
@@ -69,11 +72,12 @@ export function createEditingTools(ctx: AppContext) {
         ctx.history.begin(ctx.project);
         if (e.camera?.mode !== 'free' && e.camera) freezeCamera(ctx.engine, e);
         ctx.draft = { id: e.id };
-        e.path = { smooth: ctx.engine.pathSurfaceMode === 'ground', points: [{ time: ctx.time, position: entityPosition(e, ctx.time).toArray() as Vec3 }] };
+        e.path = { smooth: ctx.engine.pathDrawMode === 'points' && ctx.engine.pathSurfaceMode === 'ground', points: [{ time: ctx.time, position: entityPosition(e, ctx.time).toArray() as Vec3 }] };
         ctx.engine.drawingPath = true;
+        $('#object-labels').classList.add('drawing-path');
         ctx.engine.gizmo.detach();
         ctx.setView('stage');
-        $('#stage-hint').textContent = ctx.engine.pathSurfaceMode === 'surface' ? '点击台阶、平台或地面添加路线点 · Enter 完成 · Esc 取消' : '按地面平面画路线 · Enter 完成 · Esc 取消';
+        $('#stage-hint').textContent = ctx.engine.pathDrawMode === 'freehand' ? '按住左键画路线 · 松开可续画 · Enter 完成 · Esc 取消' : ctx.engine.pathSurfaceMode === 'surface' ? '点击台阶、平台或地面添加路线点 · Enter 完成 · Esc 取消' : '按地面平面画路线 · Enter 完成 · Esc 取消';
         ctx.engine.refreshHelpers();
         ctx.renderInspector();
     }
@@ -81,16 +85,24 @@ export function createEditingTools(ctx: AppContext) {
         if (!ctx.draft)
             return;
         const e = ctx.project.entities.find(e => e.id === ctx.draft!.id)!;
-        if (e.kind === 'camera')
-            position[1] += e.path!.points[0].position[1];
+        position = pathDrawingPosition(position, e, workingElevation(ctx.project));
         if (ctx.engine.pathSurfaceMode === 'ground') position = ctx.engine.snapPosition(position);
         e.path!.points.push({ time: e.path!.points.at(-1)!.time + 2, position });
         ctx.engine.refreshHelpers();
         ctx.renderInspector();
     }
+    function addFreehandStroke(points: Vec3[]) {
+        if (!ctx.draft) return;
+        const e = ctx.current(); if (!e?.path || e.id !== ctx.draft.id) return;
+        const stroke = simplifyFreehand(points);
+        e.path.points = timeFreehand([...e.path.points.map(p => p.position), ...stroke.slice(1)], e.path.points[0].time, ctx.engine.pathDrawDuration);
+        e.path.smooth = false;
+        ctx.engine.refreshHelpers(); ctx.renderInspector();
+    }
     function finishPath() {
         if (!ctx.draft)
             return;
+        ctx.engine.endPathStroke();
         const e = ctx.project.entities.find(e => e.id === ctx.draft!.id)!;
         if (e.path!.points.length < 2) {
             cancelPath();
@@ -99,6 +111,7 @@ export function createEditingTools(ctx: AppContext) {
         }
         ctx.draft = null;
         ctx.engine.drawingPath = false;
+        $('#object-labels').classList.remove('drawing-path');
         ctx.extendDuration();
         ctx.history.commit(ctx.project);
         ctx.changed(false);
@@ -108,11 +121,13 @@ export function createEditingTools(ctx: AppContext) {
     function cancelPath() {
         if (!ctx.draft)
             return;
+        ctx.engine.endPathStroke(true);
         ctx.project = ctx.history.rollback() ?? ctx.project;
         ctx.selected = ctx.history.restoredSelection || ctx.selected;
         ctx.engine.selected = ctx.selected;
         ctx.draft = null;
         ctx.engine.drawingPath = false;
+        $('#object-labels').classList.remove('drawing-path');
         ctx.engine.rebuild(ctx.project);
         ctx.renderPanels();
         $('#stage-hint').textContent = '点击布景启用键盘 · WASD 移动 · QE 转向 · RF 升降';
@@ -192,8 +207,11 @@ export function createEditingTools(ctx: AppContext) {
             e.spacing = n;
         else if (key === 'seed')
             e.seed = n;
-        else if (key === 'face')
+        else if (key === 'face') {
+            if (value === 'recorded') return;
+            e.path?.points.forEach(point => delete point.heading);
             e.face = value as Entity['face'];
+        }
         else if (key === 'faceTarget')
             e.faceTarget = value;
         else if (key.startsWith('pos.')) {
@@ -342,5 +360,5 @@ export function createEditingTools(ctx: AppContext) {
         ctx.renderCameras();
         ctx.toast('已调整机位与焦距；请检查室内墙体遮挡');
     }
-    return { addAsset, makeCamera, startPath, addGroundPoint, finishPath, cancelPath, replaceAction, retimePath, applyField, mutateField, deleteEntity, seatApply, applyMotion, applyFraming };
+    return { addAsset, makeCamera, startPath, addGroundPoint, addFreehandStroke, finishPath, cancelPath, replaceAction, retimePath, applyField, mutateField, deleteEntity, seatApply, applyMotion, applyFraming };
 }

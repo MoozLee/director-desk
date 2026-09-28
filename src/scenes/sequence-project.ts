@@ -1,4 +1,5 @@
 import {assertMediaResources,type MediaResource} from '../media/model.ts';
+import { sameModelPackage, sameModelResources } from '../resources/package-validation.ts';
 import { assertProject, clone, type Project } from '../model.ts';
 import { assertModelResources, type ModelResource } from '../resources/project-resources.ts';
 import { assertLockedEntitiesUnchanged } from '../editor/invariants.ts';
@@ -117,7 +118,7 @@ export function addDocumentScene(document: SceneDocument, project: Project, name
     return commit(document, next => {
         for (const resource of project.resources ?? []) {
             const previous = next.resources.find(r => r.id === resource.id);
-            if (previous && JSON.stringify(previous.package) !== JSON.stringify(resource.package)) throw Error('同一资源标识对应不同内容');
+            if (previous && !sameModelPackage(previous.package, resource.package)) throw Error('同一资源标识对应不同内容');
             if (!previous) next.resources.push(clone(resource));
         }
         next.media=mergeMedia(next.media,project.media);
@@ -137,11 +138,11 @@ export function updateValidatedDocumentScene(document: SceneDocument, id: string
     assertProject(project);
     const scene = document.scenes.find(scene => scene.id === id); if (!scene) throw Error('戏段不存在');
     assertLockedEntitiesUnchanged(projection(document, scene), project);
-    const resourcesChanged = JSON.stringify(document.resources) !== JSON.stringify(project.resources ?? []);
+    const resourcesChanged = !sameModelResources(document.resources, project.resources ?? []);
     if (resourcesChanged) {
         for (const resource of project.resources ?? []) {
             const previous = document.resources.find(r => r.id === resource.id);
-            if (previous && JSON.stringify(previous.package) !== JSON.stringify(resource.package)) throw Error('共享源资源内容不可原地改写，请使用新的资源标识');
+            if (previous && !sameModelPackage(previous.package, resource.package)) throw Error('共享源资源内容不可原地改写，请使用新的资源标识');
         }
     }
     const media=mergeMedia(document.media,project.media);

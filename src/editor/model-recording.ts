@@ -1,5 +1,6 @@
-import { clone, clip, type Action, type Entity, type Vec3, type Waypoint } from '../model.ts';
-import { entityPosition } from '../timeline.ts';
+import { clone, clip, type Action, type Entity, type Vec3, type Waypoint, type Project } from '../model.ts';
+import { baseEntityYaw, entityPosition } from '../timeline.ts';
+import { headingDelta } from '../animation/path-heading.ts';
 import { sliceAction } from '../clip-editing.ts';
 import { isAnimalAsset } from '../asset-catalog.ts';
 
@@ -21,7 +22,10 @@ function appendPoint(points: Waypoint[], next: Waypoint, preserveThrough: number
     const a = points.at(-2), b = points.at(-1);
     if (a && b && b.time > preserveThrough) {
         const u = (b.time - a.time) / (next.time - a.time);
-        if (b.position.every((v, i) => Math.abs(v - (a.position[i] + (next.position[i] - a.position[i]) * u)) < 1e-8)) points.pop();
+        const headingMatches = a.heading === undefined && b.heading === undefined && next.heading === undefined
+            || a.heading !== undefined && b.heading !== undefined && next.heading !== undefined
+                && Math.abs(headingDelta(a.heading + headingDelta(a.heading, next.heading) * u, b.heading)) < 1e-8;
+        if (headingMatches && b.position.every((v, i) => Math.abs(v - (a.position[i] + (next.position[i] - a.position[i]) * u)) < 1e-8)) points.pop();
     }
     points.push(next);
 }
@@ -40,7 +44,7 @@ export function recordingStep(position: Vec3, forward: Vec3, keys: ReadonlySet<s
         action: (mode === 'crawl' ? 'crawl' : moving ? running ? 'run' : 'walk' : 'idle') as Action };
 }
 
-/** A single take writes ordinary paths and clips; no recording data is added to project files. */
+/** A single take writes ordinary position/heading waypoints and clips, with one undo transaction. */
 export class ModelRecording {
     readonly start: number;
     readonly mode: RecordingAction;
@@ -48,21 +52,24 @@ export class ModelRecording {
     readonly entity: Entity;
     readonly fps: number;
     private frames = 0;
-    constructor(source: Entity, time: number, fps: number, mode: RecordingAction) {
+    constructor(source: Entity, time: number, fps: number, mode: RecordingAction, project?: Pick<Project, 'entities'>) {
         const error = recordingError(source); if (error) throw Error(error);
         if (!Number.isFinite(time) || time < 0 || !Number.isFinite(fps) || fps <= 0) throw Error('录制时间或帧率无效');
         if (!['auto', 'crawl', 'keep'].includes(mode)) throw Error('录制动作选项无效');
+        if (source.face === 'target' && source.faceTarget && !project) throw Error('录制面向目标的人物需要当前场景对象');
+        const scene = project ?? { entities: [source] };
+        const headingAt = (time: number) => source.kind === 'actor' || source.kind === 'crowd' ? { heading: baseEntityYaw(source, time, scene) - source.rotation[1] } : {};
         this.fps = fps; this.start = Math.round(time * fps) / fps;
         this.entity = clone(source);
         this.mode = canRecordActions(source) ? mode : 'keep';
         // Bake only the retained prefix at output frames; split/retimed/smooth paths use the shared sampler.
         this.points = [];
-        if (source.path) for (let f = 0; f < Math.round(this.start * fps); f++)
-            this.points.push({ time: f / fps, position: entityPosition(source, f / fps).toArray() as Vec3 });
-        else if (this.start > 0) this.points.push({ time: 0, position: [...source.position] });
-        this.points.push({ time: this.start, position: entityPosition(source, this.start).toArray() as Vec3 });
+        if (source.path || source.face === 'target') for (let f = 0; f < Math.round(this.start * fps); f++)
+            this.points.push({ time: f / fps, position: entityPosition(source, f / fps).toArray() as Vec3, ...headingAt(f / fps) });
+        else if (this.start > 0) this.points.push({ time: 0, position: [...source.position], ...headingAt(0) });
+        this.points.push({ time: this.start, position: entityPosition(source, this.start).toArray() as Vec3, ...headingAt(this.start) });
         this.entity.path = { smooth: false, points: this.points };
-        this.entity.face = 'path'; this.entity.faceTarget = '';
+
         if (this.mode !== 'keep') this.entity.clips = source.clips.filter(c => c.start < this.start)
             .map(c => c.end <= this.start ? clone(c) : sliceAction(c, c.start, this.start, false));
     }
@@ -71,7 +78,10 @@ export class ModelRecording {
     advance(keys: ReadonlySet<string>, forward: Vec3) {
         const next = recordingStep(this.position, forward, keys, 1 / this.fps, this.mode);
         const at = this.time; this.frames++;
-        appendPoint(this.points, { time: this.time, position: next.position }, this.start);
+        const last = this.points.at(-1)!, dx = next.position[0] - last.position[0], dz = next.position[2] - last.position[2];
+        const heading = last.heading === undefined ? {} : { heading: Math.hypot(dx, dz) > 1e-10 ? Math.atan2(dx, dz) - this.entity.rotation[1] : last.heading };
+        if (this.start === 0 && this.frames === 1 && heading.heading !== undefined) last.heading = heading.heading;
+        appendPoint(this.points, { time: this.time, position: next.position, ...heading }, this.start);
         if (this.mode !== 'keep') {
             const previous = this.entity.clips.at(-1);
             if (previous && previous.start >= this.start && previous.action === next.action && Math.abs(previous.end - at) < 1e-7) previous.end = this.time;

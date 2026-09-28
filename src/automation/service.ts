@@ -1,3 +1,4 @@
+import { sameProjectData } from '../resources/package-validation.ts';
 import { DEFAULT_DEPTH_VIDEO } from '../cinematography/depth-video.ts';
 import { readScene, type SceneReadOptions } from './read-scene.ts';
 import {importMedia} from '../media/source.ts';
@@ -89,7 +90,7 @@ export function createToolService(ctx: AppContext) {
                     const sceneId = ['rename', 'remove'].includes(String(args.action)) ? String(args.sceneId ?? context.sceneId) : ctx.scenes.context.sceneId;
                     const scene = next.scenes.find(s => s.id === sceneId) ?? document.scenes.find(s => s.id === sceneId)!;
                     const label = ({ create: '新增戏段', copy: '复制戏段', continue: '接拍戏段', rename: '重命名戏段', reorder: '排序戏段', remove: '删除戏段' } as Record<string, string>)[String(args.action)];
-                    if (JSON.stringify(document) !== JSON.stringify(next)) recordEdits({ id: uid(), sceneId, sceneName: scene.name, created: Date.now(), label,
+                    if (!sameProjectData(document, next)) recordEdits({ id: uid(), sceneId, sceneName: scene.name, created: Date.now(), label,
                         locations: [{ name: scene.name, action: args.action === 'remove' ? 'removed' : ['create', 'copy', 'continue'].includes(String(args.action)) ? 'added' : 'updated', field: label, start: 0, end: scene.state.duration }] });
                 }
                 const result = { revision: currentRevision(), sceneContext: ctx.scenes.context, scenes: ctx.scenes.list() };
@@ -170,6 +171,11 @@ export function createToolService(ctx: AppContext) {
             } finally { ctx.busy = false; ctx.engine.externalModels.retain([ctx.project, ...ctx.history.undoStack, ...ctx.history.redoStack]); ctx.updateTimeUI(); }
         }
         if (name === 'director_spatial') {
+            if (args.depthRange === true) {
+                idle();
+                const time = (args.time ?? ctx.time) as number, cameraId = (args.cameraId ?? ctx.preview) as string;
+                return { revision: currentRevision(), time, cameraId, depthRange: ctx.engine.suggestDepthRange(time, cameraId, args.ids as string[] | undefined), scope: args.ids ? 'selected-surfaces' : 'frame', applied: false };
+            }
             const report = ctx.engine.spatialReport({ time: args.time as number | undefined, cameraId: args.cameraId as string | undefined, occlusionKeys: args.occlusionKeys as string[] | undefined });
             // Filter only the response: walls and other unrequested objects must still occlude.
             if (!Array.isArray(args.ids)) return report;
@@ -188,7 +194,7 @@ export function createToolService(ctx: AppContext) {
             checkRevision(args.revision); if (!['undo', 'redo'].includes(String(args.action))) throw new Error('无效历史操作');
             const before = clone(ctx.project), context = ctx.scenes?.context;
             await ctx.act(String(args.action), document.createElement('button'));
-            if (context && JSON.stringify(before) !== JSON.stringify(ctx.project)) {
+            if (context && !sameProjectData(before, ctx.project)) {
                 const sceneId = ctx.scenes.context.sceneId, label = args.action === 'undo' ? '撤销' : '重做';
                 recordEdits({ id: uid(), sceneId, sceneName: ctx.scenes.list().find(s => s.id === sceneId)!.name, created: Date.now(), label,
                     locations: sceneId === context.sceneId ? editLocations(before, ctx.project) : [{ name: '戏段', action: 'updated', field: label, start: 0, end: ctx.project.duration }] });

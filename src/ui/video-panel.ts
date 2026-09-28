@@ -49,18 +49,31 @@ export function createVideoPanel(ctx: AppContext) {
                 <label class="field"><span>分辨率</span><select id="export-size">${options([['1920', '1080p 级'], ['1280', '720p 级'], ['640', '360p 级']], '1920')}</select></label>
                 <label class="field"><span>帧率</span><select id="export-fps">${options([['scene', '沿用各戏段'], ...FRAME_RATES.map(f => [String(f), f + ' fps'] as [string, string])], 'scene')}</select></label>
                 <label class="field"><span>视频格式</span><select id="export-format"><option value="mp4">MP4 / H.264</option><option value="webm">WebM / VP9</option></select></label>
-                <label class="field"><span>画面类型</span><select id="export-color"><option value="color">角色区分色</option><option value="white">统一白模色</option><option value="depth" ${depth.enabled?'selected':''}>深度视频 · 试验</option></select></label>
+                <label class="field"><span>画面类型</span><select id="export-color"><option value="color">角色区分色</option><option value="white">统一白模色</option><option value="depth" ${depth.enabled?'selected':''}>深度视频</option></select></label>
             </div>
 
             <label class="field"><span>保存到</span><select id="export-save"></select></label>
         </div><div class="export-preview"><div class="section-label">当前戏段预览<span>${ctx.time.toFixed(2)} s</span></div>
             <img src="${ctx.engine.shotRenderer.domElement.toDataURL('image/png')}" alt="当前摄影机真实取景"/>
             <div id="export-summary" class="export-summary" aria-live="polite"></div>
-            <div id="export-depth" ${depth.enabled?'':'hidden'}><div class="field-pair"><label class="field"><span>深度近端 / 米</span><input id="export-depth-near" type="number" min="0" step=".1" value="${depth.near}"></label><label class="field"><span>深度远端 / 米</span><input id="export-depth-far" type="number" max="2000" step="1" value="${depth.far}"></label></div><label class="check"><input id="export-depth-invert" type="checkbox" ${depth.invert?'checked':''}>黑白反转</label></div>
+            <div id="export-depth" ${depth.enabled?'':'hidden'}><div class="field-pair"><label class="field"><span>深度近端 / 米</span><input id="export-depth-near" type="number" min="0" step=".1" value="${depth.near}"></label><label class="field"><span>深度远端 / 米</span><input id="export-depth-far" type="number" max="2000" step="1" value="${depth.far}"></label></div><div class="field-pair"><label class="field"><span>深度曲线</span><input id="export-depth-curve" type="number" min=".25" max="4" step=".25" value="${depth.curve ?? 1}"></label><label class="check"><input id="export-depth-invert" type="checkbox" ${depth.invert?'checked':''}>黑白反转</label></div><div class="range-shortcuts"><button type="button" data-export-depth-fit="selection">取选中范围</button><button type="button" data-export-depth-fit="frame">取画面范围</button></div></div>
 
             <div id="export-progress" hidden><div class="progress-top"><strong id="progress-title">正在生成视频</strong><span id="progress-percent">0%</span></div><progress value="0" max="1"></progress><p id="progress-detail">准备导出</p></div>
         </div></div>`, button('close-modal', '取消', '', 'subtle') + button('export-start', '导出视频', 'download', 'primary'));
         $('.modal').classList.add('export-modal');
+        $('#export-depth').addEventListener('click', async event => {
+            const button = (event.target as HTMLElement).closest<HTMLElement>('[data-export-depth-fit]');
+            if (!button || ctx.busy) return;
+            await previewTask;
+            if (ctx.busy || !document.querySelector('.export-modal')) return;
+            try {
+                const fps = value('fps') === 'scene' ? ctx.project.fps : Number(value('fps'));
+                const start = Number(value('start')), end = Number(value('end'));
+                const at = batch() || !Number.isFinite(start) || !Number.isFinite(end) || end <= start ? ctx.time : Math.max(start, Math.min(ctx.time, end - 1 / fps));
+                const { near, far } = ctx.engine.suggestDepthRange(at, batch() ? ctx.preview : value('camera'), button.dataset.exportDepthFit === 'selection' ? [ctx.selected] : undefined);
+                $('#export-depth-near').value = String(near); $('#export-depth-far').value = String(far); updateExportSummary();
+            } catch (error) { ctx.toast((error as Error).message, true); }
+        });
         picker = createExportScenePicker(sceneInfo, current.id, updateExportSummary);
         picker.mount($('#export-scene-picker'));
         updateExportSummary();
@@ -68,7 +81,7 @@ export function createVideoPanel(ctx: AppContext) {
     function exportPlan() {
         return planVideoExports(sceneInfo, batch() ? picker.selections() : [{ sceneId: ctx.scenes.context.sceneId, filename: value('name') }],
             { size: Number(value('size')), fps: value('fps') === 'scene' ? 'scene' : Number(value('fps')),
-                format: value('format') as 'mp4' | 'webm', monochrome: value('color') === 'white', ...(value('color') === 'depth' ? { depth: { near: Number(value('depth-near')), far: Number(value('depth-far')), invert: $('#export-depth-invert').checked } } : {}) },
+                format: value('format') as 'mp4' | 'webm', monochrome: value('color') === 'white', ...(value('color') === 'depth' ? { depth: { near: Number(value('depth-near')), far: Number(value('depth-far')), invert: $('#export-depth-invert').checked, curve: Number(value('depth-curve')) } } : {}) },
             batch() ? undefined : { start: Number(value('start')), end: Number(value('end')), cameraId: value('camera') });
     }
     function updateExportSummary() {
@@ -138,7 +151,7 @@ export function createVideoPanel(ctx: AppContext) {
             await previewTask;
             started = true;
             $('#export-progress').hidden = false;
-            document.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>('.export-fields input,.export-fields select,.export-fields button,#export-depth input').forEach(el => el.disabled = true);
+            document.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>('.export-fields input,.export-fields select,.export-fields button,#export-depth input,#export-depth button').forEach(el => el.disabled = true);
             $('.modal-footer').innerHTML = button('cancel-export', '取消导出', '', 'subtle');
             const { exportVideo } = await import('../export.ts');
             await runVideoExports(ctx.engine, jobs, id => ctx.scenes.projectFor(id), destination, ctx.aborter.signal,
@@ -159,7 +172,7 @@ export function createVideoPanel(ctx: AppContext) {
             if (succeeded) ctx.closeModal();
             else if (document.querySelector('.export-modal')) {
                 $('#export-progress').hidden = true;
-                document.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>('.export-fields input,.export-fields select,.export-fields button,#export-depth input').forEach(el => el.disabled = false);
+                document.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>('.export-fields input,.export-fields select,.export-fields button,#export-depth input,#export-depth button').forEach(el => el.disabled = false);
                 picker.refresh();
                 $('.modal-footer').innerHTML = button('close-modal', '返回', '', 'subtle') + button('export-start', count ? '重新导出所选戏段' : '重试导出', 'download', 'primary');
             }

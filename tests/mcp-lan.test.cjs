@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const http = require('node:http');
+const { startLanProxy, DEFAULT_LAN_PORT } = require('../desktop/mcp-lan-proxy.cjs');
 const { createMcpHost } = require('../desktop/mcp-host.cjs');
 const { getLanIPv4 } = require('../desktop/mcp-lan-proxy.cjs');
 
@@ -12,12 +14,54 @@ const safeStorage = {
     decryptString: b => b.toString().split('').reverse().join('')
 };
 
+// Reserve isolated ports instead of assuming the user's default LAN port is unused.
+function listen(server, port = 0) {
+    return new Promise((resolve, reject) => {
+        const cleanup = () => { clearTimeout(timer); server.off('error', failed); server.off('listening', ready); };
+        const failed = error => { cleanup(); reject(error); };
+        const ready = () => { cleanup(); resolve(server.address().port); };
+        const timer = setTimeout(() => { cleanup(); server.close(); reject(Error('Test listener timed out')); }, 3000);
+        server.once('error', failed); server.once('listening', ready);
+        server.listen(port, '0.0.0.0');
+    });
+}
+async function close(server) {
+    server.closeAllConnections();
+    if (!server.listening) return;
+    await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(Error('Test server cleanup timed out')), 3000);
+        server.close(error => { clearTimeout(timer); error ? reject(error) : resolve(); });
+    });
+}
+async function reservePorts(count) {
+    for (let attempt = 0; attempt < 30; attempt++) {
+        const servers = [];
+        try {
+            const first = http.createServer(); servers.push(first);
+            const port = await listen(first);
+            if (port + count > 65535 || port <= DEFAULT_LAN_PORT && port + count > DEFAULT_LAN_PORT) {
+                await close(first); continue;
+            }
+            for (let index = 1; index < count; index++) {
+                const next = http.createServer(); servers.push(next); await listen(next, port + index);
+            }
+            return { port, servers };
+        } catch (error) {
+            await Promise.all(servers.map(close));
+            if (error.code !== 'EADDRINUSE' && error.code !== 'EACCES') throw error;
+        }
+    }
+    throw Error('Could not reserve isolated consecutive test ports');
+}
+
 test('getLanIPv4 returns a valid IPv4 string', () => {
     const ip = getLanIPv4();
     assert.match(ip, /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
 });
 
-test('MCP host LAN toggle, configuration generation, and proxy forwarding', async () => {
+test('MCP host LAN toggle, configuration generation, and proxy forwarding', { timeout: 15000 }, async () => {
+    const reserved = await reservePorts(1);
+    await close(reserved.servers[0]);
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'director-mcp-lan-'));
     const dummyTools = [{ name: 'dummy_tool', description: 'test dummy', inputSchema: { type: 'object' } }];
     const host = createMcpHost({
@@ -25,7 +69,8 @@ test('MCP host LAN toggle, configuration generation, and proxy forwarding', asyn
         safeStorage,
         definitions: dummyTools,
         call: async () => ({ ok: true }),
-        version: '1.0.0'
+        version: '1.0.0',
+        lanProxyPort: reserved.port
     });
 
     try {
@@ -44,7 +89,7 @@ test('MCP host LAN toggle, configuration generation, and proxy forwarding', asyn
         assert(typeof lanState.lanUrl === 'string');
         assert(lanState.lanUrl.startsWith('http://'));
         assert(lanState.lanUrl.endsWith('/mcp'));
-        assert(lanState.lanPort >= 54321);
+        assert(lanState.lanPort >= reserved.port && lanState.lanPort < reserved.port + 100);
 
         // Local connection config
         const localConn = (await host.connection('http', { useLan: false })).mcpServers['director-desk'];
@@ -60,8 +105,10 @@ test('MCP host LAN toggle, configuration generation, and proxy forwarding', asyn
         assert.equal(claudeCodeLan.type, 'http');
         assert.equal(claudeCodeLan.url, lanState.lanUrl);
 
-        // Send MCP request through LAN proxy URL
-        const res = await fetch(lanState.lanUrl, {
+        // Exercise the LAN listener via loopback; interface selection/WiFi routing varies by machine.
+        const proxyUrl = `http://127.0.0.1:${lanState.lanPort}/mcp`;
+        const res = await fetch(proxyUrl, {
+            signal: AbortSignal.timeout(3000),
             method: 'POST',
             headers: {
                 ...lanConn.headers,
@@ -81,7 +128,8 @@ test('MCP host LAN toggle, configuration generation, and proxy forwarding', asyn
         assert.equal(Boolean(offState.lanEnabled), false);
 
         // Proxy port should now be closed / unreachable
-        await assert.rejects(fetch(lanState.lanUrl, {
+        await assert.rejects(fetch(proxyUrl, {
+            signal: AbortSignal.timeout(3000),
             method: 'POST',
             headers: {
                 ...lanConn.headers,
@@ -102,32 +150,22 @@ test('MCP host LAN toggle, configuration generation, and proxy forwarding', asyn
     }
 });
 
-test('startLanProxy uses fixed default port and increments by +1 when port is occupied', async () => {
-    const http = require('node:http');
-    const { startLanProxy, DEFAULT_LAN_PORT } = require('../desktop/mcp-lan-proxy.cjs');
-
-    // Create a target MCP server
+test('startLanProxy increments past occupied consecutive ports', { timeout: 15000 }, async () => {
     const target = http.createServer((req, res) => res.writeHead(200).end());
-    await new Promise(r => target.listen(0, '127.0.0.1', r));
-    const targetPort = target.address().port;
-
-    const blocker1 = http.createServer();
-    const blocker2 = http.createServer();
-
+    let reserved, proxy;
     try {
-        // Block base port 54321
-        await new Promise(r => blocker1.listen(DEFAULT_LAN_PORT, '0.0.0.0', r));
-        // Block 54322
-        await new Promise(r => blocker2.listen(DEFAULT_LAN_PORT + 1, '0.0.0.0', r));
-
-        // Proxy should skip 54321 and 54322, binding to 54323
-        const proxy = await startLanProxy({ targetPort, proxyPort: DEFAULT_LAN_PORT });
-        assert.equal(proxy.port, DEFAULT_LAN_PORT + 2);
-        assert.equal(proxy.url.includes(String(DEFAULT_LAN_PORT + 2)), true);
-        await proxy.close();
+        const targetPort = await listen(target);
+        reserved = await reservePorts(3);
+        // Keep two blockers alive, releasing only the expected destination.
+        await close(reserved.servers[2]);
+        proxy = await startLanProxy({ targetPort, proxyPort: reserved.port });
+        assert.equal(proxy.port, reserved.port + 2);
+        const response = await fetch(`http://127.0.0.1:${proxy.port}/mcp`, {
+            method: 'POST', signal: AbortSignal.timeout(3000), headers: { connection: 'close' }, body: '{}',
+        });
+        assert.equal(response.status, 200); await response.text();
     } finally {
-        await new Promise(r => blocker1.close(r));
-        await new Promise(r => blocker2.close(r));
-        await new Promise(r => target.close(r));
+        await proxy?.close();
+        await Promise.all([...(reserved?.servers ?? []), target].map(close));
     }
 });

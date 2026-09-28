@@ -126,3 +126,4 @@
 .shot-panel .panel-topline{flex-wrap:wrap;gap:4px 8px}.shot-panel .panel-topline>span:first-child{min-width:0;flex:1}.shot-panel .panel-topline b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .inspector :is(.panel-help,.inspect-subtitle,.color-feedback):empty { display: none; }
+#object-labels.drawing-path .object-label{pointer-events:none}

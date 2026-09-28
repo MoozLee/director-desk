@@ -61,8 +61,8 @@ export function readGltfDocument(bytes: Uint8Array, entry: string): { document: 
     return { document, binaryBytes };
 }
 
-/** Include only referenced files. Missing dependencies fail together, without fetching the network. */
-export function packModelFiles(entryPath: string, source: readonly ModelSourceFile[]): ModelPackage {
+/** Validate source topology once, independently of its portable Base64 encoding. */
+function validateModelFiles(entryPath: string, source: readonly ModelSourceFile[]): {format:ModelPackage['format'];entry:string;files:ModelSourceFile[]} {
     const entry = modelPath(entryPath), available = new Map<string, Uint8Array>();
     for (const file of source) {
         const name = modelPath(file.path);
@@ -73,11 +73,11 @@ export function packModelFiles(entryPath: string, source: readonly ModelSourceFi
     const bytes = available.get(entry); if (!bytes) throw Error('未找到模型主文件：' + entry);
     if (/\.fbx$/i.test(entry)) {
         const { needed } = collectFbxFiles(entry, available);
-        return { version: 1, format: 'fbx', entry, files: [...needed].sort().map(path => ({ path, data: encodeModelBytes(available.get(path)!) })) };
+        return { format: 'fbx', entry, files: [...needed].sort().map(path => ({ path, bytes: available.get(path)! })) };
     }
     if (/\.obj$/i.test(entry)) {
         const needed = collectObjFiles(entry, available);
-        return { version: 1, format: 'obj', entry, files: [...needed].sort().map(path => ({ path, data: encodeModelBytes(available.get(path)!) })) };
+        return { format: 'obj', entry, files: [...needed].sort().map(path => ({ path, bytes: available.get(path)! })) };
     }
     const { document, binaryBytes } = readGltfDocument(bytes, entry), needed = new Set([entry]), missing = new Set<string>();
     const dependency = (uri: unknown): Uint8Array | undefined => {
@@ -99,7 +99,13 @@ export function packModelFiles(entryPath: string, source: readonly ModelSourceFi
         else if (!Number.isSafeInteger(image.bufferView) || image.bufferView! < 0 || typeof image.mimeType !== 'string') throw Error('模型图片缺少资源引用');
     }
     if (missing.size) throw Error('缺少模型关联文件：' + [...missing].join('、'));
-    return { version: 1, format: 'gltf', entry, files: [...needed].sort().map(path => ({ path, data: encodeModelBytes(available.get(path)!) })) };
+    return { format: 'gltf', entry, files: [...needed].sort().map(path => ({ path, bytes: available.get(path)! })) };
+}
+
+/** Include only referenced files. Missing dependencies fail together, without fetching the network. */
+export function packModelFiles(entryPath: string, source: readonly ModelSourceFile[]): ModelPackage {
+    const checked=validateModelFiles(entryPath,source);
+    return {version:1,format:checked.format,entry:checked.entry,files:checked.files.map(file=>({path:file.path,data:encodeModelBytes(file.bytes)}))};
 }
 
 export function unpackModelFiles(input: ModelPackage): Map<string, Uint8Array> {
@@ -109,7 +115,7 @@ export function unpackModelFiles(input: ModelPackage): Map<string, Uint8Array> {
         return { path: file.path, bytes: decodeModelBytes(file.data) };
     });
     // Same checks on import and reopen; never trust a serialized package to be complete.
-    const checked = packModelFiles(input.entry, sources);
+    const checked = validateModelFiles(input.entry, sources);
     if (checked.format !== input.format) throw Error('模型资源包格式与主文件不符');
     if (checked.files.length !== sources.length) throw Error('模型资源包包含未引用的文件');
     return new Map(sources.map(file => [modelPath(file.path), file.bytes]));

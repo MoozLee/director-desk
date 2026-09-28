@@ -2,7 +2,7 @@ const { createMcpConfig, newToken } = require('./mcp-config.cjs');
 const { startMcp } = require('./mcp-server.cjs');
 const { mcpConnection } = require('./mcp-connection.cjs');
 const { startLanProxy } = require('./mcp-lan-proxy.cjs');
-function createMcpHost({ directory, safeStorage, definitions, call, version, bridgeRuntime }) {
+function createMcpHost({ directory, safeStorage, definitions, call, version, bridgeRuntime, lanProxyPort }) {
     const config = createMcpConfig(directory, safeStorage);
     let server = null, lanProxy = null, queue = Promise.resolve(), disposed = false;
     const serial = action => { const next = queue.then(action); queue = next.catch(() => {}); return next; };
@@ -36,7 +36,7 @@ function createMcpHost({ directory, safeStorage, definitions, call, version, bri
             if (disposed) throw Error('软件已关闭');
             if (enabled === true) {
                 if (!server) throw Error('请先开启本机 MCP 服务');
-                if (!lanProxy) lanProxy = await startLanProxy({ targetPort: server.port });
+                if (!lanProxy) lanProxy = await startLanProxy({ targetPort: server.port, proxyPort: lanProxyPort });
             }
             if (enabled === false && lanProxy) {
                 await lanProxy.close();

@@ -52,7 +52,7 @@ else {
         protocol.handle('director', async request => {
             try {
                 const url = new URL(request.url), relative = decodeURIComponent(url.pathname).replace(/^\//, '') || 'index.html';
-                if (url.hostname !== 'app' || request.method !== 'GET' || !/^(?:index\.html|favicon\.svg|assets\/[A-Za-z0-9_-]+\.(?:js|css)|assets\/three\.core-[A-Za-z0-9_-]+\.js)$/.test(relative))
+                if (url.hostname !== 'app' || request.method !== 'GET' || !/^(?:index\.html|favicon\.svg|assets\/[A-Za-z0-9_-]+\.(?:js|css)|assets\/(?:three\.core|model-import\.worker)-[A-Za-z0-9_-]+\.js)$/.test(relative))
                     return new Response('Not found', { status: 404 });
                 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' }[path.extname(relative)];
                 return new Response(await fs.readFile(path.join(webRoot, relative)), { headers: {

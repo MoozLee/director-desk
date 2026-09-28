@@ -1,7 +1,9 @@
 import type { AppContext } from '../app-context.ts';
 import { workingElevation } from '../building/floors.ts';
 import { clone, entity, type Vec3 } from '../model.ts';
-import { packModelFiles, type ModelSourceFile } from '../resources/model-package.ts';
+import { type ModelSourceFile } from '../resources/model-package.ts';
+import { packModelFilesAsync } from '../resources/model-import-worker.ts';
+import { sameProjectData } from '../resources/package-validation.ts';
 import { modelResourceId, type ModelResource } from '../resources/project-resources.ts';
 import { $, button, escape } from './common.ts';
 
@@ -25,16 +27,20 @@ export function createModelImport(ctx: AppContext) {
     }
     async function load() {
         const entry = $<HTMLSelectElement>('#model-entry').value; if (!entry) { ctx.toast('请先选择模型主文件'); return; }
-        const original = ctx.project, fingerprint = JSON.stringify(original); aborter = new AbortController(); ctx.busy = true; ctx.playing = false; ctx.updateTimeUI();
+        const original = ctx.project, snapshot = clone(original); aborter = new AbortController(); ctx.busy = true; ctx.playing = false; ctx.updateTimeUI();
         $('#model-import-status').textContent = '正在读取模型与贴图…';
         try {
             const source: ModelSourceFile[] = [];
             for (const file of files) { aborter.signal.throwIfAborted(); source.push({ path: file.webkitRelativePath || file.name, bytes: new Uint8Array(await file.arrayBuffer()) }); }
-            const data = packModelFiles(entry, source), id = await modelResourceId(data);
+            aborter.signal.throwIfAborted();
+            $('#model-import-status').textContent = '正在整理模型…';
+            const data = await packModelFilesAsync(entry, source, aborter.signal), id = await modelResourceId(data,aborter.signal);
+            aborter.signal.throwIfAborted();
+            $('#model-import-status').textContent = '正在解析模型…';
             const resource: ModelResource = { id, name: entry.split('/').at(-1)!.replace(/\.(glb|gltf|fbx|obj)$/i, ''), package: data, copyright: '', license: '', source: '' };
             const next = { ...ctx.project, version: 2 as const, resources: [...(ctx.project.resources ?? []).filter(r => r.id !== id), resource] };
             await ctx.engine.externalModels.prepare(next, aborter.signal);
-            if (ctx.project !== original || JSON.stringify(ctx.project) !== fingerprint) throw Error('读取期间工程已变化，请重新导入');
+            if (ctx.project !== original || !sameProjectData(ctx.project,snapshot)) throw Error('读取期间工程已变化，请重新导入');
             pending = resource; const info = ctx.engine.externalModels.inspection(resource); resource.copyright = info.copyright;
             if (!info.meshes && !libraryOnly) throw Error('这是独立动作文件，请从“用户动作库 → 导入动作”添加');
             if (libraryOnly) {

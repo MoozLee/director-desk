@@ -1,15 +1,13 @@
 import * as T from 'three';
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
-import { modelPath, unpackModelFiles, type ModelPackage } from './model-package.ts';
-import { objLibraries, readObjMaterials, sourceLines } from './obj-source.ts';
+import { modelPath, type ModelPackage } from './model-package.ts';
+import { readObjGeometry } from './model-import-worker.ts';
+import { objPackagePrefix as prefix } from './obj-geometry.ts';
 import { adoptModel, disposeSource, type LoadedModel, type ModelSource } from './model-runtime.ts';
-
-const prefix = 'model-package:///';
 
 export async function loadObjModel(resource: ModelPackage, signal?: AbortSignal): Promise<LoadedModel> {
     signal?.throwIfAborted();
-    const files = unpackModelFiles(resource), entry = modelPath(resource.entry), bytes = files.get(entry)!;
+    const parsed = await readObjGeometry(resource, signal), files = parsed.files;
     const manager = new T.LoadingManager(), urls = new Map<string, string>();
     let failed = false;
     const ready = new Promise<void>(resolve => { manager.onLoad = resolve; });
@@ -22,12 +20,7 @@ export async function loadObjModel(resource: ModelPackage, signal?: AbortSignal)
         if (!urls.has(name)) urls.set(name, URL.createObjectURL(new Blob([new Uint8Array(file)])));
         return urls.get(name)!;
     });
-    // One creator combines libraries; texture references retain each MTL's own directory.
-    const text = objLibraries(entry, bytes, files).flatMap(library => readObjMaterials(library, files.get(library)!).flatMap(material => [
-        'newmtl ' + material.name,
-        ...material.properties.map(p => p.key + ' ' + (p.texture ? p.texture.options + ' ' + prefix + p.texture.path.split('/').map(encodeURIComponent).join('/') : p.value))
-    ])).join('\n');
-    const materials = new MTLLoader(manager).parse(text, '');
+    const materials = new MTLLoader(manager).parse(parsed.materialText, '');
     const source: ModelSource = { scene: new T.Group(), scenes: [], animations: [], cameras: [], textures: [] };
     // A later map can fail before its material is constructed. Track earlier textures independently.
     const loadTexture = materials.loadTexture.bind(materials);
@@ -35,13 +28,21 @@ export async function loadObjModel(resource: ModelPackage, signal?: AbortSignal)
     let parseError: unknown;
     manager.itemStart('obj-parse');
     try {
-        const normalized = sourceLines(bytes).map(line => line.key + ' ' + line.value).join('\n');
-        source.scene = new OBJLoader(manager).setMaterials(materials).parse(normalized);
+        for (const mesh of parsed.meshes) {
+            const geometry = new T.BufferGeometry();
+            for (const a of mesh.attributes) geometry.setAttribute(a.name,new T.BufferAttribute(a.array,a.itemSize,a.normalized));
+            for (const group of mesh.groups) geometry.addGroup(group.start,group.count,group.materialIndex);
+            // Attach first, so failures while loading materials also dispose this geometry.
+            const node: T.Mesh = new T.Mesh(geometry, [] as T.Material[]); node.name = mesh.name; source.scene.add(node);
+            const assigned: T.Material[] = []; node.material = assigned;
+            for (const m of mesh.materials) assigned.push(materials.create(m.name) ?? new T.MeshPhongMaterial(m));
+            if (!mesh.multiple) node.material = assigned[0];
+        }
         source.scenes.push(source.scene);
     } catch (error) { parseError = error; }
     finally { manager.itemEnd('obj-parse'); }
     try {
-        // OBJLoader.parse is synchronous; images are not. Do not revoke URLs or commit before they finish.
+        // Geometry came from the worker; wait for renderer-owned textures before revoking URLs.
         await ready;
         source.materials = Object.values(materials.materials);
         if (parseError) throw parseError;

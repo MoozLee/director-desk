@@ -55,7 +55,7 @@ try {
   const actor=entity('actor','human-adult','行走者',[0,0,0]);actor.id='depth-actor';actor.path={smooth:false,points:[{time:0,position:[-1,0,0]},{time:2,position:[1,0,-2]}]};actor.clips=[{id:'walk',action:'walk',start:0,end:2,speed:1}];p.entities.push(actor);
   const c=p.entities.find(e=>e.camera);c.position=[0,2,7];c.camera.aim='target';c.camera.target=[0,1,0];c.camera.effects={channels:{distortion:.6,focal:{keys:[{time:0,value:28},{time:2,value:45}]}}};c.path={smooth:false,points:[{time:0,position:[0,2,7]},{time:2,position:[1,2,5]}]};
   const second=structuredClone(c);second.id='depth-cam2';second.name='侧机位';second.position=[5,2,2];p.entities.push(second);p.cuts=[{time:0,cameraId:c.id},{time:1,cameraId:second.id}];
-  p.referenceLabels=true;p.depthVideo={enabled:true,near:.1,far:20,invert:false};api.replaceProject(p);
+  p.referenceLabels=true;p.depthVideo={enabled:true,near:.1,far:20,invert:false,curve:2};api.replaceProject(p);
   const times=[0,.5,23/24,1,1.5,47/24],frames=[];
   for(const time of times){await engine.prepareOutput(time);frames.push({time,data:engine.renderOutput(time,640,360).toDataURL()});}
   await engine.prepareOutput(.5);const before=engine.renderOutput(.5,640,360,c.id,null).toDataURL();
@@ -96,7 +96,7 @@ try {
   const call=async(name,args)=>{const r=await api.callTool(name,args);if(!r.ok)throw Error(r.error);return r.data;};
   const read=await call('director_read',{sections:['scene']});
   if(read.depthVideo.enabled!==false)throw Error('missing depth defaults');
-  await call('director_apply',{revision:read.revision,requestId:'depth-settings',operations:[{operation:'project',patch:{depthVideo:{enabled:false,near:1,far:15,invert:true}}}]});
+  await call('director_apply',{revision:read.revision,requestId:'depth-settings',operations:[{operation:'project',patch:{depthVideo:{enabled:false,near:1,far:15,invert:true,curve:2}}}]});
   const after=await call('director_read',{sections:['scene']});if(after.depthVideo.far!==15)throw Error('depth tool edit lost');
   const job=await call('director_export',{kind:'depth-video',start:0,end:.25,size:640});
   for(let i=0;i<240;i++){const r=await call('director_job',{id:job.jobId});if(r.status==='completed')return {status:r.status,range:after.depthVideo};if(r.status!=='running')throw Error(JSON.stringify(r));await new Promise(r=>setTimeout(r,100));}

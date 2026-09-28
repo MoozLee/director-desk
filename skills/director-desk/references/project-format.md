@@ -97,6 +97,8 @@ kind 为 actor / prop / camera / crowd，必须与资产类型匹配。actor 包
 
 人物动作：idle、walk、run、sit、standup、crouch、crawl、jump、lie、fall、wave、point、turn。每个动作片段 `{id,action,start,end,speed}`，同一对象不可重叠，end>start，speed>0。空档为待机。基础动作并不自动产生走位，需要同时设置 path。
 
+人物／群演的位置路径可让**所有点**同时携带可选 `heading`，值为有限弧度，相对实体 `rotation[1]`。它覆盖该实体的 `face` 基础朝向，点间按最短角插值（使用到达点 easing；continuous 模式下为线性），路径前后保持首末朝向，已完成 turn 动作仍叠加。heading 与位置共用源时间，剪切 sections、移动和调时一起生效；不用于道具、摄影机位置或 targetPath。普通路径省略全部 heading 时保持原行为。录制会把起点之前的实际位置和基础朝向按工程帧率保存，录制后的走位再写入新的方向；同工程目标人物后来改变时，已录制的前段朝向不自动跟随改变。
+
 路径 `{smooth,points:[{time,position:[x,y,z]}]}` 至少一个点，时间严格递增；重复位置加不同时间形成停留。坐标为绝对世界坐标，Y 可以变化。路径开始前保持第一个点，结束后保持最后一个点。通常将动作、路径和剧情备注安排在项目时长内；不要依靠文件校验器推断用户期望的播放范围。
 
 rotation 用弧度；pose 和 poseKeys 中关节角度用 **度**，不是弧度。人形关节可选 head、headYaw、torso、leftArm、rightArm、leftElbow、rightElbow、leftHip、rightHip、leftKnee、rightKnee；动物按每资产 joints 选择，验证器拒绝不支持的关节。角度绝对值不超过 360。poseKeys 为 `[{time,pose}]`，不重复时间。face 为 path / fixed / target，fixed 使用对象朝向，target 需要有效 faceTarget。可选 actionBlend 为 0—2 秒，footContact 为布尔值。
@@ -173,4 +175,4 @@ reference 字段引用 references 中的 ID。图片项为 `{id,name,data}`，da
 
 导入图片／视频或设置表面、粒子、影响区域、形变和扭曲时，读取[媒体与抽象元素](media.md)。其中包含离线 import-media 命令和共用字段；不包含声音。
 
-深度预览的可选戏段字段为 `depthVideo:{enabled:boolean,near:number,far:number,invert:boolean}`，`0 <= near < far <= 2000` 米。完整规则与导出语义见 [摄影机说明](camera.md#深度画面与视频试验)。
+深度预览的可选戏段字段为 `depthVideo:{enabled:boolean,near:number,far:number,invert:boolean,curve?:number}`，`0 <= near < far <= 2000` 米，curve 为 0.25—4，省略或 1 为线性。完整规则与导出语义见 [摄影机说明](camera.md#深度画面与视频)。

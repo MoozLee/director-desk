@@ -88,7 +88,9 @@ export class ShotEffects {
         const override = scene.overrideMaterial, background = scene.background, shadows = renderer.shadowMap.enabled;
         try {
             if (depth) { this.depthMaterial.setRange(depth); this.depthBackground.setRGB(depth.invert ? 1 : 0, depth.invert ? 1 : 0, depth.invert ? 1 : 0); scene.overrideMaterial = this.depthMaterial; scene.background = this.depthBackground; renderer.shadowMap.enabled = false; }
-            renderer.setRenderTarget(this.target); renderer.render(scene, shot);
+            renderer.setRenderTarget(this.target);
+            if (depth) this.depthMaterial.withParticles(scene, () => renderer.render(scene, shot));
+            else renderer.render(scene, shot);
             if (!depth) labels(shot);
             renderer.setRenderTarget(previous); renderer.info.autoReset = false; renderer.render(this.scene, this.quadCamera);
         } finally { scene.overrideMaterial = override; scene.background = background; renderer.shadowMap.enabled = shadows; renderer.setRenderTarget(previous); renderer.info.autoReset = autoReset; }

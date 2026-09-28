@@ -9,20 +9,42 @@ export function objFilePath(entry: string, reference: string): string {
     if (path.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(path)) throw Error('OBJ/MTL 关联文件必须使用所选目录内的相对路径');
     return modelPath((entry.includes('/') ? entry.slice(0, entry.lastIndexOf('/') + 1) : '') + path);
 }
-export function sourceLines(bytes: Uint8Array): { key: string; value: string }[] {
-    let text: string;
-    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { throw Error('OBJ/MTL 文本需要 UTF-8 编码'); }
-    return text.replace(/\\\r?\n/g, '').split(/\r?\n/).flatMap(line => {
-        // Keep # inside quoted file names; outside quotes it starts a comment.
-        let quote = '';
-        for (let i = 0; i < line.length; i++) {
-            if (line[i] === '"' || line[i] === "'") { if (!quote) quote = line[i]; else if (quote === line[i]) quote = ''; }
-            else if (line[i] === '#' && !quote) { line = line.slice(0, i); break; }
-        }
-        const match = /^\s*(\S+)(?:\s+(.*?))?\s*$/.exec(line);
-        return match ? [{ key: match[1].toLowerCase(), value: match[2] ?? '' }] : [];
+function decodeSource(bytes: Uint8Array): string {
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/\\\r?\n/g, ''); }
+    catch { throw Error('OBJ/MTL 文本需要 UTF-8 编码'); }
+}
+function uncomment(line: string): string {
+    if (!line.includes('#')) return line;
+    let quote = '';
+    for (let i = 0; i < line.length; i++) {
+        if (line[i] === '"' || line[i] === "'") { if (!quote) quote = line[i]; else if (quote === line[i]) quote = ''; }
+        else if (line[i] === '#' && !quote) return line.slice(0, i);
+    }
+    return line;
+}
+/** Stream records instead of retaining millions of geometry-line objects. */
+export function* sourceLines(bytes: Uint8Array, keys?: ReadonlySet<string>): Generator<{key:string;value:string}> {
+    const text = decodeSource(bytes);
+    let start = 0;
+    while (start < text.length) {
+        const end = text.indexOf('\n', start), stop = end < 0 ? text.length : end;
+        const line = text.slice(start, stop).trimStart(); start = stop + 1;
+        const key = /^\S+/.exec(line)?.[0].toLowerCase();
+        if (!key || keys && !keys.has(key)) continue;
+        const match = /^(\S+)(?:\s+(.*?))?\s*$/.exec(uncomment(line));
+        if (match) yield {key:match[1].toLowerCase(),value:match[2] ?? ''};
+    }
+}
+/** Normalize without a line array, per-line record array and a second joined copy. */
+export function normalizedObjText(bytes: Uint8Array): string {
+    return decodeSource(bytes).replace(/[^\n]+/g, line => {
+        const match = /^\s*(\S+)(?:\s+(.*?))?\s*$/.exec(uncomment(line));
+        return match ? match[1].toLowerCase() + ' ' + (match[2] ?? '') : '';
     });
 }
+const dependencyKeys = new Set(['mtllib', 'usemtl']);
+export function objReferences(bytes: Uint8Array) { return [...sourceLines(bytes, dependencyKeys)]; }
+
 function tokens(value: string): string[] {
     const result: string[] = []; let token = '', quote = '', started = false;
     for (const char of value) {
@@ -35,9 +57,9 @@ function tokens(value: string): string[] {
     if (started) result.push(token);
     return result;
 }
-export function objLibraries(entry: string, bytes: Uint8Array, available: ReadonlyMap<string, Uint8Array>): string[] {
+export function objLibraries(entry: string, bytes: Uint8Array, available: ReadonlyMap<string, Uint8Array>, references = objReferences(bytes)): string[] {
     const libraries = new Set<string>();
-    for (const line of sourceLines(bytes)) if (line.key === 'mtllib') {
+    for (const line of references) if (line.key === 'mtllib') {
         if (!line.value) throw Error('OBJ 材质库名称为空');
         // Some exporters leave a single name containing spaces unquoted.
         const whole = !/["']/.test(line.value) ? objFilePath(entry, line.value) : '';
@@ -82,7 +104,8 @@ export function readObjMaterials(entry: string, bytes: Uint8Array): ObjMaterial[
 }
 export function collectObjFiles(entry: string, files: ReadonlyMap<string, Uint8Array>): Set<string> {
     const bytes = files.get(entry)!, needed = new Set([entry]), missing = new Set<string>(), materials = new Set<string>();
-    for (const library of objLibraries(entry, bytes, files)) {
+    const references = objReferences(bytes);
+    for (const library of objLibraries(entry, bytes, files, references)) {
         needed.add(library); const data = files.get(library);
         if (!data) { missing.add(library); continue; }
         for (const material of readObjMaterials(library, data)) {
@@ -95,6 +118,6 @@ export function collectObjFiles(entry: string, files: ReadonlyMap<string, Uint8A
         }
     }
     if (missing.size) throw Error('缺少模型关联文件：' + [...missing].join('、'));
-    for (const line of sourceLines(bytes)) if (line.key === 'usemtl' && !materials.has(line.value)) throw Error('OBJ 使用了未定义的材质：' + line.value + '；请提供对应 MTL 文件');
+    for (const line of references) if (line.key === 'usemtl' && !materials.has(line.value)) throw Error('OBJ 使用了未定义的材质：' + line.value + '；请提供对应 MTL 文件');
     return needed;
 }

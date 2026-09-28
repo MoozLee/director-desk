@@ -1,4 +1,5 @@
 import { MathUtils, Vector3 } from 'three';
+import { sourcePathHeading } from './animation/path-heading.ts';
 import { eased } from './animation/channels.ts';
 import { continuousPathPosition } from './animation/continuous-path.ts';
 import type { Entity, MotionPath, Pose, Project, Vec3 } from './model.ts';
@@ -51,7 +52,9 @@ function sourcePathPosition(path:MotionPath|null,base:Vec3,time:number):Vector3 
     return out;
 }
 export function entityPosition(e: Entity, t: number) { return pathPosition(e.path, e.position, t); }
-function baseEntityYaw(e: Entity, t: number, project: Project) {
+export function baseEntityYaw(e: Entity, t: number, project: Pick<Project, 'entities'>) {
+    const heading = e.path && sourcePathHeading(e.path, pathSourceTime(e.path, t));
+    if (heading != null) return e.rotation[1] + heading;
     if (e.face === 'target' && e.faceTarget) {
         const target = project.entities.find(x => x.id === e.faceTarget);
         if (target) {

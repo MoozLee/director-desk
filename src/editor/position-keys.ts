@@ -1,3 +1,4 @@
+import { sourcePathHeading } from '../animation/path-heading.ts';
 import type { Entity, Vec3 } from '../model.ts';
 /** Record into the existing waypoint data, never maintain a second animation system. */
 export function recordPositionKey(e:Entity,time:number,position:Vec3,fps:number) {
@@ -14,6 +15,6 @@ export function recordPositionKey(e:Entity,time:number,position:Vec3,fps:number)
   sourceTime=section.from+(at-section.start)/(section.end-section.start)*(section.to-section.from);
  }
  const found=e.path.points.find(p=>Math.abs(p.time-sourceTime)<1e-7);
- if(found)found.position=[...position];else e.path.points.push({time:sourceTime,position:[...position]});
+ if(found)found.position=[...position];else { const heading = sourcePathHeading(e.path, sourceTime); e.path.points.push({time:sourceTime,position:[...position],...(heading === undefined ? {} : {heading})}); }
  e.path.points.sort((a,b)=>a.time-b.time);
 }

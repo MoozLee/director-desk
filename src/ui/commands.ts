@@ -232,7 +232,7 @@ export function createCommands(ctx: AppContext, inspectorTools: { handle(action:
                 break;
             case 'append-point':
                 if (e?.path)
-                    ctx.change(() => { const last = e.path!.points.at(-1)!; e.path!.points.push({ time: last.time + 2, position: [last.position[0] + .5, last.position[1], last.position[2]] }); ctx.extendDuration(); }, false);
+                    ctx.change(() => { const last = e.path!.points.at(-1)!; e.path!.points.push({ ...clone(last), time: last.time + 2, position: [last.position[0] + .5, last.position[1], last.position[2]] }); ctx.extendDuration(); }, false);
                 break;
             case 'hold-point':
                 if (e?.path)
@@ -241,7 +241,7 @@ export function createCommands(ctx: AppContext, inspectorTools: { handle(action:
                         const p = e.path!.points[idx];
                         for (let i = idx + 1; i < e.path!.points.length; i++)
                             e.path!.points[i].time += 1;
-                        e.path!.points.splice(idx + 1, 0, { time: p.time + 1, position: [...p.position] });
+                        e.path!.points.splice(idx + 1, 0, { ...clone(p), time: p.time + 1, position: [...p.position] });
                         ctx.extendDuration();
                     }, false);
                 break;

@@ -184,7 +184,7 @@ export function createInspector(ctx: AppContext) {
         lastPartRequest=request;
         if (category.members.includes('light')) lightingEditor.bind();
         if (category.members.includes('effects')) cameraEffects.bind();
-        $('#inspector-footer').innerHTML = ctx.draft ? `<div class="button-row">${button('cancel-path', '取消', '', 'subtle')}${button('finish-path', '完成路线', '', 'primary wide')}</div>` : `<div class="button-row">${button('focus', '定位对象', '', 'subtle wide')}${button('duplicate', '', 'copy', 'icon-button', 'title="复制对象"')}${button('delete', '', 'trash', 'icon-button danger', 'title="删除对象"')}</div>`;
+        $('#inspector-footer').innerHTML = ctx.draft ? `<div class="button-row">${button('cancel-path', '取消', '', 'subtle wide')}${button('finish-path', '完成路线', '', 'primary wide')}</div>` : `<div class="button-row">${button('focus', '定位对象', '', 'subtle wide')}${button('duplicate', '', 'copy', 'icon-button', 'title="复制对象"')}${button('delete', '', 'trash', 'icon-button danger', 'title="删除对象"')}</div>`;
         if (ctx.inspectorTab === 'camera') $('#inspector-footer .button-row')?.insertAdjacentHTML('beforeend', button('camera-hidden-open', '', 'eye', 'icon-button', `title="本机位隐藏对象 · ${e.camera?.hiddenEntityIds?.length ?? 0}" aria-label="本机位隐藏对象"`));
         if (e.kind === 'prop' && !ctx.draft) $('#inspector-footer .button-row')?.insertAdjacentHTML('beforeend', button('replace-prop-open', '', 'folder', 'icon-button', 'title="替换道具模型" aria-label="替换道具模型"'));
         if (e.locked) {

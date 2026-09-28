@@ -10,6 +10,17 @@ export function createPathInspector(ctx: AppContext, navigation: InspectorNaviga
     const content = document.querySelector<HTMLElement>('#inspector-content')!;
     content.addEventListener('change', event => {
         const input = event.target as HTMLSelectElement;
+        if (input.id === 'path-draw-mode' || input.id === 'path-draw-duration') {
+            event.stopPropagation();
+            if (ctx.draft || ctx.busy || ctx.history.pending) { refresh(); return; }
+            if (input.id === 'path-draw-mode') ctx.engine.pathDrawMode = input.value === 'freehand' ? 'freehand' : 'points';
+            else {
+                const duration = Number(input.value);
+                if (!Number.isFinite(duration) || duration < 1 / ctx.project.fps) { ctx.toast('路线时长不能少于一帧', true); refresh(); return; }
+                ctx.engine.pathDrawDuration = duration;
+            }
+            refresh(); return;
+        }
         if (['path-interpolation', 'path-point-stop', 'path-point-easing'].includes(input.id)) {
             event.stopPropagation();
             const e = ctx.current(); if (!e?.path || e.locked || ctx.busy) return;
@@ -41,10 +52,12 @@ export function createPathInspector(ctx: AppContext, navigation: InspectorNaviga
         const path = e.path, key = `${e.id}:path`;
         if (e.handBinding) return '<p class="panel-help">请先解除手持绑定</p>';
         if (e.structureLink || ctx.project.entities.some(child => child.structureLink?.parentId === e.id)) return '<p class="panel-help">请先解除模块连接</p>';
-        const draw = `<label class="field"><span>绘制落点</span><select id="path-surface-mode">${options([['surface', '物体表面 · 保留高度'], ['ground', '仅地面 · Y = 0']], ctx.engine.pathSurfaceMode)}</select></label>`
-            + (ctx.draft ? '<div class="drawing-banner">正在画路线 · 点击场景添加途经点</div>' : `<div class="button-row">${button('draw-path', path ? '重画路线' : '画路线', 'plus')}${path ? button('clear-path', '清除', 'trash', 'subtle') : ''}</div>`)
-            + button('position-key', '记录当前位置 · K', '', 'wide subtle');
-        if (!path) return draw;
+        const disabled = ctx.draft ? 'disabled' : '', freehand = ctx.engine.pathDrawMode === 'freehand';
+        const draw = `<div class="field-pair"><label class="field"><span>绘制方式</span><select id="path-draw-mode" ${disabled}>${options([['points','点选'],['freehand','手绘']],ctx.engine.pathDrawMode)}</select></label><label class="field"><span>绘制落点</span><select id="path-surface-mode" ${disabled}>${options([['surface', '物体表面'], ['ground', '地面']], ctx.engine.pathSurfaceMode)}</select></label></div>`
+            + (freehand ? `<label class="field"><span>路线时长 / 秒</span><input id="path-draw-duration" type="number" min="${1/ctx.project.fps}" step=".1" value="${ctx.engine.pathDrawDuration}" ${disabled}></label>` : '')
+            + (ctx.draft ? `<div class="drawing-banner">${freehand ? '按住左键画路线，松开可续画' : '点击场景添加途经点'} · ${path?.points.length ?? 0} 点</div>` : `<div class="button-row">${button('draw-path', path ? '重画路线' : '画路线', 'plus')}${path ? button('clear-path', '清除', 'trash', 'subtle') : ''}</div>`)
+            + (ctx.draft ? '' : button('position-key', '记录当前位置 · K', '', 'wide subtle'));
+        if (!path || ctx.draft) return draw;
         const index = Math.max(0, Math.min(path.points.length - 1, ctx.engine.selectedPoint)), p = path.points[index];
         if (previousOwner !== e.id || previousPoint !== ctx.engine.selectedPoint && ctx.engine.selectedPoint >= 0) navigation.select(key, 'points');
         previousOwner = e.id; previousPoint = ctx.engine.selectedPoint;
@@ -60,8 +73,9 @@ export function createPathInspector(ctx: AppContext, navigation: InspectorNaviga
         const timing = (path.points.length > 1 ? `<div class="field-pair">${num('开始 / 秒', 'path-start', path.points[0].time, '.1', 'min="0" ' + frozen)}${num('结束 / 秒', 'path-end', path.points.at(-1)!.time, '.1', 'min="0" ' + frozen)}</div>` : '')
             + (continuous ? '' : select('路线形状', 'path-smooth', [['true', '平滑曲线'], ['false', '直线 / 途经停顿']], String(path.smooth)))
             + button('surface-open', '检查承托面 / 校正高度', '', 'wide subtle');
-        const facing = select('身体朝向', 'face', [['path', '沿路线前进'], ['fixed', '保持设定朝向'], ['target', '面向指定对象']], e.face)
-            + (e.face === 'target' ? select('面向目标', 'faceTarget', [['', '选择对象'], ...ctx.project.entities.filter(t => t.id !== e.id).map(t => [t.id, t.name] as [string, string])], e.faceTarget) : '')
+        const recordedHeading = path.points[0].heading !== undefined;
+        const facing = select('身体朝向', 'face', [...(recordedHeading ? [['recorded', '记录朝向'] as [string, string]] : []), ['path', '沿路线前进'], ['fixed', '保持设定朝向'], ['target', '面向指定对象']], recordedHeading ? 'recorded' : e.face)
+            + (!recordedHeading && e.face === 'target' ? select('面向目标', 'faceTarget', [['', '选择对象'], ...ctx.project.entities.filter(t => t.id !== e.id).map(t => [t.id, t.name] as [string, string])], e.faceTarget) : '')
             + (human && path.points.length > 1 ? `<div class="section-label">匹配整条路径动作</div><div class="button-row">${button('path-walk', '走路', '', 'subtle')}${button('path-run', '跑步', '', 'subtle')}</div>` : '');
         const sections = [{ id: 'points', label: '途经点', html: points }, { id: 'route', label: '路线', html: timing }, { id: 'draw', label: '绘制', html: draw }];
         if (!e.external && (e.kind === 'actor' || e.kind === 'crowd')) sections.push({ id: 'facing', label: '朝向', html: facing });

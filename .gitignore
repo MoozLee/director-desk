@@ -109,3 +109,9 @@ file-locations.json
 !/scripts/verify-prompt-modes.mjs
 !/scripts/test-depth-video.mjs
 !/scripts/test-depth-desktop.mjs
+!/scripts/test-depth-range.mjs
+!/scripts/test-freehand-path.mjs
+!/scripts/test-model-import-worker.mjs
+!/scripts/test-depth-particles.mjs
+!/scripts/test-assets.mjs
+!/scripts/test-asset-sources.json
