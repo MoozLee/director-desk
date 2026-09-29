@@ -50,7 +50,7 @@
 | 时间轴与曲线 | Ctrl 多选、整组移动与延长、分割、删除和时间范围选择；用曲线控制加速、减速与停顿 |
 | 多场戏接拍 | 同工程管理独立戏段，从上一段末帧继承场景与人物状态 |
 | 导出 | 单场或批量导出视频、修改输出文件名，保存工程与素材包；可选人物名称标签 |
-| 深度视频 | 预览和导出近亮远暗的灰度画面，调整近远范围、反转黑白；支持单场和批量导出 |
+| 深度视频 | 预览和导出灰度画面，取景范围采样、曲线调节和黑白反转；支持动态粒子及批量戏段导出 |
 | AI 协作 | 内置助手和 MCP Agent 按需查询空间、编辑当前工程；选中人物、片段或时间范围后交给 AI 局部调整 |
 | 提示词与技能 | 参考视频／纯文本提示词按戏段独立保存、切换和导出；导入、下载和启停自定义技能，支持离线生成工程 |
 
@@ -71,6 +71,8 @@
 
 **外部 MCP Agent**：在桌面版的 **AI → MCP 连接** 中启用服务、复制连接配置。让支持 MCP 的 Agent 读取内置 `director_skill`，即可查询指定时刻的位置、理解空间关系并编辑当前工程。成功修改可以定位查看，也可以撤销。 可选择 Claude Code、Claude Desktop、通用 HTTP 或 stdio 配置；stdio 桥接随软件提供，无需另装 Node.js。连接方式见 [MCP 使用说明](skills/director-desk/references/editing.md#连接与旧版软件)。
 
+同机使用可选 HTTP 或内置 stdio 桥接；局域网连接使用通用 HTTP 或 Claude Code 配置。Claude Desktop／stdio 配置用于本机连接。
+
 **自定义技能**：在 **AI → 技能** 导入自己的 SKILL.md 或技能文件夹，也可从公开 GitHub 技能目录下载，自由启用、停用和更新。技能保存在本机，软件升级保留用户技能。
 
 配套 [skill 与离线工具](skills/director-desk/) 随软件提供，也可独立下载；核心说明简明，镜头、媒体、编辑及提示词细节按需读取。没有 MCP 时，Agent 仍可生成可导入网页版本的 .director 工程文件。
@@ -87,6 +89,14 @@
 “用户动作库”支持预览、命名、搜索和骨架映射，可跨工程使用。已应用动作的源素材随工程保存，删除本机收藏不影响已有工程。
 
 Windows 版启动时检查网站和 GitHub 的最新正式版本，也可手动检查。安装版支持下载后重启安装；免安装版下载新版 ZIP。
+
+## 手绘路径与操控录制
+
+选中人物或摄影机，进入右侧“路径”，将“绘制方式”改为“手绘”，选择“地面”或“物体表面”，设置路线时长后点击“画路线”。按住左键画线，松开后可以续画；完成的路线仍可逐点调整、修改时间和撤销。选择物体表面时，可沿楼梯或平台绘制高低变化的路线。
+
+也可以用键盘操控白模并录制走位。从中途继续录制时，保留前段的位置与朝向；录制后的路径、动作仍可在时间轴编辑。
+
+0.4.10 同时优化了大型导入模型的拖动、时间轴编辑和工程数据处理；OBJ 解析、打包及校验在后台 Worker 中执行，减少主界面阻塞。实际流畅度仍取决于模型面数、材质、贴图与设备性能。
 
 ## 深度视频
 
@@ -165,6 +175,16 @@ npm run desktop:pack:mac
 ## 许可证
 
 项目自有代码采用 [MIT](LICENSE) 许可证。第三方依赖和动作素材保留各自许可，内置动作来源见 [NOTICE](src/animation/library/NOTICE.txt)。
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=mangfufu%2Fdirector-desk&amp;type=date&amp;legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=mangfufu%2Fdirector-desk&amp;type=Date&amp;theme=dark">
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=mangfufu%2Fdirector-desk&amp;type=Date&amp;theme=light">
+    <img alt="导演台 GitHub Star 数量随时间变化的曲线" src="https://api.star-history.com/chart?repos=mangfufu%2Fdirector-desk&amp;type=Date&amp;theme=light" width="800">
+  </picture>
+</a>
 
 ## 友情链接
 
