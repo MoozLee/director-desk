@@ -62,4 +62,3 @@ npm run desktop:pack:mac
 | `desktop/` | 桌面入口、AI 协议、MCP 服务和更新客户端 |
 | `skills/director-desk/` | 技能说明与离线工程工具 |
 | `scripts/`、`tests/` | 构建与验证工具 |
-
