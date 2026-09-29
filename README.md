@@ -1,180 +1,105 @@
 # 导演台 · DirectorDesk
 
-面向 AI 短剧和视频创作的三维预演工具。搭场景、排走位、设计运镜，再导出参考视频。可以手动制作，也可以让内置 AI 助手或外部 MCP Agent 直接操作当前工程。
+**搭场景、排走位、设计运镜，导出你的参考视频。**
 
-[下载 Windows 版](https://github.com/mangfufu/director-desk/releases/latest) · [配套 skill](https://github.com/mangfufu/director-desk/releases/latest) · [更新记录](https://github.com/mangfufu/director-desk/releases) · [MIT License](LICENSE)
+面向 AI 短剧与视频创作的三维预演工具。用白模先确定人物站在哪里、怎么走、镜头怎么拍，再把参考视频与配套提示词交给视频生成模型。可以自己操作，也可以让 AI 直接编辑工程。
 
-![0.4.2 光影舞台：布景与摄影机并排预览，下方编排动作和切镜](docs/images/workspace.jpg)
+[下载 Windows 版](https://github.com/mangfufu/director-desk/releases/latest) · [更新记录](https://github.com/mangfufu/director-desk/releases) · [反馈问题](https://github.com/mangfufu/director-desk/issues) · [配套 Skill](skills/director-desk/)
 
-当前正式版为 **[0.4.10](https://github.com/mangfufu/director-desk/releases/tag/v0.4.10)**：新增手绘路径，优化大型模型导入与编辑响应，改进深度画面，并修复录制朝向、模型表面和 MCP 配置等问题。
+![导演台 0.4.10：左侧布景、右侧摄影机画面，下方编排动作和切镜](docs/images/workspace-0.4.10.jpg)
 
-现有界面截图主要摄于 0.4.2，抽象场景截图摄于 0.4.3，控件布局以当前版本为准。
+当前版本 **[0.4.10](https://github.com/mangfufu/director-desk/releases/tag/v0.4.10)** · 新增手绘路径，改善大型模型编辑和深度画面。
 
-## 场景与运镜演示
+## 从一场戏开始
 
-以下动图全部来自软件内置模板的实际摄影机输出，按原速播放，仅降低分辨率和帧率；空房间截取前 8 秒。打开“新建工程 / 模板”即可继续编辑；空白场地也保留供自由搭建。
+1. **搭场景**：打开内置模板，或从空白场地开始，放入人物、家具、建筑和道具。
+2. **排调度**：安排人物动作与走位，摆放摄影机，在时间轴上调整运镜和切镜。
+3. **导出参考**：预览实际摄影机画面，导出视频，再按戏段查看、编辑配套提示词。
 
-| 光影舞台 · 冷暖布光、环绕与变焦 | 悬疑长廊 · 希区柯克变焦 |
+摄影机直接从同一个三维场景取景。布景、并排、拍摄三种视图，方便边调整边看结果。
+
+## 自己制作，或交给 AI
+
+**内置导演助手**：配置模型渠道，用自然语言描述场景和镜头。AI 可以搭景、安排走位、调整运镜；修改后可以定位查看，也可以撤销。还能把选中的人物、轨道片段或时间范围交给 AI，只调整这一部分。
+
+**外部 Agent**：支持 MCP 的 Codex、Claude Code 等 Agent 可以直接操作软件里的当前工程。在 **AI → MCP 连接** 中复制对应配置，再让 Agent 读取内置 Skill，即可开始制作。Claude Desktop 可使用软件附带的本机 stdio 桥接。
+
+![0.4.10 内置导演助手：输入一段舞台调度与镜头要求](docs/images/ai-assistant-0.4.10.jpg)
+
+*上图为任务输入示例，尚未发送。*
+
+配套提示词支持“参考视频”和“纯文本”两种模式，按戏段分别保存。Skill 随软件提供，也支持导入自己的技能并随时启停。
+
+## 把走位画出来
+
+选中人物，在“走位”中选择“手绘”，按住鼠标画出路线，松开后可以继续画。支持地面和物体表面，楼梯、平台也能作为落点。画完仍可修改途经点与时间，摄影机路径同样支持手绘。
+
+![0.4.10 手绘走位：在街道场景中绘制路线并设置时长](docs/images/freehand-path-0.4.10.jpg)
+
+喜欢直接操作，也可以用键盘控制白模并录制走位。位置和动作会进入时间轴，之后继续调整；从中途录制时保留前段调度。
+
+## 普通视频与深度视频
+
+同一套人物、场景和运镜，可以导出普通参考视频，也可以导出灰度深度视频。近远范围、黑白反转与曲线都能调整，也能从当前画面或选中对象取范围。
+
+| 普通画面 | 深度画面 |
 | --- | --- |
-| ![光影舞台实际运镜](docs/images/light-stage.gif) | ![悬疑长廊：主体大小稳定，背景空间变化](docs/images/dolly-hall.gif) |
-| 夜街追逐 · 双人奔跑、手持晃动与广角畸变 | 卧室 · 四人调度、窗光与床头暖灯 |
-| ![夜街追逐实际运镜](docs/images/neon-chase.gif) | ![卧室四人调度](docs/images/bedroom.gif) |
-| 空房间 · 窗光、木地板，留空布置 | 林地空地 · 树群、步道与双人调度 |
-| ![空房间场景预览](docs/images/room.gif) | ![林地空地人物与摄影机运动](docs/images/park.gif) |
-| 街道 · 黄昏商铺、人行道与路灯 | 庭院 · 门架、格栅凉棚与台阶平台 |
-| ![黄昏街道预览](docs/images/street.gif) | ![庭院场景预览](docs/images/courtyard.gif) |
+| ![悬疑长廊的普通摄影机画面](docs/images/depth-color-0.4.10.png) | ![同一时刻、同一摄影机的深度画面](docs/images/depth-depth-0.4.10.png) |
+
+*两张图来自同一场景、同一时刻。深度视频保留人物走位、镜头运动与切镜。*
 
 <details>
-<summary>查看模板选择界面</summary>
+<summary>查看深度画面的编辑界面</summary>
 
-![新版场景模板选择界面](docs/images/templates.jpg)
+![0.4.10 深度预览与范围、曲线控件](docs/images/depth-workspace-0.4.10.jpg)
+
+在摄影机画面下方切换“深度画面”；导出时选择“深度视频”。
 
 </details>
 
-![0.4.3 流光空间：粒子、薄膜、形变与光学材质的实际摄影机输出](docs/images/abstract-stage.png)
+## 更多制作工具
 
-## 能做什么
-
-| 功能 | 用法 |
+| 你要做的事 | 可用功能 |
 | --- | --- |
-| 白模搭景 | 人物、动物、家具、建筑、道路和道具；调整尺寸、颜色与位置，支持物体吸附 |
-| 仅几何体 | 用 16 种几何形状组合、命名、上色，快速表达空间；精细模型模式按需检索资产 |
-| 模型与动作导入 | 导入 GLB/glTF、FBX、OBJ 模型；导入骨架动作或收藏模型自带动作，加入用户动作库 |
-| 人物调度 | 点选或手绘走位路径、基础动作、群演和手持道具绑定；用键盘操控白模并录制路径 |
-| 摄影机 | 同场景真实取景，多机位路径、视线、跟随、POV 和切镜；用连贯运动及“经过／停住”调整节奏，独立设置视线响应 |
-| 运镜与镜头效果 | 运镜预设、希区柯克变焦、手持晃动、畸变、景深与对焦 |
-| 灯光 | 摆放灯光，调整颜色、强度和阴影，编排环境与灯光关键帧 |
-| 图片与视频材质 | 在模型表面贴图或播放视频，裁剪、平铺、调整透明度；也可用聚光灯投影 |
-| 抽象元素 | 粒子、光环、丝带、文字、影响区域、形变和局部空间扭曲，支持关键帧 |
-| 镜面与门户 | 平面镜像和另一台摄影机的实时画面 |
-| 时间轴与曲线 | Ctrl 多选、整组移动与延长、分割、删除和时间范围选择；用曲线控制加速、减速与停顿 |
-| 多场戏接拍 | 同工程管理独立戏段，从上一段末帧继承场景与人物状态 |
-| 导出 | 单场或批量导出视频、修改输出文件名，保存工程与素材包；可选人物名称标签 |
-| 深度视频 | 预览和导出灰度画面，取景范围采样、曲线调节和黑白反转；支持动态粒子及批量戏段导出 |
-| AI 协作 | 内置助手和 MCP Agent 按需查询空间、编辑当前工程；选中人物、片段或时间范围后交给 AI 局部调整 |
-| 提示词与技能 | 参考视频／纯文本提示词按戏段独立保存、切换和导出；导入、下载和启停自定义技能，支持离线生成工程 |
+| 快速搭景 | 内置白模、几何体组合、颜色区分、尺寸调整与物体吸附 |
+| 使用自己的资产 | 导入 GLB/glTF、FBX、OBJ 模型；导入动作，收藏到用户动作库 |
+| 设计镜头 | 多摄影机、POV、变焦、希区柯克效果、手持晃动、畸变、景深与对焦 |
+| 调整画面 | 灯光与阴影、图片／视频表面、镜面、粒子、形变及关键帧 |
+| 编排多场戏 | 独立戏段、末帧接拍、时间轴多选、分割和速度曲线 |
+| 整理交付 | 单场／批量视频导出、工程保存、素材包、可选人物名称标签 |
+
+## 内置场景，打开就能改
+
+以下动图来自软件的实际摄影机输出，按原速播放，降低了分辨率和帧率。
+
+| 夜街追逐 · 奔跑与手持运镜 | 悬疑长廊 · 希区柯克变焦 |
+| --- | --- |
+| ![夜街追逐实际运镜](docs/images/neon-chase.gif) | ![悬疑长廊实际运镜](docs/images/dolly-hall.gif) |
 
 <details>
-<summary>查看灯光与摄影机设置</summary>
+<summary>更多模板：光影舞台、卧室、街道、庭院与林地</summary>
 
-![光影舞台：直接调整灯光强度、颜色和阴影](docs/images/lighting.jpg)
+| 光影舞台 | 卧室 · 四人调度 |
+| --- | --- |
+| ![光影舞台](docs/images/light-stage.gif) | ![卧室四人调度](docs/images/bedroom.gif) |
+| 空房间 | 林地空地 |
+| ![空房间，截取前 8 秒](docs/images/room.gif) | ![林地空地](docs/images/park.gif) |
+| 黄昏街道 | 庭院 |
+| ![黄昏街道](docs/images/street.gif) | ![庭院](docs/images/courtyard.gif) |
 
-![悬疑长廊：摄影机取景与参数](docs/images/camera-path.jpg)
+流光空间：粒子、薄膜、镜面和形变。
+
+![流光空间实际摄影机输出](docs/images/abstract-stage.png)
 
 </details>
 
-## 让 AI 直接操作
+## 下载与使用
 
-**内置导演助手**：配置模型渠道，用自然语言提出搭景、走位和镜头调整要求。助手窗口可拖动、缩放和收起，支持执行与讨论模式。
+到 [Releases](https://github.com/mangfufu/director-desk/releases/latest) 下载 **Windows 安装版**，或完整解压 **免安装 ZIP** 后运行 `DirectorDesk.exe`。两种版本都包含配套 Skill。
 
-![新版导演助手：光影舞台中的任务输入示例，尚未发送](docs/images/ai-assistant.jpg)
+在设置中选择默认工程和导出目录。软件支持官网与 GitHub 检查更新；安装版可下载后重启安装，免安装版下载新的 ZIP。
 
-**外部 MCP Agent**：在桌面版的 **AI → MCP 连接** 中启用服务、复制连接配置。让支持 MCP 的 Agent 读取内置 `director_skill`，即可查询指定时刻的位置、理解空间关系并编辑当前工程。成功修改可以定位查看，也可以撤销。 可选择 Claude Code、Claude Desktop、通用 HTTP 或 stdio 配置；stdio 桥接随软件提供，无需另装 Node.js。连接方式见 [MCP 使用说明](skills/director-desk/references/editing.md#连接与旧版软件)。
-
-同机使用可选 HTTP 或内置 stdio 桥接；局域网连接使用通用 HTTP 或 Claude Code 配置。Claude Desktop／stdio 配置用于本机连接。
-
-**自定义技能**：在 **AI → 技能** 导入自己的 SKILL.md 或技能文件夹，也可从公开 GitHub 技能目录下载，自由启用、停用和更新。技能保存在本机，软件升级保留用户技能。
-
-配套 [skill 与离线工具](skills/director-desk/) 随软件提供，也可独立下载；核心说明简明，镜头、媒体、编辑及提示词细节按需读取。没有 MCP 时，Agent 仍可生成可导入网页版本的 .director 工程文件。
-
-## 开始使用
-
-1. 从 [Releases](https://github.com/mangfufu/director-desk/releases/latest) 下载 Windows 安装包或免安装 ZIP。
-2. 安装后启动，或完整解压 ZIP 后运行 DirectorDesk.exe。
-3. 选择场景模板，摆放人物与道具，在时间轴上编排动作和镜头。
-4. 播放预览，导出参考视频；点击戏段旁的“提示词”，切换参考视频或纯文本模式，分别编辑、复制或导出文案。素材包附带各戏段已保存的两种文稿。
-
-齿轮设置中可配置默认工程与导出目录。导出时选择“批量戏段”，勾选需要的戏段并修改文件名，各段沿用自己的画幅、时长和切镜。
-
-“用户动作库”支持预览、命名、搜索和骨架映射，可跨工程使用。已应用动作的源素材随工程保存，删除本机收藏不影响已有工程。
-
-Windows 版启动时检查网站和 GitHub 的最新正式版本，也可手动检查。安装版支持下载后重启安装；免安装版下载新版 ZIP。
-
-## 手绘路径与操控录制
-
-选中人物或摄影机，进入右侧“路径”，将“绘制方式”改为“手绘”，选择“地面”或“物体表面”，设置路线时长后点击“画路线”。按住左键画线，松开后可以续画；完成的路线仍可逐点调整、修改时间和撤销。选择物体表面时，可沿楼梯或平台绘制高低变化的路线。
-
-也可以用键盘操控白模并录制走位。从中途继续录制时，保留前段的位置与朝向；录制后的路径、动作仍可在时间轴编辑。
-
-0.4.10 同时优化了大型导入模型的拖动、时间轴编辑和工程数据处理；OBJ 解析、打包及校验在后台 Worker 中执行，减少主界面阻塞。实际流畅度仍取决于模型面数、材质、贴图与设备性能。
-
-## 深度视频
-
-直接从当前三维场景生成深度画面，沿用摄影机、走位、切镜、变焦和畸变，无需额外识图模型。
-
-1. 在“并排”或“拍摄”视图的摄影机画面下方，将“普通画面”切换为“深度画面”。
-2. 调整“近 / m”和“远 / m”：单位为米，默认近处亮、远处暗，可勾选“反转”。可用“取选中范围”突出主体，或“取画面范围”一次填入当前画面的建议范围；“曲线”默认为 1，大于 1 加强近处层次，小于 1 加强远处。设置随戏段保存。
-3. 打开“导出”，将“画面类型”设为“深度视频”，确认深度范围、分辨率和帧率后导出。批量导出时，所选戏段共用这次设置的深度范围。
-
-深度范围与曲线在整段内固定，不随每帧自动改变。自动取值只采样当前画面；人物大幅走位或切镜时，可手动扩大范围。画面不包含颜色、灯光和人物标签；镜面、透明物体与视频贴图按承载表面输出深度。导出结果是灰度视频，不是无损的米制深度数据。
-
-内置 AI 和 MCP 可调整深度设置，并通过 `director_export({kind:"depth-video"})` 导出。参数见 [深度画面与视频说明](skills/director-desk/references/camera.md#深度画面与视频)。
-
-## 本地开发
-
-准备 Node.js 24+ 和 npm：
-
-```bash
-git clone https://github.com/mangfufu/director-desk.git
-cd director-desk
-npm ci
-npm run dev
-```
-
-按终端显示的地址打开网页。要启动 **Electron 桌面开发版**（包含内置 AI、MCP 和桌面文件功能），执行：
-
-```bash
-npm run desktop:dev
-```
-
-这个命令复用 `desktop:prepare`，先构建网页与独立桌面运行目录，再启动 Electron，无需制作安装包。Windows 和 macOS 使用同一命令。首次使用需安装本机 Chrome，或通过 `CHROME_PATH` 指定 Chrome 路径。
-
-开发版默认将配置、会话和自动恢复数据保存在 `.local/desktop-dev-profile/`，与安装版分开，重启后保留。源码修改后重新运行 `desktop:dev`；此入口不提供热更新。如果没有改代码，只想再次打开已经准备好的版本，可以运行：
-
-```bash
-npm run desktop:start
-```
-
-可通过 `npm run desktop:dev '--' --remote-debugging-port=9222` 传入 Electron 调试参数；网页开发仍使用支持热更新的 `npm run dev`。
-
-首次运行测试，先准备公开测试素材（固定版本、校验下载内容并自动解压）：
-
-```bash
-npm run test:assets
-npm test
-```
-
-素材只保存在不入库、不打包的 `test-assets/external/`，已有校验通过的文件可离线复用。来源、许可文件与 SHA-256 见 `scripts/test-asset-sources.json` 及素材目录；缺少素材时测试会明确提示，不会静默跳过。无需测试时，启动和构建软件不需要下载这些素材。
-
-验证后构建网页或 Windows 安装包：
-
-```bash
-npm run build
-npm run desktop:pack
-```
-
-macOS（Apple Silicon）构建 DMG：
-
-```bash
-npm run desktop:pack:mac
-```
-
-网页产物位于 `dist/`，桌面交付文件位于 `release/`（Windows 为 `DirectorDesk-Setup-<版本>.exe`，macOS 为 `DirectorDesk-<版本>-arm64.dmg`）。桌面构建使用本机 Chrome，可通过 `CHROME_PATH` 指定浏览器。macOS 包未做签名和公证，首次打开如被 Gatekeeper 拦截，请右键点击应用选择“打开”；macOS 版暂不支持应用内自动更新，请从发布页下载新版本。
-
-发布 Windows GitHub Release 时，将构建生成的 `release/latest.yml` 与同版本安装包一起上传，保留文件名。更新客户端按清单校验下载包；缺少清单的历史 Release 仍可检测版本并打开下载页。
-
-从 0.4.8 起支持四段修订号，例如 `0.4.8.1`。三段版本在 `package.json` 的 `version` 与 `shortVersion` 中填写相同值；四段版本使用 `version: "0.4.8+revision.1"`、`shortVersion: "0.4.8.1"`，以兼容 npm 和 Electron。界面、安装包文件名与 GitHub 标签使用四段版本；构建生成的更新清单保留原样即可。更新按四段数字比较，`0.4.8 < 0.4.8.1 < 0.4.9`；早于 0.4.8 的客户端需先升级到 0.4.8。
-
-| 目录 | 内容 |
-| --- | --- |
-| `src/` | 场景、编辑器、动画、渲染和共用自动化工具 |
-| `desktop/` | 桌面入口、AI 协议、MCP 服务和更新客户端 |
-| `skills/director-desk/` | 技能说明与离线工程工具 |
-| `scripts/`、`tests/` | 构建与验证工具 |
-
-## 许可证
-
-项目自有代码采用 [MIT](LICENSE) 许可证。第三方依赖和动作素材保留各自许可，内置动作来源见 [NOTICE](src/animation/library/NOTICE.txt)。
+问题和建议欢迎提交到 [Issues](https://github.com/mangfufu/director-desk/issues)。想参与代码开发或运行网页版，请看 [开发与构建说明](docs/development.md)。
 
 ## Star History
 
@@ -186,6 +111,8 @@ npm run desktop:pack:mac
   </picture>
 </a>
 
-## 友情链接
+## 许可证与友链
+
+项目自有代码采用 [MIT](LICENSE) 许可证。第三方依赖和动作素材保留各自许可，内置动作来源见 [NOTICE](src/animation/library/NOTICE.txt)。
 
 [Linux.do](https://linux.do/)

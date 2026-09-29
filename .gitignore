@@ -27,6 +27,7 @@ release/
 !/docs/
 /docs/*
 !/docs/images/
+!/docs/development.md
 /desktop/icon.ico
 /desktop/icon.icns
 # The generated offline helper is a required, directly usable skill runtime.
